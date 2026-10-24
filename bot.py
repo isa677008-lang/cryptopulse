@@ -7,12 +7,12 @@ from html import escape
 import requests
 from flask import Flask, jsonify, send_from_directory
 
-# Set these in the hosting provider's Environment settings.
 TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
 WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip().rstrip("/")
 
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}" if TOKEN else ""
 BYBIT_API = "https://api.bybit.com/v5/market/tickers"
+BINANCE_API = "https://api.binance.com/api/v3/ticker/24hr"
 COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price"
 
 COINS = [
@@ -23,47 +23,74 @@ COINS = [
 
 app = Flask(__name__, static_folder="static")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": "CryptoPulse/1.0 (market dashboard)"})
 
 
-def get_market_data():
-    """Fetch spot tickers and USDT/RUB rate for the Mini App."""
-    response = requests.get(
-        BYBIT_API, params={"category": "spot"}, timeout=15
-    )
+def get_tickers_bybit():
+    response = SESSION.get(BYBIT_API, params={"category": "spot"}, timeout=12)
     response.raise_for_status()
     payload = response.json()
     if payload.get("retCode") != 0:
-        raise RuntimeError(f"Bybit returned an error: {payload.get('retMsg', 'unknown')}")
-
-    by_symbol = {
-        item.get("symbol"): item
+        raise RuntimeError(f"Bybit API: {payload.get('retMsg', 'unknown error')}")
+    return {
+        item.get("symbol"): {
+            "price": float(item["lastPrice"]),
+            "change": float(item["price24hPcnt"]) * 100,
+        }
         for item in payload.get("result", {}).get("list", [])
-        if item.get("symbol") in COINS
+        if item.get("symbol") in COINS and item.get("lastPrice") and item.get("price24hPcnt") is not None
     }
+
+
+def get_tickers_binance():
+    response = SESSION.get(BINANCE_API, timeout=12)
+    response.raise_for_status()
+    payload = response.json()
+    wanted = set(COINS)
+    result = {}
+    for item in payload:
+        symbol = item.get("symbol")
+        if symbol in wanted:
+            result[symbol] = {
+                "price": float(item["lastPrice"]),
+                "change": float(item["priceChangePercent"]),
+            }
+    if not result:
+        raise RuntimeError("Backup exchange returned no matching tickers")
+    return result
+
+
+def get_market_data():
+    """Get market data from Bybit, with Binance as a fallback."""
+    source = "Bybit Spot"
+    try:
+        market = get_tickers_bybit()
+        if not market:
+            raise RuntimeError("Bybit returned no matching tickers")
+    except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError) as exc:
+        logging.warning("Bybit unavailable (%s); trying Binance fallback", exc)
+        market = get_tickers_binance()
+        source = "Binance Spot (fallback)"
 
     coins = []
     for symbol in COINS:
-        ticker = by_symbol.get(symbol)
-        if not ticker:
+        ticker = market.get(symbol)
+        if ticker is None:
             continue
-        try:
-            price = float(ticker["lastPrice"])
-            change = float(ticker["price24hPcnt"]) * 100
-        except (KeyError, TypeError, ValueError):
-            continue
-
+        price = ticker["price"]
+        change = ticker["change"]
         coins.append({
             "symbol": symbol.replace("USDT", ""),
             "pair": symbol,
             "price": price,
             "change": change,
         })
-
     coins.sort(key=lambda item: item["change"], reverse=True)
 
     rate = None
     try:
-        rate_response = requests.get(
+        rate_response = SESSION.get(
             COINGECKO_API,
             params={"ids": "tether", "vs_currencies": "rub"},
             timeout=10,
@@ -71,13 +98,13 @@ def get_market_data():
         rate_response.raise_for_status()
         rate = float(rate_response.json()["tether"]["rub"])
     except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
-        logging.warning("Could not fetch USDT/RUB rate: %s", exc)
+        logging.warning("Could not fetch USDT/RUB rate from CoinGecko: %s", exc)
 
     return {
         "coins": coins,
         "usdt_rub": rate,
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-        "source": "Bybit Spot",
+        "source": source,
     }
 
 
@@ -90,9 +117,12 @@ def home():
 def api_prices():
     try:
         return jsonify(get_market_data())
-    except (requests.RequestException, RuntimeError, ValueError) as exc:
+    except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError) as exc:
         logging.exception("Market data request failed")
-        return jsonify({"error": "Не удалось получить котировки. Попробуйте ещё раз.", "details": str(exc)}), 502
+        return jsonify({
+            "error": "Не удалось получить котировки. Попробуйте ещё раз.",
+            "details": str(exc),
+        }), 502
 
 
 @app.get("/health")
@@ -103,7 +133,7 @@ def health():
 def telegram_call(method, payload=None, timeout=25):
     if not TOKEN:
         raise RuntimeError("TELEGRAM_TOKEN is not configured")
-    response = requests.post(
+    response = SESSION.post(
         f"{TELEGRAM_API}/{method}",
         json=payload or {},
         timeout=timeout,
@@ -148,75 +178,66 @@ def set_webapp_menu_button():
 
 
 def handle_message(message):
-    chat = message.get("chat") or {}
-    chat_id = chat.get("id")
+    chat_id = (message.get("chat") or {}).get("id")
     text = (message.get("text") or "").strip()
     if not chat_id:
         return
-
     command = text.split()[0].lower().split("@")[0] if text else ""
 
     if command in ("/start", "/help"):
         if WEBAPP_URL:
-            markup = {
-                "inline_keyboard": [[{
-                    "text": "🚀 Открыть CryptoPulse",
-                    "web_app": {"url": WEBAPP_URL},
-                }]]
-            }
+            markup = {"inline_keyboard": [[{
+                "text": "🚀 Открыть CryptoPulse",
+                "web_app": {"url": WEBAPP_URL},
+            }]]}
             send_message(
                 chat_id,
-                "Привет! 👋\n\n"
-                "Открой CryptoPulse, чтобы смотреть цены криптовалют, "
+                "Привет! 👋\n\nОткрой CryptoPulse, чтобы смотреть цены криптовалют, "
                 "изменение за 24 часа и курс USDT/RUB.\n\n"
-                "Котировки предоставляются Bybit Spot. Это не финансовая рекомендация.",
+                "Котировки предназначены для информации и не являются финансовой рекомендацией.",
                 markup,
             )
         else:
-            send_message(
-                chat_id,
-                "Привет! CryptoPulse ещё не опубликован.\n"
-                "После размещения Mini App добавьте WEBAPP_URL в настройки сервера."
-            )
+            send_message(chat_id, "Mini App ещё не настроен: добавьте WEBAPP_URL в переменные окружения Render.")
     elif command in ("/prices", "/rate"):
-        # Keep old commands working while the Mini App becomes the main interface.
         try:
             market = get_market_data()
             if command == "/rate":
                 rate = market["usdt_rub"]
                 answer = "Курс USDT/RUB временно недоступен." if rate is None else f"1 USDT ≈ {rate:.2f} RUB"
             else:
-                rows = ["📊 <b>КРИПТОРЫНОК BYBIT SPOT</b>", "<pre>", f"{'Монета':<11} {'Цена USDT':>14} {'Изм. 24ч':>12}", "─" * 39]
+                rows = [
+                    "📊 <b>КРИПТОРЫНОК</b>",
+                    "<pre>",
+                    f"{'Монета':<11} {'Цена USDT':>14} {'Изм. 24ч':>12}",
+                    "─" * 42,
+                ]
                 for coin in market["coins"]:
                     change = coin["change"]
                     if change > 0:
-                        marker = "🟢 ↑"
-                        change_text = f"+{change:.2f}%"
+                        marker, change_text = "🟢 ↑", f"+{change:.2f}%"
                     elif change < 0:
-                        marker = "🔴 ↓"
-                        change_text = f"{change:.2f}%"
+                        marker, change_text = "🔴 ↓", f"{change:.2f}%"
                     else:
-                        marker = "⚪ →"
-                        change_text = "0.00%"
+                        marker, change_text = "⚪ →", "0.00%"
                     price = coin["price"]
                     price_text = f"{price:.4f}" if price >= 1 else f"{price:.8f}".rstrip("0").rstrip(".")
                     rows.append(f"{coin['symbol']:<11} {price_text:>14} {marker} {change_text}")
                 rows.append("</pre>")
                 rate = market["usdt_rub"]
                 rows.append("💱 USDT/RUB: " + ("курс временно недоступен" if rate is None else f"1 USDT ≈ {rate:.2f} RUB"))
+                rows.append(f"Источник: {escape(market['source'])}")
                 answer = "\n".join(rows)
             send_message(chat_id, answer)
-        except (requests.RequestException, RuntimeError, ValueError) as exc:
+        except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError) as exc:
             logging.exception("Could not answer command: %s", exc)
             send_message(chat_id, "⚠️ Не удалось получить данные рынка. Попробуйте позже.")
 
 
 def telegram_polling():
     if not TOKEN:
-        logging.error("TELEGRAM_TOKEN is missing. Telegram bot polling will not start.")
+        logging.error("TELEGRAM_TOKEN is missing. Telegram polling will not start.")
         return
-
-    # Drop old updates once at startup so stale messages aren't replayed.
     offset = None
     try:
         result = telegram_call("getUpdates", {"timeout": 1}, timeout=5)

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cryptopulse-miniapp
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn bot:app --workers 1 --threads 8 --timeout 60
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: WEBAPP_URL
+        sync: false

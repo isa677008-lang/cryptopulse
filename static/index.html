@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0e17">
+  <title>CryptoPulse</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0e17; --panel: #111827; --panel2: #151e2e;
+      --text: #eef3fb; --muted: #8b9bb2; --line: #253248;
+      --green: #31d69a; --red: #ff657a; --accent: #7c9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: radial-gradient(ellipse at top, #15213a 0%, var(--bg) 48%);
+      color: var(--text); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh; padding: 18px 14px calc(28px + env(safe-area-inset-bottom));
+    }
+    .app { max-width: 850px; margin: 0 auto; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 6px 2px 20px; }
+    .brand { display:flex; gap:11px; align-items:center; }
+    .logo { width:43px; height:43px; display:grid; place-items:center; border-radius:14px;
+      background:linear-gradient(135deg,#8b5cf6,#36c9ff); font-size:22px; box-shadow:0 8px 30px #4d7cff30; }
+    h1 { font-size:22px; letter-spacing:-.6px; margin:0; }
+    .subtitle { color:var(--muted); font-size:12px; margin-top:4px; }
+    .live { display:flex; align-items:center; gap:6px; color:#9fb2c9; font-size:11px; white-space:nowrap; }
+    .dot { width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px #31d69a80; }
+    .rate-card { background:linear-gradient(135deg,#192944,#132237 70%,#172b31); border:1px solid #2d4560;
+      border-radius:22px; padding:19px; margin-bottom:16px; position:relative; overflow:hidden; }
+    .rate-card:after { content:"₮"; position:absolute; right:16px; top:-20px; font-size:100px; font-weight:800; color:#ffffff08; }
+    .eyebrow { color:#9eb2cc; text-transform:uppercase; letter-spacing:1.3px; font-size:10px; font-weight:700; }
+    .rate-value { font-size:clamp(28px,7vw,38px); letter-spacing:-1px; font-weight:750; margin:8px 0 4px; }
+    .rate-foot { color:#a7b8cc; font-size:12px; }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:22px 2px 12px; }
+    h2 { font-size:17px; margin:0; letter-spacing:-.3px; }
+    button { border:1px solid #31425b; background:#172338; color:var(--text); border-radius:12px; padding:10px 13px; font-weight:650; cursor:pointer; }
+    button:active { transform:scale(.98); }
+    button:disabled { opacity:.55; cursor:wait; }
+    .status { color:var(--muted); font-size:11px; margin:0 2px 10px; }
+    .table-wrap { border:1px solid var(--line); border-radius:17px; overflow:hidden; background:#101725eF; }
+    table { border-collapse:collapse; width:100%; font-size:13px; }
+    thead { background:#182338; color:#91a3bc; font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
+    th { text-align:right; padding:13px 10px; font-weight:700; }
+    th:first-child { text-align:left; padding-left:14px; }
+    td { padding:13px 10px; border-top:1px solid #202c3e; text-align:right; white-space:nowrap; }
+    td:first-child { text-align:left; padding-left:14px; }
+    .coin { display:flex; align-items:center; gap:9px; }
+    .coin-icon { width:31px;height:31px;display:grid;place-items:center;border-radius:11px;background:#1b2940;color:#b6c8e1;font-size:11px;font-weight:800; }
+    .coin-name { font-weight:750; }
+    .pair { color:var(--muted); font-size:10px; margin-top:3px; }
+    .price { font-variant-numeric:tabular-nums; font-weight:650; }
+    .change { font-weight:750; font-variant-numeric:tabular-nums; }
+    .up { color:var(--green); } .down { color:var(--red); } .flat { color:#a9b5c7; }
+    .arrow { display:inline-block; margin-right:3px; font-size:15px; }
+    .error { color:#ff9cab; background:#391b29; border:1px solid #673042; padding:12px; border-radius:12px; margin:10px 0; display:none; }
+    footer { color:#6f8199; font-size:10px; text-align:center; line-height:1.6; margin:18px 8px 0; }
+    @media(max-width:420px) {
+      body { padding-left:10px; padding-right:10px; }
+      th { padding:11px 6px; font-size:9px; } td { padding:11px 6px; font-size:12px; }
+      td:first-child, th:first-child { padding-left:9px; }
+      .coin { gap:6px; } .coin-icon { width:27px;height:27px;border-radius:9px;font-size:10px; }
+      .hide-small { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">ϟ</div>
+        <div><h1>CryptoPulse</h1><div class="subtitle">Крипторынок в реальном времени</div></div>
+      </div>
+      <div class="live"><span class="dot"></span> BYBIT SPOT</div>
+    </header>
+
+    <section class="rate-card">
+      <div class="eyebrow">Курс стейблкоина</div>
+      <div class="rate-value" id="rate">— RUB</div>
+      <div class="rate-foot">1 USDT · ориентировочный курс к рублю</div>
+    </section>
+
+    <div class="toolbar">
+      <h2>Рынок <span style="color:#8b9bb2;font-weight:500">· 24 часа</span></h2>
+      <button id="refresh">↻ Обновить</button>
+    </div>
+    <div class="status" id="status">Загружаем котировки…</div>
+    <div class="error" id="error"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Актив</th><th>Цена <span class="hide-small">USDT</span></th><th>24ч</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="3" style="text-align:center;color:#8b9bb2;padding:28px">Получаем данные рынка…</td></tr></tbody>
+      </table>
+    </div>
+
+    <footer>
+      Данные спотового рынка Bybit · Курс USDT/RUB — CoinGecko.<br>
+      Котировки могут задерживаться. Не является финансовой рекомендацией.
+    </footer>
+  </main>
+
+<script>
+(() => {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+  const rows = document.getElementById("rows");
+  const rate = document.getElementById("rate");
+  const status = document.getElementById("status");
+  const errorBox = document.getElementById("error");
+  const refresh = document.getElementById("refresh");
+  let busy = false;
+
+  function fmtPrice(value) {
+    if (value >= 1000) return value.toLocaleString("en-US", {maximumFractionDigits: 2});
+    if (value >= 1) return value.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 4});
+    return value.toLocaleString("en-US", {maximumFractionDigits: 8});
+  }
+  function changeView(change) {
+    if (change > 0) return { cls: "up", arrow: "↑", sign: "+" };
+    if (change < 0) return { cls: "down", arrow: "↓", sign: "" };
+    return { cls: "flat", arrow: "→", sign: "" };
+  }
+  async function loadPrices() {
+    if (busy) return;
+    busy = true; refresh.disabled = true; refresh.textContent = "↻ Загрузка…";
+    errorBox.style.display = "none";
+    try {
+      const response = await fetch("/api/prices", {cache: "no-store"});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Ошибка загрузки котировок");
+      rows.innerHTML = "";
+      for (const coin of data.coins) {
+        const view = changeView(coin.change);
+        const tr = document.createElement("tr");
+        const tdCoin = document.createElement("td");
+        const coinDiv = document.createElement("div");
+        coinDiv.className = "coin";
+        const icon = document.createElement("span");
+        icon.className = "coin-icon";
+        icon.textContent = coin.symbol.slice(0, 3);
+        const labels = document.createElement("div");
+        const name = document.createElement("div"); name.className = "coin-name"; name.textContent = coin.symbol;
+        const pair = document.createElement("div"); pair.className = "pair"; pair.textContent = coin.pair;
+        labels.append(name, pair); coinDiv.append(icon, labels); tdCoin.append(coinDiv);
+
+        const tdPrice = document.createElement("td"); tdPrice.className = "price";
+        tdPrice.textContent = fmtPrice(coin.price);
+        const tdChange = document.createElement("td"); tdChange.className = "change " + view.cls;
+        const arrow = document.createElement("span"); arrow.className = "arrow"; arrow.textContent = view.arrow;
+        tdChange.append(arrow, document.createTextNode(view.sign + coin.change.toFixed(2) + "%"));
+        tr.append(tdCoin, tdPrice, tdChange); rows.appendChild(tr);
+      }
+      rate.textContent = data.usdt_rub == null ? "Недоступно" : data.usdt_rub.toLocaleString("ru-RU", {minimumFractionDigits:2, maximumFractionDigits:2}) + " ₽";
+      status.textContent = "Обновлено: " + data.updated_at + " · " + data.coins.length + " активов";
+    } catch (err) {
+      errorBox.textContent = err.message || "Не удалось получить котировки. Попробуйте ещё раз.";
+      errorBox.style.display = "block";
+      status.textContent = "Не удалось обновить данные";
+    } finally {
+      busy = false; refresh.disabled = false; refresh.textContent = "↻ Обновить";
+    }
+  }
+  refresh.addEventListener("click", loadPrices);
+  loadPrices();
+  setInterval(loadPrices, 60000);
+})();
+</script>
+</body>
+</html>

@@ -1,295 +1,759 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b1220">
-<title>CryptoPulse — криптовалюты в USD и RUB</title>
-<style>
-:root{
-  color-scheme:dark;
-  --bg:#0b1220;
-  --line:#24324a;
-  --muted:#91a2bb;
-  --text:#f3f6fb;
-  --accent:#58d6a3;
-}
-*{box-sizing:border-box}
-body{
-  margin:0;
-  background:radial-gradient(ellipse at top,#172744,var(--bg) 55%);
-  font-family:system-ui,sans-serif;
-  color:var(--text);
-  min-height:100vh;
-}
-.wrap{max-width:1150px;margin:auto;padding:28px 16px 48px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
-.brand{font-size:1.45rem;font-weight:800}
-.brand span{color:var(--accent)}
-.sub,.label,th,.footer{color:var(--muted)}
-.sub{margin-top:5px}
-button{
-  border:1px solid #36506e;background:#1b2b43;color:var(--text);
-  border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer
-}
-button:disabled{opacity:.6;cursor:wait}
-.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}
-.card{background:#121d30;border:1px solid var(--line);border-radius:16px;padding:16px}
-.label,th{font-size:.82rem}
-.value{font-size:1.05rem;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
-.notice{padding:12px 14px;border-radius:12px;background:#15243a;color:#bfd0e6;margin:14px 0;line-height:1.5}
-.error{background:#3b1b26;color:#ffd4dc}
-.tablebox{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#121d30}
-table{width:100%;border-collapse:collapse;min-width:830px}
-th,td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
-th{font-weight:600;white-space:nowrap}
-tbody tr:last-child td{border-bottom:0}
-tbody tr:hover{background:#17253a}
-.asset{display:flex;align-items:center;gap:11px;min-width:175px}
-.logo{width:36px;height:36px;object-fit:contain;border-radius:50%;background:#fff;flex-shrink:0}
-.logo-fallback{
-  display:none;width:36px;height:36px;border-radius:50%;background:#253651;
-  align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0
-}
-.coin{font-weight:750}
-.symbol{color:var(--muted);font-size:.82rem;margin-top:3px}
-.price{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-.price-rub{font-size:.82rem;color:var(--muted);margin-top:4px;white-space:nowrap}
-.positive{color:#62e6ad}
-.negative{color:#ff8294}
-.muted{color:var(--muted)}
-.pill{
-  display:inline-block;border:1px solid #36506e;border-radius:999px;
-  padding:3px 8px;font-size:.75rem;color:#bfd0e6
-}
-.footer{font-size:.82rem;margin-top:16px;line-height:1.6}
-@media(max-width:650px){
-  .summary{grid-template-columns:1fr}
-  .wrap{padding-top:20px}
-  .card{padding:13px}
-  th,td{padding:11px 12px}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CryptoPulse — мониторинг криптовалют</title>
+
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #080d18;
+            --panel: #111a2b;
+            --panel-light: #18243a;
+            --border: #27344b;
+            --text: #edf3ff;
+            --muted: #8c9ab2;
+            --green: #25d69a;
+            --red: #ff6179;
+            --blue: #65a8ff;
+            --yellow: #ffc857;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background:
+                radial-gradient(
+                    circle at 10% 0%,
+                    #152b4c 0,
+                    transparent 35%
+                ),
+                var(--bg);
+            color: var(--text);
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 34px 0 48px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 26px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 15px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #4b8cff, #7c5cff);
+            font-size: 24px;
+            font-weight: 900;
+            box-shadow: 0 8px 28px #3869d344;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(23px, 4vw, 32px);
+            letter-spacing: -0.8px;
+        }
+
+        .subtitle {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 10px 14px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--yellow);
+        }
+
+        .dot.online {
+            background: var(--green);
+            box-shadow: 0 0 12px #25d69a66;
+        }
+
+        .dot.offline {
+            background: var(--red);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            padding: 20px;
+            border-radius: 17px;
+            background: linear-gradient(
+                145deg,
+                var(--panel-light),
+                var(--panel)
+            );
+            border: 1px solid var(--border);
+        }
+
+        .card-label {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 13px;
+        }
+
+        .card-value {
+            font-size: clamp(18px, 3vw, 27px);
+            font-weight: 750;
+            overflow-wrap: anywhere;
+        }
+
+        .card-note {
+            margin-top: 9px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .section {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .updated {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        button {
+            border: 1px solid #36517b;
+            background: #20385d;
+            color: var(--text);
+            border-radius: 9px;
+            padding: 9px 13px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2a4978;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 680px;
+        }
+
+        th,
+        td {
+            text-align: right;
+            padding: 16px 20px;
+            border-bottom: 1px solid #202c40;
+            white-space: nowrap;
+        }
+
+        th {
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            font-weight: 650;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        tbody tr:hover {
+            background: #ffffff05;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .coin {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .coin-icon {
+            width: 36px;
+            height: 36px;
+            flex-shrink: 0;
+            display: grid;
+            place-items: center;
+            border-radius: 11px;
+            background: #263550;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .coin-symbol {
+            font-weight: 750;
+            font-size: 13px;
+        }
+
+        .coin-name {
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .price {
+            font-weight: 700;
+        }
+
+        .positive {
+            color: var(--green);
+        }
+
+        .negative {
+            color: var(--red);
+        }
+
+        .neutral {
+            color: var(--muted);
+        }
+
+        .message {
+            padding: 28px 20px;
+            color: var(--muted);
+            text-align: center;
+            font-size: 13px;
+        }
+
+        .notice {
+            margin-top: 18px;
+            padding: 15px 17px;
+            border-radius: 13px;
+            background: #142139;
+            border: 1px solid #273b5c;
+            color: #b5c9e9;
+            font-size: 12px;
+            line-height: 1.65;
+        }
+
+        .notice strong {
+            color: var(--text);
+        }
+
+        .error {
+            color: var(--red);
+        }
+
+        footer {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 22px;
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        @media (max-width: 720px) {
+            .container {
+                width: calc(100% - 20px);
+                padding-top: 22px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .section-header {
+                padding: 16px;
+            }
+
+            th,
+            td {
+                padding: 14px 13px;
+            }
+        }
+    </style>
 </head>
+
 <body>
-<main class="wrap">
-<header class="top">
-  <div>
-    <div class="brand">Crypto<span>Pulse</span></div>
-    <div class="sub">Текущие цены, USD/RUB и динамика за 1 и 24 часа</div>
-  </div>
-  <button id="refresh">↻ Обновить</button>
-</header>
+<div class="container">
 
-<section class="summary">
-  <div class="card">
-    <div class="label">Монет в списке</div>
-    <div class="value" id="count">15</div>
-  </div>
-  <div class="card">
-    <div class="label">Источник котировок</div>
-    <div class="value" id="source">Загрузка…</div>
-  </div>
-  <div class="card">
-    <div class="label">Последнее получение данных</div>
-    <div class="value" id="updated">—</div>
-  </div>
-</section>
+    <header>
+        <div class="brand">
+            <div class="logo">₿</div>
 
-<div id="notice" class="notice">Загружаем котировки…</div>
+            <div>
+                <h1>CryptoPulse</h1>
+                <div class="subtitle">
+                    Мониторинг криптовалют в реальном времени
+                </div>
+            </div>
+        </div>
 
-<div class="tablebox">
-<table>
-<thead>
-<tr>
-  <th>Актив</th>
-  <th>Текущая цена</th>
-  <th>За 1 час</th>
-  <th>За 24 часа</th>
-</tr>
-</thead>
-<tbody id="prices"></tbody>
-</table>
+        <div class="status">
+            <span class="dot" id="connectionDot"></span>
+            <span id="connectionText">Подключение...</span>
+        </div>
+    </header>
+
+    <div class="cards">
+        <div class="card">
+            <div class="card-label">Курс USD / RUB</div>
+            <div class="card-value" id="usdRub">—</div>
+            <div class="card-note">Обновляется автоматически</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Рыночные данные</div>
+            <div class="card-value" id="marketSource">—</div>
+            <div class="card-note" id="marketSourceNote">
+                Источник цен
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">История цен</div>
+            <div class="card-value" id="databaseState">—</div>
+            <div class="card-note" id="databaseNote">
+                Проверка базы данных
+            </div>
+        </div>
+    </div>
+
+    <section class="section">
+        <div class="section-header">
+            <h2>Рынок криптовалют</h2>
+
+            <div class="actions">
+                <span class="updated" id="updatedAt">
+                    Ожидание данных...
+                </span>
+
+                <button id="refreshButton" type="button">
+                    Обновить
+                </button>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Актив</th>
+                    <th>Цена USD</th>
+                    <th>Цена RUB</th>
+                    <th>Изменение 1ч</th>
+                    <th>Изменение 24ч</th>
+                </tr>
+                </thead>
+
+                <tbody id="pricesBody">
+                <tr>
+                    <td colspan="5" class="message">
+                        Загружаем рыночные данные...
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="notice">
+        <strong>Как работает история цен</strong><br>
+        Исторические наблюдения сохраняются в PostgreSQL, если база
+        настроена и доступна. После перезапуска сервиса сохранённые
+        наблюдения загружаются повторно. Изменение за час появится,
+        когда будет доступна подходящая точка примерно часовой давности.
+        Если данных недостаточно, вместо выдуманного процента показывается
+        «Недостаточно данных».<br><br>
+
+        <strong>Режим работы:</strong> мониторинг и симуляция.
+        Реальные торговые ордера отключены.
+    </div>
+
+    <footer>
+        <span>CryptoPulse · Информационный мониторинг</span>
+        <span id="footerStatus">Подготовка...</span>
+    </footer>
+
 </div>
-
-<div class="footer">
-  Цены отображаются в USD и в приблизительном эквиваленте RUB по справочному курсу USD/RUB.
-  Рублёвый пересчёт не является биржевой ценой USDT/RUB.
-  Изменение за 1 час рассчитывается по сохранённым наблюдениям и появится после накопления истории.
-  После перезапуска сервера история начинается заново. Если источник ограничивает запросы,
-  данные могут быть устаревшими или временно недоступными.
-  Рыночные данные не являются инвестиционной рекомендацией.
-</div>
-</main>
 
 <script>
-const $ = id => document.getElementById(id);
+    const REFRESH_INTERVAL = 60000;
 
-const fallbackCoins = [
-  ["BTC","Bitcoin"],["ETH","Ethereum"],["USDT","Tether"],
-  ["BNB","BNB"],["XRP","XRP"],["USDC","USD Coin"],
-  ["SOL","Solana"],["TRX","TRON"],["DOGE","Dogecoin"],
-  ["TON","Toncoin"],["ADA","Cardano"],["BCH","Bitcoin Cash"],
-  ["LINK","Chainlink"],["AVAX","Avalanche"],["LTC","Litecoin"]
-];
+    const SYMBOLS = {
+        BTC: "₿",
+        ETH: "Ξ",
+        BNB: "BNB",
+        XRP: "XRP",
+        SOL: "SOL",
+        DOGE: "Ð",
+        ADA: "ADA",
+        TRX: "TRX",
+        AVAX: "AVAX",
+        LINK: "LINK",
+        DOT: "DOT",
+        LTC: "Ł",
+        BCH: "BCH",
+        SHIB: "SHIB",
+        TON: "TON"
+    };
 
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[c]));
-}
+    const elements = {
+        connectionDot: document.getElementById("connectionDot"),
+        connectionText: document.getElementById("connectionText"),
+        usdRub: document.getElementById("usdRub"),
+        marketSource: document.getElementById("marketSource"),
+        marketSourceNote: document.getElementById("marketSourceNote"),
+        databaseState: document.getElementById("databaseState"),
+        databaseNote: document.getElementById("databaseNote"),
+        updatedAt: document.getElementById("updatedAt"),
+        pricesBody: document.getElementById("pricesBody"),
+        footerStatus: document.getElementById("footerStatus"),
+        refreshButton: document.getElementById("refreshButton")
+    };
 
-function numberValue(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
+    function formatUsd(value) {
+        if (value === null || value === undefined ||
+            !Number.isFinite(Number(value))) {
+            return "—";
+        }
 
-function formatMoney(value, currency) {
-  const n = numberValue(value);
-  if (n === null) return '<span class="muted">Нет данных</span>';
+        const number = Number(value);
 
-  const digits = n >= 1000 ? 2 : n >= 1 ? 4 : 8;
-  return new Intl.NumberFormat("ru-RU", {
-    style:"currency",
-    currency,
-    minimumFractionDigits: n < 1 ? Math.min(digits, 4) : 2,
-    maximumFractionDigits: digits
-  }).format(n);
-}
-
-function formatChange(value) {
-  const n = numberValue(value);
-  if (n === null) return '<span class="muted">Собираем данные</span>';
-
-  const cls = n > 0 ? "positive" : n < 0 ? "negative" : "muted";
-  return `<span class="${cls}">${n > 0 ? "+" : ""}${n.toFixed(2)}%</span>`;
-}
-
-function coinRow(coin) {
-  const symbol = String(coin.symbol || "").toUpperCase();
-  const name = coin.name || symbol || "Неизвестная монета";
-  const image = typeof coin.image === "string" ? coin.image : "";
-  const safeImage = /^https:\/\/[a-z0-9.-]+\//i.test(image) ? image : "";
-  const fallback = symbol.slice(0, 4) || "?";
-  const usd = formatMoney(coin.price, "USD");
-  const rub = formatMoney(coin.priceRub, "RUB");
-  const source = coin.source || "";
-  const reference = coin.priceIsReference
-    ? '<div class="price-rub">Справочная цена</div>' : "";
-
-  return `<tr>
-    <td>
-      <div class="asset">
-        <img class="logo"
-             src="${escapeHtml(safeImage)}"
-             alt=""
-             loading="lazy"
-             ${safeImage ? "" : "hidden"}
-             onerror="this.hidden=true;this.nextElementSibling.style.display='flex'">
-        <span class="logo-fallback"
-              style="${safeImage ? "" : "display:flex"}">${escapeHtml(fallback)}</span>
-        <div>
-          <div class="coin">${escapeHtml(name)}</div>
-          <div class="symbol">${escapeHtml(symbol)}</div>
-        </div>
-      </div>
-    </td>
-    <td>
-      <div class="price">${usd}</div>
-      <div class="price-rub">${rub}</div>
-      ${reference}
-    </td>
-    <td>${formatChange(coin.change1h)}</td>
-    <td>${formatChange(coin.change24h)}</td>
-  </tr>`;
-}
-
-function showFallback() {
-  $("prices").innerHTML = fallbackCoins.map(([symbol, name]) =>
-    coinRow({
-      symbol, name, price:null, priceRub:null,
-      change1h:null, change24h:null, image:null
-    })
-  ).join("");
-}
-
-async function load() {
-  const button = $("refresh");
-  button.disabled = true;
-  button.textContent = "Загрузка…";
-
-  try {
-    const response = await fetch("/api/prices", {cache:"no-store"});
-    const data = await response.json();
-
-    if (!response.ok || !Array.isArray(data.prices)) {
-      throw new Error(data.error || "Не удалось получить список монет");
+        return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits:
+                number >= 1000 ? 2 :
+                number >= 1 ? 4 : 8
+        }).format(number);
     }
 
-    const received = new Map(
-      data.prices.map(c => [String(c.symbol || "").toUpperCase(), c])
+    function formatRub(value) {
+        if (value === null || value === undefined ||
+            !Number.isFinite(Number(value))) {
+            return "—";
+        }
+
+        return new Intl.NumberFormat("ru-RU", {
+            style: "currency",
+            currency: "RUB",
+            maximumFractionDigits: 2
+        }).format(Number(value));
+    }
+
+    function formatPercent(value) {
+        if (value === null || value === undefined ||
+            !Number.isFinite(Number(value))) {
+            return {
+                text: "Недостаточно данных",
+                className: "neutral"
+            };
+        }
+
+        const number = Number(value);
+
+        return {
+            text: `${number > 0 ? "+" : ""}${number.toFixed(2)}%`,
+            className:
+                number > 0 ? "positive" :
+                number < 0 ? "negative" :
+                "neutral"
+        };
+    }
+
+    function setConnection(online, text) {
+        elements.connectionDot.className =
+            "dot " + (online ? "online" : "offline");
+
+        elements.connectionText.textContent = text;
+    }
+
+    function renderPercent(value) {
+        const formatted = formatPercent(value);
+
+        return `
+            <span class="${formatted.className}">
+                ${formatted.text}
+            </span>
+        `;
+    }
+
+    function renderCoins(coins) {
+        if (!Array.isArray(coins) || coins.length === 0) {
+            elements.pricesBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="message">
+                        Нет доступных рыночных данных.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        elements.pricesBody.innerHTML = coins.map(coin => {
+            const symbol = String(coin.symbol || "");
+            const name = String(coin.name || symbol);
+            const icon = SYMBOLS[symbol] || symbol.slice(0, 4);
+
+            return `
+                <tr>
+                    <td>
+                        <div class="coin">
+                            <div class="coin-icon">
+                                ${escapeHtml(icon)}
+                            </div>
+
+                            <div>
+                                <div class="coin-symbol">
+                                    ${escapeHtml(symbol)}
+                                </div>
+
+                                <div class="coin-name">
+                                    ${escapeHtml(name)}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td class="price">
+                        ${formatUsd(coin.priceUsd)}
+                    </td>
+
+                    <td class="price">
+                        ${formatRub(coin.priceRub)}
+                    </td>
+
+                    <td>
+                        ${renderPercent(coin.change1h)}
+                    </td>
+
+                    <td>
+                        ${renderPercent(coin.change24h)}
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[char]);
+    }
+
+    function renderDatabaseStatus(data) {
+        const configured = Boolean(
+            data.databaseConfigured
+        );
+
+        const available = Boolean(
+            data.databaseAvailable
+        );
+
+        if (configured && available) {
+            elements.databaseState.textContent = "PostgreSQL";
+            elements.databaseNote.textContent =
+                "История сохраняется в базе";
+        } else if (configured) {
+            elements.databaseState.textContent =
+                "Нет соединения";
+
+            elements.databaseNote.textContent =
+                "Проверь подключение базы данных";
+        } else {
+            elements.databaseState.textContent =
+                "Только RAM";
+
+            elements.databaseNote.textContent =
+                "DATABASE_URL не настроен";
+        }
+    }
+
+    async function loadPrices() {
+        elements.refreshButton.disabled = true;
+        elements.footerStatus.textContent = "Обновление...";
+
+        try {
+            const response = await fetch(
+                "/api/prices",
+                {
+                    cache: "no-store",
+                    headers: {
+                        "Accept": "application/json"
+                    }
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(
+                    data.error || "Ошибка загрузки данных"
+                );
+            }
+
+            setConnection(true, "Сервис подключён");
+
+            renderCoins(data.coins);
+
+            elements.usdRub.textContent =
+                formatRub(data.usdRub);
+
+            elements.marketSource.textContent =
+                data.source
+                    ? data.source.toUpperCase()
+                    : "—";
+
+            elements.marketSourceNote.textContent =
+                data.warning
+                    ? "Есть проблемы с источником цен"
+                    : "Источник рыночных данных";
+
+            renderDatabaseStatus(data);
+
+            if (data.updatedAt) {
+                const date = new Date(data.updatedAt);
+
+                elements.updatedAt.textContent =
+                    "Обновлено: " +
+                    date.toLocaleTimeString("ru-RU");
+            }
+
+            elements.footerStatus.textContent =
+                data.warning
+                    ? "Некоторые источники недоступны"
+                    : "Данные получены";
+
+        } catch (error) {
+            console.error("CryptoPulse:", error);
+
+            setConnection(false, "Ошибка соединения");
+
+            elements.footerStatus.textContent =
+                "Не удалось загрузить данные";
+
+            if (!elements.pricesBody.children.length) {
+                elements.pricesBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="message error">
+                            Не удалось загрузить цены.
+                            Попробуйте обновить страницу позже.
+                        </td>
+                    </tr>
+                `;
+            }
+
+        } finally {
+            elements.refreshButton.disabled = false;
+        }
+    }
+
+    async function loadConfig() {
+        try {
+            const response = await fetch(
+                "/api/config",
+                { cache: "no-store" }
+            );
+
+            const data = await response.json();
+
+            renderDatabaseStatus(data);
+        } catch (error) {
+            console.warn(
+                "Не удалось загрузить конфигурацию:",
+                error
+            );
+        }
+    }
+
+    elements.refreshButton.addEventListener(
+        "click",
+        loadPrices
     );
 
-    const completeList = fallbackCoins.map(([symbol, name]) => {
-      const item = received.get(symbol) || {};
-      return {
-        symbol,
-        name:item.name || name,
-        price:item.price ?? null,
-        priceRub:item.priceRub ?? null,
-        change1h:item.change1h ?? null,
-        change24h:item.change24h ?? null,
-        image:item.image || null,
-        source:item.source || data.source || "",
-        priceIsReference:Boolean(item.priceIsReference)
-      };
-    });
+    loadConfig();
+    loadPrices();
 
-    $("prices").innerHTML = completeList.map(coinRow).join("");
-    $("count").textContent = `${completeList.length} / ${fallbackCoins.length}`;
-    $("source").textContent = data.source || "Публичный API";
-
-    const updated = data.updatedAt ? new Date(data.updatedAt) : null;
-    $("updated").textContent =
-      updated && !Number.isNaN(updated.getTime())
-        ? updated.toLocaleTimeString("ru-RU")
-        : "Нет свежих данных";
-
-    const unavailable = completeList.filter(c => numberValue(c.price) === null).length;
-    const hourlyMissing = completeList.filter(c => numberValue(c.change1h) === null).length;
-    const isFallback = data.source === "CoinGecko";
-    const stale = Boolean(data.cached && data.error);
-
-    let messages = [];
-    if (unavailable) messages.push(`Нет цены для ${unavailable} монет`);
-    if (hourlyMissing) messages.push(`часовая динамика ещё собирается для ${hourlyMissing}`);
-    if (isFallback) messages.push("показаны справочные данные CoinGecko, не котировки Bybit");
-    if (stale) messages.push("источник не обновился; данные могут быть устаревшими");
-    if (!messages.length) messages.push("Котировки получены.");
-
-    $("notice").className = "notice" +
-      (unavailable || stale ? " error" : "");
-    $("notice").textContent = messages.join(". ") + ".";
-
-  } catch (error) {
-    showFallback();
-    $("count").textContent = String(fallbackCoins.length);
-    $("source").textContent = "Недоступен";
-    $("updated").textContent = "—";
-    $("notice").className = "notice error";
-    $("notice").textContent =
-      "Не удалось получить цены. Список монет сохранён; попробуйте позже.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "↻ Обновить";
-  }
-}
-
-$("refresh").addEventListener("click", load);
-showFallback();
-load();
-setInterval(load, 60000);
+    setInterval(loadPrices, REFRESH_INTERVAL);
 </script>
 </body>
 </html>

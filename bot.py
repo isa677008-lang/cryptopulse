@@ -33,9 +33,9 @@ TELEGRAM_API = (
     if TELEGRAM_TOKEN else None
 )
 
+# Европейский API Bybit
 BYBIT_HOSTS = [
-    "https://api.bybit.com",
-    "https://api.bytick.com",
+    "https://api.bybit.eu",
 ]
 
 REQUEST_TIMEOUT = 12
@@ -80,7 +80,7 @@ COIN_IMAGES = {
 
 session = requests.Session()
 session.headers.update({
-    "User-Agent": "CryptoPulse/1.1",
+    "User-Agent": "CryptoPulse/1.2",
     "Accept": "application/json",
 })
 
@@ -191,13 +191,11 @@ def fetch_bybit_prices():
             errors.append(f"{host}: {type(exc).__name__}: {exc}")
             logger.warning("Bybit request failed at %s: %s", host, exc)
 
-        except (ValueError, TypeError) as exc:
-            errors.append(f"{host}: invalid response: {exc}")
+        except (ValueError, TypeError):
+            errors.append(f"{host}: invalid response")
             logger.exception("Invalid Bybit response from %s", host)
 
-    raise RuntimeError(
-        "Bybit unavailable. " + " | ".join(errors)
-    )
+    raise RuntimeError("Bybit unavailable. " + " | ".join(errors))
 
 
 def get_prices(force_refresh=False):
@@ -397,10 +395,10 @@ def answer_callback(callback_id, text=None):
 
 def format_price(value):
     if value >= 1000:
-        return f"${value:,.2f}"
+        return f"{value:,.2f} USDT"
     if value >= 1:
-        return f"${value:,.4f}"
-    return f"${value:.8f}"
+        return f"{value:,.4f} USDT"
+    return f"{value:.8f} USDT"
 
 
 def market_message():
@@ -522,7 +520,7 @@ def handle_message(message):
             send_message(
                 chat_id,
                 "🧮 Расчёт по цене BTC на Bybit\n\n"
-                f"Сумма: ${amount:,.2f}\n"
+                f"Сумма: {amount:,.2f} USDT\n"
                 f"BTC: {amount / btc['price']:.8f}\n\n"
                 "Расчёт ориентировочный, без комиссий.",
                 main_keyboard(),
@@ -567,7 +565,7 @@ def handle_callback(callback):
 
         send_message(
             chat_id,
-            "🧮 Введи сумму в долларах США, например 100.\n"
+            "🧮 Введи сумму в USDT, например 100.\n"
             "Я рассчитаю примерное количество BTC по цене Bybit.",
         )
         return
@@ -710,9 +708,10 @@ def configure_telegram():
         else:
             logger.error("Could not configure Telegram webhook")
     else:
-        logger.warning("Render hostname unavailable; webhook not configured")
+        logger.warning(
+            "Render hostname unavailable; webhook not configured"
+        )
 
-    # Кнопка открытия Mini App в меню чата с ботом.
     menu_result = telegram_request(
         "setChatMenuButton",
         {
@@ -727,7 +726,9 @@ def configure_telegram():
     if menu_result and menu_result.get("ok"):
         logger.info("Telegram Mini App menu button configured")
     else:
-        logger.warning("Could not configure Telegram Mini App menu button")
+        logger.warning(
+            "Could not configure Telegram Mini App menu button"
+        )
 
 
 configure_telegram()

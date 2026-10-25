@@ -4,42 +4,71 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0b1220">
-<title>CryptoPulse — цены криптовалют</title>
+<title>CryptoPulse — криптовалюты в USD и RUB</title>
 <style>
-:root{color-scheme:dark;--bg:#0b1220;--line:#24324a;--muted:#91a2bb;--text:#f3f6fb;--accent:#58d6a3}
+:root{
+  color-scheme:dark;
+  --bg:#0b1220;
+  --line:#24324a;
+  --muted:#91a2bb;
+  --text:#f3f6fb;
+  --accent:#58d6a3;
+}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at top,#172744,var(--bg) 55%);font-family:system-ui,sans-serif;color:var(--text);min-height:100vh}
-.wrap{max-width:1000px;margin:auto;padding:28px 16px 48px}
+body{
+  margin:0;
+  background:radial-gradient(ellipse at top,#172744,var(--bg) 55%);
+  font-family:system-ui,sans-serif;
+  color:var(--text);
+  min-height:100vh;
+}
+.wrap{max-width:1150px;margin:auto;padding:28px 16px 48px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
 .brand{font-size:1.45rem;font-weight:800}
 .brand span{color:var(--accent)}
 .sub,.label,th,.footer{color:var(--muted)}
 .sub{margin-top:5px}
-button{border:1px solid #36506e;background:#1b2b43;color:var(--text);border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+button{
+  border:1px solid #36506e;background:#1b2b43;color:var(--text);
+  border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer
+}
 button:disabled{opacity:.6;cursor:wait}
 .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}
 .card{background:#121d30;border:1px solid var(--line);border-radius:16px;padding:16px}
 .label,th{font-size:.82rem}
-.value{font-size:1.15rem;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
+.value{font-size:1.05rem;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
 .notice{padding:12px 14px;border-radius:12px;background:#15243a;color:#bfd0e6;margin:14px 0;line-height:1.5}
 .error{background:#3b1b26;color:#ffd4dc}
 .tablebox{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#121d30}
-table{width:100%;border-collapse:collapse;min-width:580px}
-th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line)}
-th{font-weight:600}
+table{width:100%;border-collapse:collapse;min-width:830px}
+th,td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-weight:600;white-space:nowrap}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:#17253a}
-.asset{display:flex;align-items:center;gap:11px;min-width:190px}
+.asset{display:flex;align-items:center;gap:11px;min-width:175px}
 .logo{width:36px;height:36px;object-fit:contain;border-radius:50%;background:#fff;flex-shrink:0}
-.logo-fallback{display:none;width:36px;height:36px;border-radius:50%;background:#253651;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0}
+.logo-fallback{
+  display:none;width:36px;height:36px;border-radius:50%;background:#253651;
+  align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0
+}
 .coin{font-weight:750}
 .symbol{color:var(--muted);font-size:.82rem;margin-top:3px}
 .price{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.price-rub{font-size:.82rem;color:var(--muted);margin-top:4px;white-space:nowrap}
 .positive{color:#62e6ad}
 .negative{color:#ff8294}
 .muted{color:var(--muted)}
-.footer{font-size:.82rem;margin-top:16px;line-height:1.5}
-@media(max-width:600px){.summary{grid-template-columns:1fr}.wrap{padding-top:20px}.card{padding:13px}}
+.pill{
+  display:inline-block;border:1px solid #36506e;border-radius:999px;
+  padding:3px 8px;font-size:.75rem;color:#bfd0e6
+}
+.footer{font-size:.82rem;margin-top:16px;line-height:1.6}
+@media(max-width:650px){
+  .summary{grid-template-columns:1fr}
+  .wrap{padding-top:20px}
+  .card{padding:13px}
+  th,td{padding:11px 12px}
+}
 </style>
 </head>
 <body>
@@ -47,7 +76,7 @@ tbody tr:hover{background:#17253a}
 <header class="top">
   <div>
     <div class="brand">Crypto<span>Pulse</span></div>
-    <div class="sub">Котировки 15 криптовалют в долларах США</div>
+    <div class="sub">Текущие цены, USD/RUB и динамика за 1 и 24 часа</div>
   </div>
   <button id="refresh">↻ Обновить</button>
 </header>
@@ -58,11 +87,11 @@ tbody tr:hover{background:#17253a}
     <div class="value" id="count">15</div>
   </div>
   <div class="card">
-    <div class="label">Источник данных</div>
+    <div class="label">Источник котировок</div>
     <div class="value" id="source">Загрузка…</div>
   </div>
   <div class="card">
-    <div class="label">Обновлено</div>
+    <div class="label">Последнее получение данных</div>
     <div class="value" id="updated">—</div>
   </div>
 </section>
@@ -74,8 +103,9 @@ tbody tr:hover{background:#17253a}
 <thead>
 <tr>
   <th>Актив</th>
-  <th>Цена, USD</th>
-  <th>Изменение за 24 ч.</th>
+  <th>Текущая цена</th>
+  <th>За 1 час</th>
+  <th>За 24 часа</th>
 </tr>
 </thead>
 <tbody id="prices"></tbody>
@@ -83,9 +113,12 @@ tbody tr:hover{background:#17253a}
 </div>
 
 <div class="footer">
-  Логотипы и рыночные данные загружаются из публичных источников.
-  Если источник временно недоступен, отдельная цена может отсутствовать.
-  Данные могут обновляться с задержкой и не являются инвестиционной рекомендацией.
+  Цены отображаются в USD и в приблизительном эквиваленте RUB по справочному курсу USD/RUB.
+  Рублёвый пересчёт не является биржевой ценой USDT/RUB.
+  Изменение за 1 час рассчитывается по сохранённым наблюдениям и появится после накопления истории.
+  После перезапуска сервера история начинается заново. Если источник ограничивает запросы,
+  данные могут быть устаревшими или временно недоступными.
+  Рыночные данные не являются инвестиционной рекомендацией.
 </div>
 </main>
 
@@ -102,45 +135,34 @@ const fallbackCoins = [
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({
-    "&":"&amp;",
-    "<":"&lt;",
-    ">":"&gt;",
-    '"':"&quot;",
-    "'":"&#39;"
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[c]));
 }
 
-function formatMoney(value) {
-  if (value === null || value === undefined || value === "") {
-    return '<span class="muted">Временно недоступна</span>';
-  }
-
+function numberValue(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
-  if (!Number.isFinite(n)) {
-    return '<span class="muted">Временно недоступна</span>';
-  }
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatMoney(value, currency) {
+  const n = numberValue(value);
+  if (n === null) return '<span class="muted">Нет данных</span>';
 
   const digits = n >= 1000 ? 2 : n >= 1 ? 4 : 8;
-
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+  return new Intl.NumberFormat("ru-RU", {
+    style:"currency",
+    currency,
+    minimumFractionDigits: n < 1 ? Math.min(digits, 4) : 2,
     maximumFractionDigits: digits
   }).format(n);
 }
 
 function formatChange(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    !Number.isFinite(Number(value))
-  ) {
-    return '<span class="muted">Нет данных</span>';
-  }
+  const n = numberValue(value);
+  if (n === null) return '<span class="muted">Собираем данные</span>';
 
-  const n = Number(value);
   const cls = n > 0 ? "positive" : n < 0 ? "negative" : "muted";
-
   return `<span class="${cls}">${n > 0 ? "+" : ""}${n.toFixed(2)}%</span>`;
 }
 
@@ -150,6 +172,11 @@ function coinRow(coin) {
   const image = typeof coin.image === "string" ? coin.image : "";
   const safeImage = /^https:\/\/[a-z0-9.-]+\//i.test(image) ? image : "";
   const fallback = symbol.slice(0, 4) || "?";
+  const usd = formatMoney(coin.price, "USD");
+  const rub = formatMoney(coin.priceRub, "RUB");
+  const source = coin.source || "";
+  const reference = coin.priceIsReference
+    ? '<div class="price-rub">Справочная цена</div>' : "";
 
   return `<tr>
     <td>
@@ -168,7 +195,12 @@ function coinRow(coin) {
         </div>
       </div>
     </td>
-    <td class="price">${formatMoney(coin.price)}</td>
+    <td>
+      <div class="price">${usd}</div>
+      <div class="price-rub">${rub}</div>
+      ${reference}
+    </td>
+    <td>${formatChange(coin.change1h)}</td>
     <td>${formatChange(coin.change24h)}</td>
   </tr>`;
 }
@@ -176,11 +208,8 @@ function coinRow(coin) {
 function showFallback() {
   $("prices").innerHTML = fallbackCoins.map(([symbol, name]) =>
     coinRow({
-      symbol,
-      name,
-      price: null,
-      change24h: null,
-      image: null
+      symbol, name, price:null, priceRub:null,
+      change1h:null, change24h:null, image:null
     })
   ).join("");
 }
@@ -191,10 +220,7 @@ async function load() {
   button.textContent = "Загрузка…";
 
   try {
-    const response = await fetch("/api/prices?refresh=1", {
-      cache: "no-store"
-    });
-
+    const response = await fetch("/api/prices", {cache:"no-store"});
     const data = await response.json();
 
     if (!response.ok || !Array.isArray(data.prices)) {
@@ -207,41 +233,53 @@ async function load() {
 
     const completeList = fallbackCoins.map(([symbol, name]) => {
       const item = received.get(symbol) || {};
-
       return {
         symbol,
-        name: item.name || name,
-        price: item.price ?? null,
-        change24h: item.change24h ?? null,
-        image: item.image || null
+        name:item.name || name,
+        price:item.price ?? null,
+        priceRub:item.priceRub ?? null,
+        change1h:item.change1h ?? null,
+        change24h:item.change24h ?? null,
+        image:item.image || null,
+        source:item.source || data.source || "",
+        priceIsReference:Boolean(item.priceIsReference)
       };
     });
 
     $("prices").innerHTML = completeList.map(coinRow).join("");
-    $("count").textContent = `${completeList.length} / 15`;
+    $("count").textContent = `${completeList.length} / ${fallbackCoins.length}`;
     $("source").textContent = data.source || "Публичный API";
-    $("updated").textContent = new Date(
-      data.updatedAt || Date.now()
-    ).toLocaleTimeString("ru-RU");
 
-    const unavailable = completeList.filter(
-      c => c.price === null || c.price === undefined
-    ).length;
+    const updated = data.updatedAt ? new Date(data.updatedAt) : null;
+    $("updated").textContent =
+      updated && !Number.isNaN(updated.getTime())
+        ? updated.toLocaleTimeString("ru-RU")
+        : "Нет свежих данных";
 
-    $("notice").className = "notice" + (unavailable ? " error" : "");
-    $("notice").textContent = unavailable
-      ? `В списке все 15 монет. Для ${unavailable} монет цена временно недоступна; остальные данные показаны.`
-      : "Котировки успешно загружены.";
+    const unavailable = completeList.filter(c => numberValue(c.price) === null).length;
+    const hourlyMissing = completeList.filter(c => numberValue(c.change1h) === null).length;
+    const isFallback = data.source === "CoinGecko";
+    const stale = Boolean(data.cached && data.error);
+
+    let messages = [];
+    if (unavailable) messages.push(`Нет цены для ${unavailable} монет`);
+    if (hourlyMissing) messages.push(`часовая динамика ещё собирается для ${hourlyMissing}`);
+    if (isFallback) messages.push("показаны справочные данные CoinGecko, не котировки Bybit");
+    if (stale) messages.push("источник не обновился; данные могут быть устаревшими");
+    if (!messages.length) messages.push("Котировки получены.");
+
+    $("notice").className = "notice" +
+      (unavailable || stale ? " error" : "");
+    $("notice").textContent = messages.join(". ") + ".";
 
   } catch (error) {
     showFallback();
-    $("count").textContent = "15";
+    $("count").textContent = String(fallbackCoins.length);
     $("source").textContent = "Недоступен";
     $("updated").textContent = "—";
     $("notice").className = "notice error";
     $("notice").textContent =
-      "Не удалось обновить цены. Все 15 монет остаются в списке. Попробуйте позже.";
-
+      "Не удалось получить цены. Список монет сохранён; попробуйте позже.";
   } finally {
     button.disabled = false;
     button.textContent = "↻ Обновить";

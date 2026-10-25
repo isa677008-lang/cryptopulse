@@ -11,25 +11,33 @@
 body{margin:0;background:radial-gradient(ellipse at top,#172744,var(--bg) 55%);font-family:system-ui,sans-serif;color:var(--text);min-height:100vh}
 .wrap{max-width:1000px;margin:auto;padding:28px 16px 48px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
-.brand{font-size:1.45rem;font-weight:800}.brand span{color:var(--accent)}
-.sub,.label,th,.footer{color:var(--muted)}.sub{margin-top:5px}
+.brand{font-size:1.45rem;font-weight:800}
+.brand span{color:var(--accent)}
+.sub,.label,th,.footer{color:var(--muted)}
+.sub{margin-top:5px}
 button{border:1px solid #36506e;background:#1b2b43;color:var(--text);border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
 button:disabled{opacity:.6;cursor:wait}
 .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}
 .card{background:#121d30;border:1px solid var(--line);border-radius:16px;padding:16px}
-.label,th{font-size:.82rem}.value{font-size:1.15rem;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
+.label,th{font-size:.82rem}
+.value{font-size:1.15rem;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
 .notice{padding:12px 14px;border-radius:12px;background:#15243a;color:#bfd0e6;margin:14px 0;line-height:1.5}
 .error{background:#3b1b26;color:#ffd4dc}
 .tablebox{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#121d30}
 table{width:100%;border-collapse:collapse;min-width:580px}
 th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line)}
-th{font-weight:600}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#17253a}
+th{font-weight:600}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#17253a}
 .asset{display:flex;align-items:center;gap:11px;min-width:190px}
 .logo{width:36px;height:36px;object-fit:contain;border-radius:50%;background:#fff;flex-shrink:0}
 .logo-fallback{display:none;width:36px;height:36px;border-radius:50%;background:#253651;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0}
-.coin{font-weight:750}.symbol{color:var(--muted);font-size:.82rem;margin-top:3px}
+.coin{font-weight:750}
+.symbol{color:var(--muted);font-size:.82rem;margin-top:3px}
 .price{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-.positive{color:#62e6ad}.negative{color:#ff8294}.muted{color:var(--muted)}
+.positive{color:#62e6ad}
+.negative{color:#ff8294}
+.muted{color:var(--muted)}
 .footer{font-size:.82rem;margin-top:16px;line-height:1.5}
 @media(max-width:600px){.summary{grid-template-columns:1fr}.wrap{padding-top:20px}.card{padding:13px}}
 </style>
@@ -45,20 +53,39 @@ th{font-weight:600}tbody tr:last-child td{border-bottom:0}tbody tr:hover{backgro
 </header>
 
 <section class="summary">
-  <div class="card"><div class="label">Монет в списке</div><div class="value" id="count">15</div></div>
-  <div class="card"><div class="label">Источник данных</div><div class="value" id="source">Загрузка…</div></div>
-  <div class="card"><div class="label">Обновлено</div><div class="value" id="updated">—</div></div>
+  <div class="card">
+    <div class="label">Монет в списке</div>
+    <div class="value" id="count">15</div>
+  </div>
+  <div class="card">
+    <div class="label">Источник данных</div>
+    <div class="value" id="source">Загрузка…</div>
+  </div>
+  <div class="card">
+    <div class="label">Обновлено</div>
+    <div class="value" id="updated">—</div>
+  </div>
 </section>
 
 <div id="notice" class="notice">Загружаем котировки…</div>
+
 <div class="tablebox">
 <table>
-<thead><tr><th>Актив</th><th>Цена, USD</th><th>Изменение за 24 ч.</th></tr></thead>
+<thead>
+<tr>
+  <th>Актив</th>
+  <th>Цена, USD</th>
+  <th>Изменение за 24 ч.</th>
+</tr>
+</thead>
 <tbody id="prices"></tbody>
 </table>
 </div>
+
 <div class="footer">
-  Логотипы и рыночные данные загружаются из публичных источников. Если источник временно недоступен, отдельная цена может отсутствовать. Данные могут обновляться с задержкой и не являются инвестиционной рекомендацией.
+  Логотипы и рыночные данные загружаются из публичных источников.
+  Если источник временно недоступен, отдельная цена может отсутствовать.
+  Данные могут обновляться с задержкой и не являются инвестиционной рекомендацией.
 </div>
 </main>
 
@@ -75,7 +102,11 @@ const fallbackCoins = [
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#39;"
   }[c]));
 }
 
@@ -83,20 +114,33 @@ function formatMoney(value) {
   if (value === null || value === undefined || value === "") {
     return '<span class="muted">Временно недоступна</span>';
   }
+
   const n = Number(value);
-  if (!Number.isFinite(n)) return '<span class="muted">Временно недоступна</span>';
+  if (!Number.isFinite(n)) {
+    return '<span class="muted">Временно недоступна</span>';
+  }
+
   const digits = n >= 1000 ? 2 : n >= 1 ? 4 : 8;
+
   return new Intl.NumberFormat("en-US", {
-    style:"currency", currency:"USD", maximumFractionDigits:digits
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: digits
   }).format(n);
 }
 
 function formatChange(value) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(Number(value))
+  ) {
     return '<span class="muted">Нет данных</span>';
   }
+
   const n = Number(value);
   const cls = n > 0 ? "positive" : n < 0 ? "negative" : "muted";
+
   return `<span class="${cls}">${n > 0 ? "+" : ""}${n.toFixed(2)}%</span>`;
 }
 
@@ -110,12 +154,18 @@ function coinRow(coin) {
   return `<tr>
     <td>
       <div class="asset">
-        <img class="logo" src="${escapeHtml(safeImage)}" alt=""
-             loading="lazy" ${safeImage ? "" : "hidden"}
+        <img class="logo"
+             src="${escapeHtml(safeImage)}"
+             alt=""
+             loading="lazy"
+             ${safeImage ? "" : "hidden"}
              onerror="this.hidden=true;this.nextElementSibling.style.display='flex'">
-        <span class="logo-fallback" style="${safeImage ? "" : "display:flex"}">${escapeHtml(fallback)}</span>
-        <div><div class="coin">${escapeHtml(name)}</div>
-        <div class="symbol">${escapeHtml(symbol)}</div></div>
+        <span class="logo-fallback"
+              style="${safeImage ? "" : "display:flex"}">${escapeHtml(fallback)}</span>
+        <div>
+          <div class="coin">${escapeHtml(name)}</div>
+          <div class="symbol">${escapeHtml(symbol)}</div>
+        </div>
       </div>
     </td>
     <td class="price">${formatMoney(coin.price)}</td>
@@ -124,8 +174,14 @@ function coinRow(coin) {
 }
 
 function showFallback() {
-  $("prices").innerHTML = fallbackCoins.map(([symbol,name]) =>
-    coinRow({symbol,name,price:null,change24h:null,image:null})
+  $("prices").innerHTML = fallbackCoins.map(([symbol, name]) =>
+    coinRow({
+      symbol,
+      name,
+      price: null,
+      change24h: null,
+      image: null
+    })
   ).join("");
 }
 
@@ -135,7 +191,10 @@ async function load() {
   button.textContent = "Загрузка…";
 
   try {
-    const response = await fetch("/api/prices?refresh=1", {cache:"no-store"});
+    const response = await fetch("/api/prices?refresh=1", {
+      cache: "no-store"
+    });
+
     const data = await response.json();
 
     if (!response.ok || !Array.isArray(data.prices)) {
@@ -146,9 +205,9 @@ async function load() {
       data.prices.map(c => [String(c.symbol || "").toUpperCase(), c])
     );
 
-    // Always render all 15 known assets, even if an API response omits one.
-    const completeList = fallbackCoins.map(([symbol,name]) => {
+    const completeList = fallbackCoins.map(([symbol, name]) => {
       const item = received.get(symbol) || {};
+
       return {
         symbol,
         name: item.name || name,
@@ -161,10 +220,14 @@ async function load() {
     $("prices").innerHTML = completeList.map(coinRow).join("");
     $("count").textContent = `${completeList.length} / 15`;
     $("source").textContent = data.source || "Публичный API";
-    $("updated").textContent = new Date(data.updatedAt || Date.now())
-      .toLocaleTimeString("ru-RU");
+    $("updated").textContent = new Date(
+      data.updatedAt || Date.now()
+    ).toLocaleTimeString("ru-RU");
 
-    const unavailable = completeList.filter(c => c.price === null || c.price === undefined).length;
+    const unavailable = completeList.filter(
+      c => c.price === null || c.price === undefined
+    ).length;
+
     $("notice").className = "notice" + (unavailable ? " error" : "");
     $("notice").textContent = unavailable
       ? `В списке все 15 монет. Для ${unavailable} монет цена временно недоступна; остальные данные показаны.`
@@ -178,6 +241,7 @@ async function load() {
     $("notice").className = "notice error";
     $("notice").textContent =
       "Не удалось обновить цены. Все 15 монет остаются в списке. Попробуйте позже.";
+
   } finally {
     button.disabled = false;
     button.textContent = "↻ Обновить";

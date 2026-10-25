@@ -5,905 +5,1328 @@ import threading
 from datetime import datetime, timezone
 
 import requests
+import psycopg
+from psycopg.rows import dict_row
 from flask import Flask, jsonify, send_from_directory, request
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-app = Flask(__name__, static_folder=STATIC_DIR)
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+app = Flask(__name__, static_folder="static")
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(message)s",
 )
+
 logger = logging.getLogger("cryptopulse")
 
 TELEGRAM_TOKEN = (
     os.getenv("TELEGRAM_TOKEN")
     or os.getenv("TELEGRAM_BOT_TOKEN")
     or os.getenv("BOT_TOKEN")
-)
-TELEGRAM_API = (
-    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-    if TELEGRAM_TOKEN else None
-)
-SITE_URL = os.getenv(
-    "SITE_URL", "https://cryptopulse-lpc9.onrender.com"
-)
+    or ""
+).strip()
 
-REQUEST_TIMEOUT = 12
-CACHE_TTL = 60
-FX_CACHE_TTL = 900
-FAILURE_COOLDOWN = 120
-HISTORY_RETENTION = 3 * 60 * 60
-HISTORY_TARGET_AGE = 60 * 60
-HISTORY_MAX_AGE = 70 * 60
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "").strip()
 
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgres://",
+        "postgresql://",
+        1,
+    )
+
+# Real trading is deliberately disabled.
 TRADING_MODE = "simulation"
 LIVE_TRADING_ENABLED = False
 
-BYBIT_HOSTS = ["https://api.bybit.eu"]
-COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
-COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "").strip()
+REQUEST_TIMEOUT = 12
+PRICE_CACHE_SECONDS = 30
+HISTORY_RETENTION_HOURS = 72
 
-COINS = [
-    {"symbol": "BTC", "name": "Bitcoin", "id": "bitcoin"},
-    {"symbol": "ETH", "name": "Ethereum", "id": "ethereum"},
-    {"symbol": "USDT", "name": "Tether", "id": "tether"},
-    {"symbol": "BNB", "name": "BNB", "id": "binancecoin"},
-    {"symbol": "XRP", "name": "XRP", "id": "ripple"},
-    {"symbol": "USDC", "name": "USD Coin", "id": "usd-coin"},
-    {"symbol": "SOL", "name": "Solana", "id": "solana"},
-    {"symbol": "TRX", "name": "TRON", "id": "tron"},
-    {"symbol": "DOGE", "name": "Dogecoin", "id": "dogecoin"},
-    {"symbol": "TON", "name": "Toncoin", "id": "the-open-network"},
-    {"symbol": "ADA", "name": "Cardano", "id": "cardano"},
-    {"symbol": "BCH", "name": "Bitcoin Cash", "id": "bitcoin-cash"},
-    {"symbol": "LINK", "name": "Chainlink", "id": "chainlink"},
-    {"symbol": "AVAX", "name": "Avalanche", "id": "avalanche-2"},
-    {"symbol": "LTC", "name": "Litecoin", "id": "litecoin"},
-]
+COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
+BYBIT_BASE_URL = "https://api.bybit.com"
 
-COIN_IMAGES = {
-    "BTC": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
-    "ETH": "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
-    "USDT": "https://assets.coingecko.com/coins/images/325/large/Tether.png",
-    "BNB": "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
-    "XRP": "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png",
-    "USDC": "https://assets.coingecko.com/coins/images/6319/large/usdc.png",
-    "SOL": "https://assets.coingecko.com/coins/images/4128/large/solana.png",
-    "TRX": "https://assets.coingecko.com/coins/images/1094/large/tron-logo.png",
-    "DOGE": "https://assets.coingecko.com/coins/images/5/large/dogecoin.png",
-    "TON": "https://assets.coingecko.com/coins/images/17980/large/ton_symbol.png",
-    "ADA": "https://assets.coingecko.com/coins/images/975/large/cardano.png",
-    "BCH": "https://assets.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png",
-    "LINK": "https://assets.coingecko.com/coins/images/877/large/chainlink-new-logo.png",
-    "AVAX": "https://assets.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png",
-    "LTC": "https://assets.coingecko.com/coins/images/2/large/litecoin.png",
+COINS = {
+    "BTC": {
+        "name": "Bitcoin",
+        "coingecko_id": "bitcoin",
+        "bybit_symbol": "BTCUSDT",
+    },
+    "ETH": {
+        "name": "Ethereum",
+        "coingecko_id": "ethereum",
+        "bybit_symbol": "ETHUSDT",
+    },
+    "BNB": {
+        "name": "BNB",
+        "coingecko_id": "binancecoin",
+        "bybit_symbol": "BNBUSDT",
+    },
+    "XRP": {
+        "name": "XRP",
+        "coingecko_id": "ripple",
+        "bybit_symbol": "XRPUSDT",
+    },
+    "SOL": {
+        "name": "Solana",
+        "coingecko_id": "solana",
+        "bybit_symbol": "SOLUSDT",
+    },
+    "DOGE": {
+        "name": "Dogecoin",
+        "coingecko_id": "dogecoin",
+        "bybit_symbol": "DOGEUSDT",
+    },
+    "ADA": {
+        "name": "Cardano",
+        "coingecko_id": "cardano",
+        "bybit_symbol": "ADAUSDT",
+    },
+    "TRX": {
+        "name": "TRON",
+        "coingecko_id": "tron",
+        "bybit_symbol": "TRXUSDT",
+    },
+    "AVAX": {
+        "name": "Avalanche",
+        "coingecko_id": "avalanche-2",
+        "bybit_symbol": "AVAXUSDT",
+    },
+    "LINK": {
+        "name": "Chainlink",
+        "coingecko_id": "chainlink",
+        "bybit_symbol": "LINKUSDT",
+    },
+    "DOT": {
+        "name": "Polkadot",
+        "coingecko_id": "polkadot",
+        "bybit_symbol": "DOTUSDT",
+    },
+    "LTC": {
+        "name": "Litecoin",
+        "coingecko_id": "litecoin",
+        "bybit_symbol": "LTCUSDT",
+    },
+    "BCH": {
+        "name": "Bitcoin Cash",
+        "coingecko_id": "bitcoin-cash",
+        "bybit_symbol": "BCHUSDT",
+    },
+    "SHIB": {
+        "name": "Shiba Inu",
+        "coingecko_id": "shiba-inu",
+        "bybit_symbol": "SHIBUSDT",
+    },
+    "TON": {
+        "name": "Toncoin",
+        "coingecko_id": "the-open-network",
+        "bybit_symbol": "TONUSDT",
+    },
 }
 
-session = requests.Session()
-session.headers.update({
-    "User-Agent": "CryptoPulse/3.0",
-    "Accept": "application/json",
-})
-if COINGECKO_API_KEY:
-    session.headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
 
-cache_lock = threading.RLock()
+# ============================================================
+# SHARED STATE AND LOCKS
+# ============================================================
+
+state_lock = threading.RLock()
+database_lock = threading.RLock()
 
 price_cache = {
-    "bybit": {
-        "prices": [], "updated_at": 0, "error": None,
-        "retry_after": 0,
-    },
-    "market": {
-        "prices": [], "updated_at": 0, "error": None,
-        "retry_after": 0,
-    },
+    "updated_at": 0,
+    "prices": {},
+    "source": None,
+    "error": None,
 }
-usd_rub_cache = {"rate": None, "updated_at": 0}
-price_history = {"bybit": {}, "CoinGecko": {}}
 
-pending_calculations = set()
-pending_lock = threading.Lock()
+# Each item is:
+# {
+#     "timestamp": unix_timestamp,
+#     "price": float
+# }
+price_history = {}
 
+usd_rub_cache = {
+    "updated_at": 0,
+    "rate": None,
+}
 
-def utc_iso(timestamp=None):
-    if not timestamp:
-        return None
-    return datetime.fromtimestamp(
-        timestamp, timezone.utc
-    ).isoformat()
+bybit_status = {
+    "available": False,
+    "last_error": None,
+    "last_check": None,
+}
 
+database_status = {
+    "configured": bool(DATABASE_URL),
+    "available": False,
+    "last_error": None,
+}
 
-def remember_prices(source, prices, observed_at):
-    """Keep source-specific observations for hourly comparisons."""
-    with cache_lock:
-        history = price_history.setdefault(source, {})
-        for coin in prices:
-            symbol = coin["symbol"]
-            value = float(coin["price"])
-            points = history.setdefault(symbol, [])
-
-            if points and observed_at <= points[-1][0]:
-                continue
-
-            points.append((observed_at, value))
-            cutoff = observed_at - HISTORY_RETENTION
-            history[symbol] = [
-                point for point in points if point[0] >= cutoff
-            ]
+telegram_configured = bool(TELEGRAM_TOKEN)
 
 
-def hourly_change(source, symbol, current_price, now):
-    """Compare with the closest stored observation around one hour ago."""
-    with cache_lock:
-        points = list(
-            price_history.get(source, {}).get(symbol, [])
-        )
+# ============================================================
+# DATABASE
+# ============================================================
 
-    if not points:
-        return None
+def get_db_connection():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not configured")
 
-    target = now - HISTORY_TARGET_AGE
-    eligible = [
-        point for point in points
-        if now - HISTORY_MAX_AGE <= point[0] <= now - 45 * 60
-    ]
-    if not eligible:
-        return None
-
-    old_time, old_price = min(
-        eligible, key=lambda point: abs(point[0] - target)
+    return psycopg.connect(
+        DATABASE_URL,
+        connect_timeout=8,
+        row_factory=dict_row,
     )
-    if old_price <= 0:
-        return None
-
-    return (current_price / old_price - 1) * 100
 
 
-def enrich_prices(prices, source, observed_at):
-    result = []
-    for original in prices:
-        coin = dict(original)
-        coin["change1h"] = hourly_change(
-            source, coin["symbol"], coin["price"], observed_at
+def init_database():
+    """
+    Create the persistent price-history table and indexes.
+    Restore recent history into RAM after every application restart.
+    """
+    if not DATABASE_URL:
+        logger.warning(
+            "DATABASE_URL is missing. Price history will only be stored in RAM."
         )
-        coin["change1hAvailable"] = coin["change1h"] is not None
-        coin["priceRub"] = None
-        coin["historySource"] = source
-        result.append(coin)
-    return result
-
-
-# ---------------------------------------------------------
-# BYBIT — official exchange data when reachable
-# ---------------------------------------------------------
-
-def fetch_bybit_prices():
-    errors = []
-
-    for host in BYBIT_HOSTS:
-        try:
-            response = session.get(
-                f"{host}/v5/market/tickers",
-                params={"category": "spot"},
-                timeout=REQUEST_TIMEOUT,
-            )
-
-            if response.status_code != 200:
-                errors.append(
-                    f"{host}: HTTP {response.status_code}: "
-                    f"{response.text[:160].replace(chr(10), ' ')}"
-                )
-                continue
-
-            payload = response.json()
-            if payload.get("retCode") != 0:
-                errors.append(
-                    f"{host}: API code {payload.get('retCode')}: "
-                    f"{payload.get('retMsg', 'unknown error')}"
-                )
-                continue
-
-            rows = payload.get("result", {}).get("list", [])
-            tickers = {
-                row.get("symbol"): row for row in rows
-                if row.get("symbol")
-            }
-            prices = []
-
-            for coin in COINS:
-                symbol = coin["symbol"]
-
-                # USDT is the quote unit itself; this is a reference
-                # value, not a USDTUSDT exchange pair.
-                if symbol == "USDT":
-                    prices.append({
-                        "symbol": "USDT",
-                        "name": "Tether",
-                        "price": 1.0,
-                        "change24h": 0.0,
-                        "bid": None,
-                        "ask": None,
-                        "image": COIN_IMAGES.get("USDT", ""),
-                        "source": "Reference",
-                        "priceIsReference": True,
-                    })
-                    continue
-
-                ticker = tickers.get(f"{symbol}USDT")
-                if not ticker:
-                    continue
-
-                try:
-                    price = float(ticker["lastPrice"])
-                    change = float(ticker.get("price24hPcnt", 0)) * 100
-                    bid = float(ticker.get("bid1Price", 0) or 0)
-                    ask = float(ticker.get("ask1Price", 0) or 0)
-                except (KeyError, TypeError, ValueError):
-                    continue
-
-                if price <= 0:
-                    continue
-
-                prices.append({
-                    "symbol": symbol,
-                    "name": coin["name"],
-                    "price": price,
-                    "change24h": change,
-                    "bid": bid,
-                    "ask": ask,
-                    "image": COIN_IMAGES.get(symbol, ""),
-                    "source": "Bybit",
-                    "priceIsReference": False,
-                })
-
-            if prices:
-                logger.info("Fetched %s Bybit/reference prices", len(prices))
-                return prices
-
-            errors.append(f"{host}: no matching spot pairs")
-
-        except (requests.RequestException, ValueError, TypeError) as exc:
-            errors.append(f"{host}: {type(exc).__name__}: {exc}")
-
-    raise RuntimeError("Bybit unavailable. " + " | ".join(errors))
-
-
-def get_bybit_prices(force_refresh=False):
-    now = time.time()
-
-    with cache_lock:
-        entry = price_cache["bybit"]
-        if entry["prices"] and now - entry["updated_at"] < CACHE_TTL:
-            return list(entry["prices"]), entry["error"]
-        if now < entry["retry_after"]:
-            return list(entry["prices"]), entry["error"] or "Refresh cooldown"
+        database_status["available"] = False
+        return
 
     try:
-        raw = fetch_bybit_prices()
-        observed = time.time()
-        remember_prices("bybit", raw, observed)
-        prices = enrich_prices(raw, "bybit", observed)
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS price_history (
+                        id BIGSERIAL PRIMARY KEY,
+                        source TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        price DOUBLE PRECISION NOT NULL
+                            CHECK (price > 0),
+                        observed_at TIMESTAMPTZ NOT NULL,
+                        UNIQUE (source, symbol, observed_at)
+                    )
+                    """
+                )
 
-        with cache_lock:
-            price_cache["bybit"] = {
-                "prices": prices,
-                "updated_at": observed,
-                "error": None,
-                "retry_after": 0,
-            }
-        return prices, None
+                cur.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS
+                    idx_price_history_symbol_time
+                    ON price_history (symbol, observed_at DESC)
+                    """
+                )
+
+                cur.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS
+                    idx_price_history_source_symbol_time
+                    ON price_history (source, symbol, observed_at DESC)
+                    """
+                )
+
+                conn.commit()
+
+        database_status["available"] = True
+        database_status["last_error"] = None
+
+        logger.info("PostgreSQL database initialized")
+
+        load_database_history()
 
     except Exception as exc:
-        message = str(exc)
-        logger.error("Bybit refresh failed: %s", message)
-        with cache_lock:
-            entry = price_cache["bybit"]
-            entry["error"] = message
-            entry["retry_after"] = time.time() + FAILURE_COOLDOWN
-            return list(entry["prices"]), message
+        database_status["available"] = False
+        database_status["last_error"] = str(exc)
+        logger.exception("Could not initialize PostgreSQL")
 
 
-# ---------------------------------------------------------
-# COINGECKO — display fallback with Demo API key
-# ---------------------------------------------------------
+def load_database_history():
+    """
+    Load recent observations from PostgreSQL into RAM.
 
-def fetch_market_prices():
-    ids = ",".join(coin["id"] for coin in COINS)
-    response = session.get(
-        COINGECKO_URL,
-        params={
-            "ids": ids,
-            "vs_currencies": "usd",
-            "include_24hr_change": "true",
-        },
+    This is important after Render restarts the application:
+    historical observations remain available for hourly calculations.
+    """
+    if not DATABASE_URL:
+        return
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        source,
+                        symbol,
+                        price,
+                        EXTRACT(EPOCH FROM observed_at) AS timestamp
+                    FROM price_history
+                    WHERE observed_at >= NOW() - (%s * INTERVAL '1 hour')
+                    ORDER BY observed_at ASC
+                    """,
+                    (HISTORY_RETENTION_HOURS,),
+                )
+
+                rows = cur.fetchall()
+
+        with state_lock:
+            for row in rows:
+                key = (
+                    str(row["source"]),
+                    str(row["symbol"]),
+                )
+
+                price_history.setdefault(key, []).append(
+                    {
+                        "timestamp": float(row["timestamp"]),
+                        "price": float(row["price"]),
+                    }
+                )
+
+            # Remove duplicate points and sort by timestamp.
+            for key, points in list(price_history.items()):
+                unique = {}
+
+                for point in points:
+                    unique[point["timestamp"]] = point
+
+                price_history[key] = sorted(
+                    unique.values(),
+                    key=lambda item: item["timestamp"],
+                )
+
+        database_status["available"] = True
+        database_status["last_error"] = None
+
+        logger.info("Loaded %s historical observations", len(rows))
+
+    except Exception as exc:
+        database_status["available"] = False
+        database_status["last_error"] = str(exc)
+        logger.exception("Could not load historical observations")
+
+
+def save_history_to_database(source, prices, observed_at):
+    """
+    Persist the latest price observations.
+
+    Database errors do not stop price collection or the web server.
+    """
+    if not DATABASE_URL or not prices:
+        return
+
+    try:
+        records = [
+            (
+                source,
+                symbol,
+                float(price),
+                observed_at,
+            )
+            for symbol, price in prices.items()
+            if price is not None and float(price) > 0
+        ]
+
+        if not records:
+            return
+
+        with database_lock:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        """
+                        INSERT INTO price_history (
+                            source,
+                            symbol,
+                            price,
+                            observed_at
+                        )
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (source, symbol, observed_at)
+                        DO NOTHING
+                        """,
+                        records,
+                    )
+
+                    cur.execute(
+                        """
+                        DELETE FROM price_history
+                        WHERE observed_at <
+                            NOW() - (%s * INTERVAL '1 hour')
+                        """,
+                        (HISTORY_RETENTION_HOURS,),
+                    )
+
+                    conn.commit()
+
+        database_status["available"] = True
+        database_status["last_error"] = None
+
+    except Exception as exc:
+        database_status["available"] = False
+        database_status["last_error"] = str(exc)
+        logger.warning("Could not save price history: %s", exc)
+
+
+def remember_prices(source, prices, observed_at=None):
+    """
+    Store observations in RAM and PostgreSQL.
+
+    source is kept as part of the history key so that data from
+    different providers is not accidentally mixed.
+    """
+    if observed_at is None:
+        observed_at = datetime.now(timezone.utc)
+
+    timestamp = observed_at.timestamp()
+
+    with state_lock:
+        for symbol, price in prices.items():
+            if price is None:
+                continue
+
+            try:
+                price = float(price)
+            except (TypeError, ValueError):
+                continue
+
+            if price <= 0:
+                continue
+
+            key = (source, symbol)
+            points = price_history.setdefault(key, [])
+
+            if points and points[-1]["timestamp"] == timestamp:
+                points[-1]["price"] = price
+            else:
+                points.append(
+                    {
+                        "timestamp": timestamp,
+                        "price": price,
+                    }
+                )
+
+            cutoff = timestamp - HISTORY_RETENTION_HOURS * 3600
+
+            price_history[key] = [
+                point
+                for point in points
+                if point["timestamp"] >= cutoff
+            ]
+
+    save_history_to_database(source, prices, observed_at)
+
+
+# ============================================================
+# HTTP HELPERS
+# ============================================================
+
+def make_session():
+    session = requests.Session()
+
+    session.headers.update(
+        {
+            "User-Agent": "CryptoPulse/1.0",
+            "Accept": "application/json",
+        }
+    )
+
+    return session
+
+
+http = make_session()
+
+
+def get_json(url, params=None, headers=None):
+    response = http.get(
+        url,
+        params=params,
+        headers=headers,
         timeout=REQUEST_TIMEOUT,
     )
 
-    if response.status_code == 429:
-        retry = response.headers.get("Retry-After", "")
-        raise RuntimeError(
-            "CoinGecko HTTP 429 rate limit. Retry-After="
-            + (retry or "not provided")
-        )
-
     response.raise_for_status()
-    payload = response.json()
-    prices = []
 
-    for coin in COINS:
-        row = payload.get(coin["id"], {})
-        try:
-            price = float(row["usd"])
-            change = float(row.get("usd_24h_change") or 0)
-        except (KeyError, TypeError, ValueError):
+    return response.json()
+
+
+# ============================================================
+# COINGECKO PRICE PROVIDER
+# ============================================================
+
+def fetch_coingecko_prices():
+    ids = ",".join(
+        coin["coingecko_id"]
+        for coin in COINS.values()
+    )
+
+    params = {
+        "ids": ids,
+        "vs_currencies": "usd",
+        "include_24hr_change": "true",
+    }
+
+    headers = {}
+
+    if COINGECKO_API_KEY:
+        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+
+    data = get_json(
+        f"{COINGECKO_BASE_URL}/simple/price",
+        params=params,
+        headers=headers or None,
+    )
+
+    prices = {}
+    changes_24h = {}
+
+    for symbol, coin in COINS.items():
+        item = data.get(coin["coingecko_id"], {})
+        price = item.get("usd")
+
+        if price is None:
             continue
 
-        if price <= 0:
-            continue
+        prices[symbol] = float(price)
 
-        prices.append({
-            "symbol": coin["symbol"],
-            "name": coin["name"],
-            "price": price,
-            "change24h": change,
-            "bid": None,
-            "ask": None,
-            "image": COIN_IMAGES.get(coin["symbol"], ""),
-            "source": "CoinGecko",
-            "priceIsReference": False,
-        })
+        change = item.get("usd_24h_change")
+
+        changes_24h[symbol] = (
+            float(change)
+            if change is not None
+            else None
+        )
 
     if not prices:
         raise RuntimeError("CoinGecko returned no usable prices")
 
+    return prices, changes_24h
+
+
+# ============================================================
+# BYBIT PRICE PROVIDER
+# ============================================================
+
+def fetch_bybit_prices():
+    prices = {}
+
+    for symbol, coin in COINS.items():
+        try:
+            data = get_json(
+                f"{BYBIT_BASE_URL}/v5/market/tickers",
+                params={
+                    "category": "spot",
+                    "symbol": coin["bybit_symbol"],
+                },
+            )
+
+            if data.get("retCode") != 0:
+                continue
+
+            items = data.get("result", {}).get("list", [])
+
+            if not items:
+                continue
+
+            last_price = items[0].get("lastPrice")
+
+            if last_price is not None:
+                price = float(last_price)
+
+                if price > 0:
+                    prices[symbol] = price
+
+        except Exception as exc:
+            logger.warning(
+                "Bybit request failed for %s: %s",
+                symbol,
+                exc,
+            )
+
+    bybit_status["available"] = bool(prices)
+    bybit_status["last_check"] = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    if not prices:
+        bybit_status["last_error"] = (
+            "Bybit did not return usable prices"
+        )
+
+        raise RuntimeError("Bybit returned no usable prices")
+
+    bybit_status["last_error"] = None
+
     return prices
 
 
-def get_market_prices(force_refresh=False):
-    now = time.time()
-
-    with cache_lock:
-        entry = price_cache["market"]
-        if entry["prices"] and now - entry["updated_at"] < CACHE_TTL:
-            return list(entry["prices"]), entry["error"]
-        if now < entry["retry_after"]:
-            return list(entry["prices"]), entry["error"] or "Refresh cooldown"
-
-    try:
-        raw = fetch_market_prices()
-        observed = time.time()
-        remember_prices("CoinGecko", raw, observed)
-        prices = enrich_prices(raw, "CoinGecko", observed)
-
-        with cache_lock:
-            price_cache["market"] = {
-                "prices": prices,
-                "updated_at": observed,
-                "error": None,
-                "retry_after": 0,
-            }
-        return prices, None
-
-    except Exception as exc:
-        message = str(exc)
-        logger.warning("CoinGecko refresh failed: %s", message)
-        with cache_lock:
-            entry = price_cache["market"]
-            entry["error"] = message
-            entry["retry_after"] = time.time() + FAILURE_COOLDOWN
-            return list(entry["prices"]), message
-
-
-# ---------------------------------------------------------
-# USD/RUB reference exchange rate
-# ---------------------------------------------------------
+# ============================================================
+# USD/RUB EXCHANGE RATE
+# ============================================================
 
 def fetch_usd_rub():
-    sources = [
+    now = time.time()
+
+    with state_lock:
+        cached_rate = usd_rub_cache["rate"]
+        updated_at = usd_rub_cache["updated_at"]
+
+    if (
+        cached_rate is not None
+        and now - updated_at < 900
+    ):
+        return cached_rate
+
+    urls = [
         "https://open.er-api.com/v6/latest/USD",
-        "https://latest.currency-api.pages.dev/v1/currencies/usd.json",
     ]
 
-    for url in sources:
+    last_error = None
+
+    for url in urls:
         try:
-            response = session.get(url, timeout=REQUEST_TIMEOUT)
-            response.raise_for_status()
-            data = response.json()
-            rates = data.get("rates", {})
-            if isinstance(rates, dict) and rates.get("RUB"):
-                return float(rates["RUB"])
+            data = get_json(url)
 
-            usd = data.get("usd", {})
-            if isinstance(usd, dict) and usd.get("rub"):
-                return float(usd["rub"])
-        except (requests.RequestException, ValueError, TypeError):
-            logger.warning("USD/RUB source failed: %s", url)
+            rate = (
+                data.get("rates", {})
+                .get("RUB")
+            )
 
-    return None
+            if rate is None:
+                continue
 
+            rate = float(rate)
 
-def get_usd_rub():
-    now = time.time()
-    with cache_lock:
-        rate = usd_rub_cache["rate"]
-        updated = usd_rub_cache["updated_at"]
+            if rate <= 0:
+                continue
 
-    if rate and now - updated < FX_CACHE_TTL:
-        return rate
+            with state_lock:
+                usd_rub_cache["rate"] = rate
+                usd_rub_cache["updated_at"] = time.time()
 
-    new_rate = fetch_usd_rub()
-    if new_rate and new_rate > 0:
-        with cache_lock:
-            usd_rub_cache["rate"] = new_rate
-            usd_rub_cache["updated_at"] = time.time()
-        return new_rate
+            return rate
 
-    return rate
-
-
-def add_ruble_prices(prices, currency, rate):
-    result = []
-    for original in prices:
-        coin = dict(original)
-        if rate and coin.get("price") is not None:
-            # CoinGecko values are USD; Bybit spot pairs are quoted in USDT.
-            # The conversion is indicative, not a RUB exchange-market quote.
-            coin["priceRub"] = float(coin["price"]) * rate
-        else:
-            coin["priceRub"] = None
-        coin["rubRate"] = rate
-        coin["rubCurrencyBasis"] = currency
-        result.append(coin)
-    return result
-
-
-def build_price_response(source, currency, prices, updated, error=None,
-                         fallback_error=None, trading_data=False):
-    rate = get_usd_rub()
-    prices = add_ruble_prices(prices, currency, rate)
-    now = time.time()
-
-    return {
-        "source": source,
-        "currency": currency,
-        "prices": prices,
-        "updatedAt": utc_iso(updated),
-        "serverTime": utc_iso(now),
-        "usdRub": rate,
-        "rubUpdatedAt": utc_iso(usd_rub_cache["updated_at"]),
-        "cached": bool(error),
-        "error": error,
-        "fallbackError": fallback_error,
-        "tradingData": trading_data,
-        "hourlyHistory": "in-memory; starts collecting after deployment",
-        "notice": (
-            "Prices in RUB are indicative conversions using the reference "
-            "USD/RUB rate. Fallback market data is not Bybit trading data."
-        ),
-    }
-
-
-# ---------------------------------------------------------
-# Simulation-only trading status
-# ---------------------------------------------------------
-
-def trading_status():
-    prices, error = get_bybit_prices()
-    return {
-        "mode": TRADING_MODE,
-        "liveTradingEnabled": LIVE_TRADING_ENABLED,
-        "ordersEnabled": False,
-        "exchange": "Bybit",
-        "exchangeDataAvailable": bool(prices) and error is None,
-        "priceCount": len(prices),
-        "error": error,
-        "message": "Simulation only. No real orders are sent.",
-    }
-
-
-def build_demo_signals():
-    prices, error = get_bybit_prices()
-    if not prices or error:
-        return [], error or "Fresh Bybit data is unavailable"
-
-    signals = []
-    for coin in prices:
-        change = coin["change24h"]
-        signal = (
-            "positive_momentum" if change >= 3 else
-            "negative_momentum" if change <= -3 else "neutral"
-        )
-        signals.append({
-            "symbol": coin["symbol"],
-            "signal": signal,
-            "change24h": change,
-            "executable": False,
-            "note": "Informational only; not a validated trading strategy.",
-        })
-    return signals, None
-
-
-# ---------------------------------------------------------
-# Telegram
-# ---------------------------------------------------------
-
-def telegram_request(method, data=None):
-    if not TELEGRAM_API:
-        logger.warning("Telegram token is missing in Render environment")
-        return None
-    try:
-        response = session.post(
-            f"{TELEGRAM_API}/{method}",
-            json=data or {},
-            timeout=REQUEST_TIMEOUT,
-        )
-        result = response.json()
-        if not result.get("ok"):
+        except Exception as exc:
+            last_error = str(exc)
             logger.warning(
-                "Telegram %s error: %s",
-                method, result.get("description", "unknown error")
-            )
-        return result
-    except (requests.RequestException, ValueError):
-        logger.exception("Telegram request failed: %s", method)
-        return None
-
-
-def main_keyboard():
-    return {
-        "inline_keyboard": [
-            [{"text": "🌐 Открыть CryptoPulse",
-              "web_app": {"url": SITE_URL}}],
-            [{"text": "📊 Крипторынок", "callback_data": "prices"},
-             {"text": "💱 USD / RUB", "callback_data": "usd_rub"}],
-            [{"text": "🧮 Калькулятор BTC", "callback_data": "calculator"},
-             {"text": "🔄 Обновить", "callback_data": "refresh"}],
-        ]
-    }
-
-
-def send_message(chat_id, text, keyboard=None):
-    data = {"chat_id": chat_id, "text": text}
-    if keyboard:
-        data["reply_markup"] = keyboard
-    return telegram_request("sendMessage", data)
-
-
-def edit_message(chat_id, message_id, text, keyboard=None):
-    data = {"chat_id": chat_id, "message_id": message_id, "text": text}
-    if keyboard:
-        data["reply_markup"] = keyboard
-    return telegram_request("editMessageText", data)
-
-
-def answer_callback(callback_id, text=None):
-    data = {"callback_query_id": callback_id}
-    if text:
-        data["text"] = text
-    telegram_request("answerCallbackQuery", data)
-
-
-def format_price(value, currency="USDT"):
-    if value >= 1000:
-        return f"{value:,.2f} {currency}"
-    if value >= 1:
-        return f"{value:,.4f} {currency}"
-    return f"{value:.8f} {currency}"
-
-
-def market_message():
-    prices, error = get_bybit_prices()
-    source = "Bybit"
-    currency = "USDT"
-
-    if not prices:
-        prices, fallback_error = get_market_prices()
-        source = "CoinGecko — справочные данные"
-        currency = "USD"
-        if not prices:
-            return (
-                "⚠️ Котировки временно недоступны.\n"
-                f"Bybit: {error or 'недоступен'}\n"
-                f"CoinGecko: {fallback_error or 'недоступен'}"
+                "USD/RUB rate request failed: %s",
+                exc,
             )
 
-    lines = [
-        f"📊 CryptoPulse — {source}",
-        f"Цены в {currency}; рублёвые значения — справочный пересчёт.",
-        "Реальные сделки отключены.",
-        "",
-    ]
-    for coin in prices:
-        change = coin.get("change24h")
-        change_text = (
-            f"{change:+.2f}%" if change is not None else "нет данных"
-        )
-        lines.append(
-            f"{coin['symbol']}: {format_price(coin['price'], currency)} "
-            f"({change_text})"
-        )
+    if cached_rate is not None:
+        return cached_rate
 
-    return "\n".join(lines)
-
-
-def usd_rub_message():
-    rate = get_usd_rub()
-    if not rate:
-        return "⚠️ Справочный курс USD/RUB временно недоступен."
-    return (
-        "💱 Справочный курс USD / RUB\n\n"
-        f"1 USD ≈ {rate:.2f} RUB\n\n"
-        "Это не цена USDT на бирже."
+    raise RuntimeError(
+        f"Could not obtain USD/RUB exchange rate: {last_error}"
     )
 
 
-def handle_message(message):
-    chat_id = (message.get("chat") or {}).get("id")
-    text = (message.get("text") or "").strip()
-    if not chat_id:
-        return
+# ============================================================
+# PRICE CACHE
+# ============================================================
 
-    if text in ("/start", "/menu"):
-        send_message(
-            chat_id,
-            "👋 Добро пожаловать в CryptoPulse!\n\n"
-            "Открой Mini App или проверь котировки.\n"
-            "Реальные сделки отключены.",
-            main_keyboard(),
+def refresh_prices(force=False):
+    now = time.time()
+
+    with state_lock:
+        cached_prices = dict(price_cache["prices"])
+        cache_age = now - price_cache["updated_at"]
+
+        if (
+            cached_prices
+            and cache_age < PRICE_CACHE_SECONDS
+            and not force
+        ):
+            return {
+                "prices": cached_prices,
+                "source": price_cache["source"],
+                "error": price_cache["error"],
+            }
+
+    errors = []
+
+    # Primary provider.
+    try:
+        prices, changes_24h = fetch_coingecko_prices()
+
+        observed_at = datetime.now(timezone.utc)
+
+        remember_prices(
+            "coingecko",
+            prices,
+            observed_at,
         )
-        return
-    if text == "/health":
-        send_message(chat_id, "✅ CryptoPulse работает.")
-        return
-    if text == "/prices":
-        send_message(chat_id, market_message(), main_keyboard())
-        return
-    if text == "/trading":
-        status = trading_status()
-        send_message(
-            chat_id,
-            "🛡 Статус торгового модуля\n\n"
-            f"Режим: {status['mode']}\n"
-            "Реальные ордера: отключены\n"
-            f"Данные Bybit доступны: "
-            f"{'да' if status['exchangeDataAvailable'] else 'нет'}\n"
-            f"Пар получено: {status['priceCount']}\n\n"
-            "Это не финансовая рекомендация.",
-            main_keyboard(),
+
+        result = {
+            "prices": prices,
+            "changes24h": changes_24h,
+            "source": "coingecko",
+            "error": None,
+        }
+
+        with state_lock:
+            price_cache["updated_at"] = time.time()
+            price_cache["prices"] = dict(prices)
+            price_cache["source"] = "coingecko"
+            price_cache["error"] = None
+
+        return result
+
+    except Exception as exc:
+        errors.append(f"CoinGecko: {exc}")
+
+        logger.warning(
+            "CoinGecko price retrieval failed: %s",
+            exc,
         )
-        return
 
-    with pending_lock:
-        waiting = chat_id in pending_calculations
+    # Secondary provider.
+    try:
+        prices = fetch_bybit_prices()
 
-    if waiting:
-        try:
-            amount = float(text.replace(",", "."))
-            if amount <= 0:
-                raise ValueError("Amount must be positive")
-            with pending_lock:
-                pending_calculations.discard(chat_id)
+        observed_at = datetime.now(timezone.utc)
 
-            prices, error = get_bybit_prices()
-            btc = next(
-                (item for item in prices if item["symbol"] == "BTC"), None
-            )
-            if not btc or error:
-                send_message(
-                    chat_id,
-                    "⚠️ Не удалось подтвердить свежую цену BTC на Bybit.",
-                    main_keyboard(),
+        remember_prices(
+            "bybit",
+            prices,
+            observed_at,
+        )
+
+        result = {
+            "prices": prices,
+            "changes24h": {},
+            "source": "bybit",
+            "error": None,
+        }
+
+        with state_lock:
+            price_cache["updated_at"] = time.time()
+            price_cache["prices"] = dict(prices)
+            price_cache["source"] = "bybit"
+            price_cache["error"] = None
+
+        return result
+
+    except Exception as exc:
+        errors.append(f"Bybit: {exc}")
+
+        logger.warning(
+            "Bybit price retrieval failed: %s",
+            exc,
+        )
+
+    # If both providers fail, return the last cached prices.
+    with state_lock:
+        cached_prices = dict(price_cache["prices"])
+        cached_source = price_cache["source"]
+
+        price_cache["error"] = "; ".join(errors)
+
+    if cached_prices:
+        return {
+            "prices": cached_prices,
+            "source": cached_source,
+            "error": "; ".join(errors),
+        }
+
+    raise RuntimeError("; ".join(errors))
+
+
+# ============================================================
+# HISTORICAL PRICE CALCULATIONS
+# ============================================================
+
+def get_history_points(source, symbol):
+    """
+    Return recent in-memory observations.
+
+    If needed, retrieve the symbol's historical observations from
+    PostgreSQL as a fallback.
+    """
+    key = (source, symbol)
+
+    with state_lock:
+        points = list(price_history.get(key, []))
+
+    now = time.time()
+    cutoff = now - HISTORY_RETENTION_HOURS * 3600
+
+    points = [
+        point
+        for point in points
+        if point["timestamp"] >= cutoff
+    ]
+
+    # If RAM contains an eligible observation around one hour ago,
+    # no database query is necessary.
+    has_hourly_candidate = any(
+        45 * 60
+        <= now - point["timestamp"]
+        <= 75 * 60
+        for point in points
+    )
+
+    if has_hourly_candidate or not DATABASE_URL:
+        return points
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        price,
+                        EXTRACT(EPOCH FROM observed_at) AS timestamp
+                    FROM price_history
+                    WHERE source = %s
+                      AND symbol = %s
+                      AND observed_at >= NOW() - INTERVAL '3 hours'
+                    ORDER BY observed_at ASC
+                    """,
+                    (source, symbol),
                 )
-                return
-            send_message(
-                chat_id,
-                "🧮 Расчёт по цене BTC на Bybit\n\n"
-                f"Сумма: {amount:,.2f} USDT\n"
-                f"BTC: {amount / btc['price']:.8f}\n\n"
-                "Расчёт без комиссий. Сделки не совершаются.",
-                main_keyboard(),
-            )
-        except ValueError:
-            send_message(
-                chat_id, "Введи положительную сумму, например 100 или 25.50."
-            )
-        return
 
-    send_message(chat_id, "Выбери действие в меню или отправь /start.",
-                 main_keyboard())
+                rows = cur.fetchall()
 
+        database_points = [
+            {
+                "timestamp": float(row["timestamp"]),
+                "price": float(row["price"]),
+            }
+            for row in rows
+        ]
 
-def handle_callback(callback):
-    callback_id = callback.get("id")
-    data = callback.get("data", "")
-    message = callback.get("message") or {}
-    chat_id = (message.get("chat") or {}).get("id")
-    message_id = message.get("message_id")
-    answer_callback(callback_id)
+        # Merge RAM and database history without duplicating timestamps.
+        merged = {
+            point["timestamp"]: point
+            for point in points
+        }
 
-    if not chat_id:
-        return
-    if data in ("prices", "refresh"):
-        text = market_message()
-    elif data == "usd_rub":
-        text = usd_rub_message()
-    elif data == "calculator":
-        with pending_lock:
-            pending_calculations.add(chat_id)
-        send_message(
-            chat_id,
-            "🧮 Введи сумму в USDT, например 100.\n"
-            "Расчёт BTC доступен только при подтверждённой цене Bybit.",
+        for point in database_points:
+            merged[point["timestamp"]] = point
+
+        return sorted(
+            merged.values(),
+            key=lambda point: point["timestamp"],
         )
-        return
-    else:
-        text = "Выбери действие в меню."
 
-    if message_id:
-        result = edit_message(chat_id, message_id, text, main_keyboard())
-        if not result or not result.get("ok"):
-            description = (result or {}).get("description", "").lower()
-            if "message is not modified" not in description:
-                send_message(chat_id, text, main_keyboard())
-    else:
-        send_message(chat_id, text, main_keyboard())
+    except Exception as exc:
+        logger.warning(
+            "Historical lookup failed for %s: %s",
+            symbol,
+            exc,
+        )
+
+        return points
 
 
-# ---------------------------------------------------------
-# Flask API
-# ---------------------------------------------------------
+def calculate_hourly_change(source, symbol, current_price):
+    """
+    Calculate the percentage change relative to an observation
+    between 45 and 75 minutes old.
+
+    Return None if there is no suitable historical observation.
+    """
+    if current_price is None or current_price <= 0:
+        return None
+
+    points = get_history_points(source, symbol)
+    now = time.time()
+
+    candidates = [
+        point
+        for point in points
+        if 45 * 60
+        <= now - point["timestamp"]
+        <= 75 * 60
+        and point["price"] > 0
+    ]
+
+    if not candidates:
+        return None
+
+    # Prefer the observation closest to exactly 60 minutes ago.
+    reference = min(
+        candidates,
+        key=lambda point: abs(
+            (now - point["timestamp"]) - 3600
+        ),
+    )
+
+    return (
+        (current_price - reference["price"])
+        / reference["price"]
+    ) * 100
+
+
+def calculate_change_24h(provider_change, source, symbol, current_price):
+    """
+    Prefer the provider's 24-hour percentage.
+
+    If unavailable, attempt to calculate it from persisted history.
+    """
+    if provider_change is not None:
+        return provider_change
+
+    points = get_history_points(source, symbol)
+    now = time.time()
+
+    candidates = [
+        point
+        for point in points
+        if 22 * 3600
+        <= now - point["timestamp"]
+        <= 26 * 3600
+        and point["price"] > 0
+    ]
+
+    if not candidates:
+        return None
+
+    reference = min(
+        candidates,
+        key=lambda point: abs(
+            (now - point["timestamp"]) - 86400
+        ),
+    )
+
+    return (
+        (current_price - reference["price"])
+        / reference["price"]
+    ) * 100
+
+
+# ============================================================
+# API RESPONSE BUILDERS
+# ============================================================
+
+def build_market_payload(force=False):
+    result = refresh_prices(force=force)
+
+    prices = result["prices"]
+    source = result.get("source") or "unknown"
+
+    try:
+        usd_rub = fetch_usd_rub()
+        usd_rub_error = None
+    except Exception as exc:
+        logger.warning("USD/RUB unavailable: %s", exc)
+        usd_rub = None
+        usd_rub_error = str(exc)
+
+    changes_24h = result.get("changes24h", {})
+    coins = []
+
+    for symbol, info in COINS.items():
+        price_usd = prices.get(symbol)
+
+        if price_usd is None:
+            continue
+
+        price_usd = float(price_usd)
+
+        price_rub = (
+            price_usd * usd_rub
+            if usd_rub is not None
+            else None
+        )
+
+        change_1h = calculate_hourly_change(
+            source,
+            symbol,
+            price_usd,
+        )
+
+        change_24h = calculate_change_24h(
+            changes_24h.get(symbol),
+            source,
+            symbol,
+            price_usd,
+        )
+
+        coins.append(
+            {
+                "symbol": symbol,
+                "name": info["name"],
+                "priceUsd": price_usd,
+                "priceRub": price_rub,
+                "change1h": change_1h,
+                "change24h": change_24h,
+                "source": source,
+            }
+        )
+
+    return {
+        "success": True,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "source": source,
+        "coins": coins,
+        "usdRub": usd_rub,
+        "usdRubError": usd_rub_error,
+        "hourlyHistory": (
+            "postgresql-persistent"
+            if DATABASE_URL
+            else "in-memory-only"
+        ),
+        "databaseAvailable": database_status["available"],
+        "warning": result.get("error"),
+    }
+
+
+# ============================================================
+# FLASK ROUTES
+# ============================================================
 
 @app.route("/")
 def index():
-    if os.path.isfile(os.path.join(STATIC_DIR, "index.html")):
-        return send_from_directory(STATIC_DIR, "index.html")
-    return "CryptoPulse is running, but static/index.html was not found.", 200
+    return send_from_directory(
+        app.static_folder,
+        "index.html",
+    )
 
 
 @app.route("/health")
 def health():
-    return jsonify({
-        "status": "ok",
-        "service": "CryptoPulse",
-        "time": datetime.now(timezone.utc).isoformat(),
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "service": "CryptoPulse",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
 
 @app.route("/api/config")
 def api_config():
-    return jsonify({
-        "source": "Bybit",
-        "currency": "USDT",
-        "coins": [{"symbol": c["symbol"], "name": c["name"]} for c in COINS],
-        "fallbackSource": "CoinGecko",
-        "tradingMode": TRADING_MODE,
-        "liveTradingEnabled": LIVE_TRADING_ENABLED,
-    })
+    return jsonify(
+        {
+            "success": True,
+            "tradingMode": TRADING_MODE,
+            "liveTradingEnabled": LIVE_TRADING_ENABLED,
+            "telegramConfigured": telegram_configured,
+            "databaseConfigured": bool(DATABASE_URL),
+            "databaseAvailable": database_status["available"],
+            "hourlyHistory": (
+                "postgresql-persistent"
+                if DATABASE_URL
+                else "in-memory-only"
+            ),
+            "coins": [
+                {
+                    "symbol": symbol,
+                    "name": coin["name"],
+                }
+                for symbol, coin in COINS.items()
+            ],
+        }
+    )
 
 
 @app.route("/api/prices")
 def api_prices():
-    prices, error = get_bybit_prices()
-    with cache_lock:
-        updated = price_cache["bybit"]["updated_at"]
+    try:
+        payload = build_market_payload()
 
-    if prices:
-        return jsonify(build_price_response(
-            "Bybit", "USDT", prices, updated,
-            error=error, trading_data=not bool(error)
-        ))
+        return jsonify(payload)
 
-    fallback, fallback_error = get_market_prices()
-    with cache_lock:
-        fallback_updated = price_cache["market"]["updated_at"]
+    except Exception as exc:
+        logger.exception("Price API failed")
 
-    return jsonify(build_price_response(
-        "CoinGecko", "USD", fallback, fallback_updated,
-        error=error,
-        fallback_error=fallback_error,
-        trading_data=False,
-    ))
+        return jsonify(
+            {
+                "success": False,
+                "error": str(exc),
+                "coins": [],
+            }
+        ), 503
 
 
 @app.route("/api/market-prices")
 def api_market_prices():
-    prices, error = get_market_prices()
-    with cache_lock:
-        updated = price_cache["market"]["updated_at"]
-    return jsonify(build_price_response(
-        "CoinGecko", "USD", prices, updated,
-        error=error, trading_data=False
-    ))
+    return api_prices()
 
 
 @app.route("/api/bybit-status")
 def api_bybit_status():
-    status = trading_status()
-    return jsonify(status), (200 if status["exchangeDataAvailable"] else 503)
-
-
-@app.route("/api/trading/status")
-def api_trading_status():
-    return jsonify(trading_status())
-
-
-@app.route("/api/trading/signals")
-def api_trading_signals():
-    signals, error = build_demo_signals()
-    return jsonify({
-        "mode": "simulation",
-        "executable": False,
-        "signals": signals,
-        "error": error,
-        "notice": "Demo only; no orders are placed.",
-    }), (200 if signals else 503)
+    return jsonify(
+        {
+            "success": True,
+            "available": bybit_status["available"],
+            "lastError": bybit_status["last_error"],
+            "lastCheck": bybit_status["last_check"],
+        }
+    )
 
 
 @app.route("/api/usd-rub")
 def api_usd_rub():
-    rate = get_usd_rub()
-    if not rate:
-        return jsonify({
-            "ok": False,
-            "error": "Exchange rate temporarily unavailable",
-        }), 503
-    return jsonify({
-        "ok": True,
-        "source": "public exchange-rate API",
-        "USD_RUB": rate,
-        "updatedAt": utc_iso(usd_rub_cache["updated_at"]),
-    })
+    try:
+        rate = fetch_usd_rub()
+
+        return jsonify(
+            {
+                "success": True,
+                "rate": rate,
+                "currency": "RUB",
+                "base": "USD",
+            }
+        )
+
+    except Exception as exc:
+        return jsonify(
+            {
+                "success": False,
+                "error": str(exc),
+            }
+        ), 503
+
+
+@app.route("/api/trading/status")
+def trading_status():
+    return jsonify(
+        {
+            "success": True,
+            "mode": TRADING_MODE,
+            "liveTradingEnabled": LIVE_TRADING_ENABLED,
+            "message": (
+                "Simulation only. Real trading is disabled."
+            ),
+        }
+    )
+
+
+@app.route("/api/trading/signals")
+def trading_signals():
+    """
+    Informational market signals only.
+    This endpoint never creates or submits orders.
+    """
+    try:
+        payload = build_market_payload()
+
+        signals = []
+
+        for coin in payload["coins"]:
+            change = coin["change1h"]
+
+            if change is None:
+                label = "insufficient_history"
+            elif change >= 1.0:
+                label = "positive_momentum"
+            elif change <= -1.0:
+                label = "negative_momentum"
+            else:
+                label = "neutral"
+
+            signals.append(
+                {
+                    "symbol": coin["symbol"],
+                    "signal": label,
+                    "change1h": change,
+                    "mode": "simulation",
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "mode": "simulation",
+                "liveTradingEnabled": False,
+                "signals": signals,
+            }
+        )
+
+    except Exception as exc:
+        logger.exception("Signal API failed")
+
+        return jsonify(
+            {
+                "success": False,
+                "error": str(exc),
+                "signals": [],
+            }
+        ), 503
+
+
+# ============================================================
+# TELEGRAM
+# ============================================================
+
+def telegram_send_message(chat_id, text):
+    if not TELEGRAM_TOKEN:
+        return False
+
+    url = (
+        "https://api.telegram.org/bot"
+        f"{TELEGRAM_TOKEN}/sendMessage"
+    )
+
+    try:
+        response = http.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "text": text,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+
+        response.raise_for_status()
+
+        return True
+
+    except Exception:
+        logger.exception("Could not send Telegram message")
+        return False
+
+
+def configure_telegram():
+    """
+    Set a webhook only if the application has a public URL configured.
+
+    Set TELEGRAM_WEBHOOK_URL in Render to the full webhook URL,
+    for example: https://your-service.onrender.com/telegram-webhook
+    """
+    if not TELEGRAM_TOKEN:
+        logger.info("Telegram token is not configured")
+        return
+
+    webhook_url = os.getenv(
+        "TELEGRAM_WEBHOOK_URL",
+        "",
+    ).strip()
+
+    if not webhook_url:
+        logger.info(
+            "TELEGRAM_WEBHOOK_URL is not configured; "
+            "Telegram webhook was not changed"
+        )
+        return
+
+    try:
+        response = http.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
+            json={"url": webhook_url},
+            timeout=REQUEST_TIMEOUT,
+        )
+
+        response.raise_for_status()
+
+        logger.info("Telegram webhook configuration requested")
+
+    except Exception:
+        logger.exception("Could not configure Telegram webhook")
 
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
+    if not TELEGRAM_TOKEN:
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Telegram token is not configured",
+            }
+        ), 503
+
     update = request.get_json(silent=True) or {}
-    try:
-        if "message" in update:
-            handle_message(update["message"])
-        elif "callback_query" in update:
-            handle_callback(update["callback_query"])
-    except Exception:
-        logger.exception("Error processing Telegram update")
+
+    message = (
+        update.get("message")
+        or update.get("edited_message")
+        or {}
+    )
+
+    chat = message.get("chat", {})
+    chat_id = chat.get("id")
+    text = (message.get("text") or "").strip()
+
+    if not chat_id or not text:
+        return jsonify({"ok": True})
+
+    if text.startswith("/start") or text.startswith("/help"):
+        reply = (
+            "CryptoPulse запущен.\n\n"
+            "Команды:\n"
+            "/prices — текущие цены\n"
+            "/status — статус сервиса\n\n"
+            "Торговля отключена: доступен только мониторинг."
+        )
+
+        telegram_send_message(chat_id, reply)
+
+    elif text.startswith("/status"):
+        reply = (
+            "CryptoPulse работает.\n"
+            f"База данных: "
+            f"{'доступна' if database_status['available'] else 'не подтверждена'}\n"
+            "Режим: simulation\n"
+            "Реальные ордера: отключены"
+        )
+
+        telegram_send_message(chat_id, reply)
+
+    elif text.startswith("/prices"):
+        try:
+            payload = build_market_payload()
+
+            lines = ["CryptoPulse — цены:"]
+
+            for coin in payload["coins"][:10]:
+                change = coin["change1h"]
+
+                if change is None:
+                    change_text = "нет часовой истории"
+                else:
+                    change_text = f"{change:+.2f}% за час"
+
+                lines.append(
+                    f"{coin['symbol']}: "
+                    f"${coin['priceUsd']:,.6f} — "
+                    f"{change_text}"
+                )
+
+            telegram_send_message(
+                chat_id,
+                "\n".join(lines),
+            )
+
+        except Exception as exc:
+            logger.exception("Telegram prices command failed")
+
+            telegram_send_message(
+                chat_id,
+                f"Не удалось получить цены: {exc}",
+            )
+
+    else:
+        telegram_send_message(
+            chat_id,
+            "Команды: /prices, /status, /help",
+        )
+
     return jsonify({"ok": True})
 
 
-def configure_telegram():
-    if not TELEGRAM_TOKEN:
-        logger.warning("Telegram token missing. Set TELEGRAM_TOKEN in Render.")
-        return
+# ============================================================
+# STARTUP
+# ============================================================
 
-    hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")
-    if hostname:
-        result = telegram_request(
-            "setWebhook",
-            {"url": f"https://{hostname}/telegram-webhook"},
-        )
-        if result and result.get("ok"):
-            logger.info("Telegram webhook configured")
-        else:
-            logger.error("Could not configure Telegram webhook")
-    else:
-        logger.warning("Render hostname unavailable; webhook not configured")
+# Initialize PostgreSQL and restore saved history when this process starts.
+init_database()
 
-    result = telegram_request(
-        "setChatMenuButton",
-        {"menu_button": {
-            "type": "web_app",
-            "text": "CryptoPulse",
-            "web_app": {"url": SITE_URL},
-        }},
-    )
-    if result and result.get("ok"):
-        logger.info("Telegram Mini App menu button configured")
-    else:
-        logger.warning("Could not configure Telegram Mini App menu button")
-
-
+# Configure Telegram webhook only when TELEGRAM_WEBHOOK_URL is set.
 configure_telegram()
 
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "10000")),
+    )

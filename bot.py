@@ -1,610 +1,644 @@
-import html
-import logging
 import os
-import re
 import time
+import logging
+import threading
 from datetime import datetime, timezone
-from urllib.parse import urlparse
 
 import requests
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+app = Flask(__name__, static_folder=STATIC_DIR)
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    format="%(asctime)s %(levelname)s %(message)s",
 )
-log = logging.getLogger("cryptopulse")
+logger = logging.getLogger("cryptopulse")
 
-DEFAULT_URL = "https://cryptopulse-lpc9.onrender.com"
-TIMEOUT = 12
-CACHE_SECONDS = 45
-
-TOKEN = (
+TELEGRAM_TOKEN = (
     os.getenv("TELEGRAM_TOKEN")
     or os.getenv("TELEGRAM_BOT_TOKEN")
     or os.getenv("BOT_TOKEN")
-    or ""
-).strip()
+)
 
+TELEGRAM_API = (
+    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    if TELEGRAM_TOKEN
+    else None
+)
 
-def get_webapp_url():
-    value = (os.getenv("WEBAPP_URL") or "").strip().strip("\"'").rstrip("/")
-    parsed = urlparse(value)
-    if parsed.scheme == "https" and parsed.netloc:
-        return value
-    log.warning("WEBAPP_URL invalid; using default site URL.")
-    return DEFAULT_URL
-
-
-WEBAPP_URL = get_webapp_url()
-app = Flask(__name__)
+BYBIT_API = "https://api.bybit.com/v5/market/tickers"
+REQUEST_TIMEOUT = 12
+CACHE_TTL = 30
 
 COINS = [
-    {"symbol": "BTC", "name": "Bitcoin", "cg": "bitcoin", "paprika": "btc-bitcoin"},
-    {"symbol": "ETH", "name": "Ethereum", "cg": "ethereum", "paprika": "eth-ethereum"},
-    {"symbol": "USDT", "name": "Tether", "cg": "tether", "paprika": "usdt-tether"},
-    {"symbol": "BNB", "name": "BNB", "cg": "binancecoin", "paprika": "bnb-binance-coin"},
-    {"symbol": "XRP", "name": "XRP", "cg": "ripple", "paprika": "xrp-xrp"},
-    {"symbol": "USDC", "name": "USD Coin", "cg": "usd-coin", "paprika": "usdc-usd-coin"},
-    {"symbol": "SOL", "name": "Solana", "cg": "solana", "paprika": "sol-solana"},
-    {"symbol": "TRX", "name": "TRON", "cg": "tron", "paprika": "trx-tron"},
-    {"symbol": "DOGE", "name": "Dogecoin", "cg": "dogecoin", "paprika": "doge-dogecoin"},
-    {"symbol": "TON", "name": "Toncoin", "cg": "the-open-network", "paprika": "ton-toncoin"},
-    {"symbol": "ADA", "name": "Cardano", "cg": "cardano", "paprika": "ada-cardano"},
-    {"symbol": "BCH", "name": "Bitcoin Cash", "cg": "bitcoin-cash", "paprika": "bch-bitcoin-cash"},
-    {"symbol": "LINK", "name": "Chainlink", "cg": "chainlink", "paprika": "link-chainlink"},
-    {"symbol": "AVAX", "name": "Avalanche", "cg": "avalanche-2", "paprika": "avax-avalanche"},
-    {"symbol": "LTC", "name": "Litecoin", "cg": "litecoin", "paprika": "ltc-litecoin"},
+    {"symbol": "BTC", "name": "Bitcoin"},
+    {"symbol": "ETH", "name": "Ethereum"},
+    {"symbol": "BNB", "name": "BNB"},
+    {"symbol": "SOL", "name": "Solana"},
+    {"symbol": "XRP", "name": "XRP"},
+    {"symbol": "ADA", "name": "Cardano"},
+    {"symbol": "DOGE", "name": "Dogecoin"},
+    {"symbol": "TRX", "name": "TRON"},
+    {"symbol": "TON", "name": "Toncoin"},
+    {"symbol": "LINK", "name": "Chainlink"},
+    {"symbol": "AVAX", "name": "Avalanche"},
+    {"symbol": "DOT", "name": "Polkadot"},
+    {"symbol": "LTC", "name": "Litecoin"},
+    {"symbol": "BCH", "name": "Bitcoin Cash"},
+    {"symbol": "SUI", "name": "Sui"},
 ]
 
-_cache = {"time": 0, "data": None}
-_rub_cache = {"time": 0, "value": None}
-_session = requests.Session()
-_session.headers.update({"User-Agent": "CryptoPulse/2.1"})
-_pending_calculations = set()
+COIN_IMAGES = {
+    "BTC": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+    "ETH": "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+    "BNB": "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
+    "SOL": "https://assets.coingecko.com/coins/images/4128/large/solana.png",
+    "XRP": "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png",
+    "ADA": "https://assets.coingecko.com/coins/images/975/large/cardano.png",
+    "DOGE": "https://assets.coingecko.com/coins/images/5/large/dogecoin.png",
+    "TRX": "https://assets.coingecko.com/coins/images/1094/large/tron-logo.png",
+    "TON": "https://assets.coingecko.com/coins/images/17980/large/ton_symbol.png",
+    "LINK": "https://assets.coingecko.com/coins/images/877/large/chainlink-new-logo.png",
+    "AVAX": "https://assets.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png",
+    "DOT": "https://assets.coingecko.com/coins/images/12171/large/polkadot.png",
+    "LTC": "https://assets.coingecko.com/coins/images/2/large/litecoin.png",
+    "BCH": "https://assets.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png",
+    "SUI": "https://assets.coingecko.com/coins/images/26375/large/sui_asset.jpeg",
+}
 
+session = requests.Session()
+session.headers.update({"User-Agent": "CryptoPulse/1.0"})
 
-def get_prices(force=False):
-    now = time.time()
-    if not force and _cache["data"] and now - _cache["time"] < CACHE_SECONDS:
-        return _cache["data"]
+cache_lock = threading.Lock()
 
-    values = {
-        coin["symbol"]: {"price": None, "change24h": None}
-        for coin in COINS
-    }
-    sources = []
+price_cache = {
+    "updated_at": 0,
+    "prices": [],
+    "error": None,
+}
 
-    try:
-        response = _session.get(
-            "https://api.coingecko.com/api/v3/simple/price",
-            params={
-                "ids": ",".join(coin["cg"] for coin in COINS),
-                "vs_currencies": "usd",
-                "include_24hr_change": "true",
-            },
-            timeout=TIMEOUT,
+usd_rub_cache = {
+    "updated_at": 0,
+    "rate": None,
+}
+
+# --------------------------------------------------
+# BYBIT PRICES
+# --------------------------------------------------
+
+def fetch_bybit_prices():
+    response = session.get(
+        BYBIT_API,
+        params={"category": "spot"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+
+    if payload.get("retCode") != 0:
+        raise RuntimeError(
+            f"Bybit API error: {payload.get('retMsg', 'unknown error')}"
         )
-        response.raise_for_status()
-        data = response.json()
 
-        for coin in COINS:
-            quote = data.get(coin["cg"], {}) if isinstance(data, dict) else {}
-            if isinstance(quote, dict) and quote.get("usd") is not None:
-                values[coin["symbol"]] = {
-                    "price": quote.get("usd"),
-                    "change24h": quote.get("usd_24h_change"),
-                }
+    rows = payload.get("result", {}).get("list", [])
 
-        sources.append("CoinGecko")
-    except (requests.RequestException, ValueError, TypeError) as exc:
-        log.warning("CoinGecko price request failed: %s", exc)
+    if not rows:
+        raise RuntimeError("Bybit returned an empty ticker list")
+
+    tickers = {
+        row.get("symbol"): row
+        for row in rows
+        if row.get("symbol")
+    }
+
+    prices = []
 
     for coin in COINS:
-        if values[coin["symbol"]]["price"] is not None:
+        symbol = coin["symbol"]
+        ticker = tickers.get(f"{symbol}USDT")
+
+        if not ticker:
+            logger.warning("Bybit pair %sUSDT is unavailable", symbol)
             continue
 
         try:
-            response = _session.get(
-                f"https://api.coinpaprika.com/v1/tickers/{coin['paprika']}",
-                params={"quotes": "USD"},
-                timeout=TIMEOUT,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            quote = (
-                payload.get("quotes", {}).get("USD", {})
-                if isinstance(payload, dict)
-                else {}
-            )
+            price = float(ticker.get("lastPrice", 0))
+            change = float(ticker.get("price24hPcnt", 0)) * 100
+        except (TypeError, ValueError):
+            continue
 
-            if quote.get("price") is not None:
-                values[coin["symbol"]] = {
-                    "price": quote["price"],
-                    "change24h": quote.get("percent_change_24h"),
-                }
-                if "CoinPaprika" not in sources:
-                    sources.append("CoinPaprika")
+        if price <= 0:
+            continue
 
-        except (requests.RequestException, ValueError, TypeError) as exc:
-            log.warning("CoinPaprika failed for %s: %s", coin["symbol"], exc)
-
-    images = {}
-    try:
-        response = _session.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
-            params={
-                "vs_currency": "usd",
-                "ids": ",".join(coin["cg"] for coin in COINS),
-                "per_page": 100,
-                "page": 1,
-            },
-            timeout=TIMEOUT,
-        )
-        response.raise_for_status()
-        payload = response.json()
-
-        if isinstance(payload, list):
-            images = {
-                str(item.get("symbol", "")).upper(): item.get("image")
-                for item in payload
-                if isinstance(item, dict) and item.get("symbol")
-            }
-
-    except (requests.RequestException, ValueError, TypeError) as exc:
-        log.warning("CoinGecko image request failed: %s", exc)
-
-    prices = []
-    for coin in COINS:
-        quote = values[coin["symbol"]]
         prices.append({
-            "symbol": coin["symbol"],
+            "symbol": symbol,
             "name": coin["name"],
-            "price": quote["price"],
-            "change24h": quote["change24h"],
-            "image": images.get(coin["symbol"]),
-            "available": quote["price"] is not None,
+            "price": price,
+            "change24h": change,
+            "image": COIN_IMAGES.get(symbol, ""),
         })
 
-    unavailable = sum(item["price"] is None for item in prices)
+    if not prices:
+        raise RuntimeError("No configured Bybit spot pairs were found")
 
-    result = {
-        "ok": True,
-        "prices": prices,
-        "count": len(prices),
-        "source": " + ".join(sources) if sources else "Временно недоступен",
-        "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "stale": unavailable > 0,
-        "warning": (
-            f"Цены временно недоступны для {unavailable} монет."
-            if unavailable else ""
-        ),
-    }
-
-    _cache.update({"time": now, "data": result})
-    return result
+    return prices
 
 
-def get_usdt_rub(force=False):
+def get_prices(force_refresh=False):
     now = time.time()
 
-    if (
-        not force
-        and _rub_cache["value"] is not None
-        and now - _rub_cache["time"] < CACHE_SECONDS
-    ):
-        return _rub_cache["value"]
+    with cache_lock:
+        cached_at = price_cache["updated_at"]
+        cached_prices = list(price_cache["prices"])
 
-    sources = [
-        (
-            "https://api.coingecko.com/api/v3/simple/price",
-            {"ids": "tether", "vs_currencies": "rub"},
-            ("tether", "rub"),
-        ),
-        (
-            "https://api.coinpaprika.com/v1/tickers/usdt-tether",
-            {"quotes": "RUB"},
-            ("quotes", "RUB", "price"),
-        ),
+    if (
+        not force_refresh
+        and cached_prices
+        and now - cached_at < CACHE_TTL
+    ):
+        return cached_prices, None
+
+    try:
+        prices = fetch_bybit_prices()
+
+        with cache_lock:
+            price_cache["updated_at"] = time.time()
+            price_cache["prices"] = prices
+            price_cache["error"] = None
+
+        return prices, None
+
+    except Exception as exc:
+        logger.exception("Unable to refresh Bybit prices")
+
+        with cache_lock:
+            cached_prices = list(price_cache["prices"])
+            price_cache["error"] = str(exc)
+
+        if cached_prices:
+            return cached_prices, str(exc)
+
+        return [], str(exc)
+
+
+# --------------------------------------------------
+# USD / RUB RATE
+# --------------------------------------------------
+
+def fetch_usd_rub():
+    urls = [
+        "https://open.er-api.com/v6/latest/USD",
+        "https://latest.currency-api.pages.dev/v1/currencies/usd.json",
     ]
 
-    for url, params, path in sources:
+    for url in urls:
         try:
-            response = _session.get(url, params=params, timeout=TIMEOUT)
+            response = session.get(url, timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
             data = response.json()
 
-            for key in path:
-                data = data[key]
+            rates = data.get("rates")
+            if isinstance(rates, dict) and rates.get("RUB"):
+                return float(rates["RUB"])
 
-            rate = float(data)
-            if rate > 0:
-                _rub_cache.update({"time": now, "value": rate})
-                return rate
+            usd = data.get("usd")
+            if isinstance(usd, dict) and usd.get("rub"):
+                return float(usd["rub"])
 
-        except (
-            requests.RequestException,
-            ValueError,
-            TypeError,
-            KeyError,
-        ) as exc:
-            log.warning("USDT/RUB source failed: %s", exc)
+        except Exception:
+            logger.warning("Exchange-rate source failed: %s", url)
 
     return None
 
 
-def telegram(method, payload=None):
-    if not TOKEN:
-        log.error("Telegram token missing in Render Environment.")
+def get_usd_rub():
+    now = time.time()
+
+    with cache_lock:
+        cached_rate = usd_rub_cache["rate"]
+        cached_at = usd_rub_cache["updated_at"]
+
+    if cached_rate and now - cached_at < 900:
+        return cached_rate
+
+    rate = fetch_usd_rub()
+
+    if rate and rate > 0:
+        with cache_lock:
+            usd_rub_cache["rate"] = rate
+            usd_rub_cache["updated_at"] = time.time()
+        return rate
+
+    return cached_rate
+
+
+# --------------------------------------------------
+# TELEGRAM HELPERS
+# --------------------------------------------------
+
+def telegram_request(method, data=None):
+    if not TELEGRAM_API:
+        logger.warning("Telegram token is not configured")
         return None
 
     try:
-        response = _session.post(
-            f"https://api.telegram.org/bot{TOKEN}/{method}",
-            json=payload or {},
-            timeout=TIMEOUT,
+        response = session.post(
+            f"{TELEGRAM_API}/{method}",
+            json=data or {},
+            timeout=REQUEST_TIMEOUT,
         )
-        response.raise_for_status()
-        data = response.json()
+        result = response.json()
 
-        if not data.get("ok"):
-            log.error("Telegram API error for %s", method)
-            return None
+        if not result.get("ok"):
+            logger.warning(
+                "Telegram error (%s): %s",
+                method,
+                result.get("description", "unknown error"),
+            )
 
-        return data.get("result")
+        return result
 
-    except (requests.RequestException, ValueError):
-        log.exception("Telegram request failed for %s", method)
+    except Exception:
+        logger.exception("Telegram request failed: %s", method)
         return None
-
-
-def send_message(chat_id, text, markup=None):
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-    }
-    if markup:
-        payload["reply_markup"] = markup
-    return telegram("sendMessage", payload)
-
-
-def edit_message(chat_id, message_id, text, markup=None):
-    payload = {
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "text": text,
-        "parse_mode": "HTML",
-    }
-    if markup:
-        payload["reply_markup"] = markup
-    return telegram("editMessageText", payload)
 
 
 def main_keyboard():
     return {
         "inline_keyboard": [
-            [{
-                "text": "🌐 Открыть CryptoPulse",
-                "web_app": {"url": WEBAPP_URL},
-            }],
-            [{
-                "text": "📊 Все 15 монет",
-                "callback_data": "menu:prices",
-            }],
-            [{
-                "text": "💱 USDT → RUB",
-                "callback_data": "menu:rate",
-            }],
-            [{
-                "text": "🧮 Калькулятор",
-                "callback_data": "menu:calc",
-            }],
+            [
+                {"text": "📊 Крипторынок", "callback_data": "prices"},
+                {"text": "💱 USD / RUB", "callback_data": "usd_rub"},
+            ],
+            [
+                {"text": "🧮 Калькулятор", "callback_data": "calculator"},
+                {"text": "🔄 Обновить", "callback_data": "refresh"},
+            ],
         ]
     }
 
 
-def back_keyboard():
-    return {
-        "inline_keyboard": [[{
-            "text": "⬅️ Главное меню",
-            "callback_data": "menu:home",
-        }]]
+def send_message(chat_id, text, keyboard=None):
+    data = {"chat_id": chat_id, "text": text}
+
+    if keyboard:
+        data["reply_markup"] = keyboard
+
+    return telegram_request("sendMessage", data)
+
+
+def edit_message(chat_id, message_id, text, keyboard=None):
+    data = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
     }
 
+    if keyboard:
+        data["reply_markup"] = keyboard
 
-def prices_keyboard():
-    return {
-        "inline_keyboard": [
-            [{
-                "text": "↻ Обновить цены",
-                "callback_data": "menu:prices:refresh",
-            }],
-            [{
-                "text": "⬅️ Главное меню",
-                "callback_data": "menu:home",
-            }],
-        ]
-    }
+    return telegram_request("editMessageText", data)
 
 
-def fmt_price(value):
-    if value is None:
-        return "нет данных"
+def answer_callback(callback_id, text=None):
+    data = {"callback_query_id": callback_id}
 
-    try:
-        number = float(value)
-        if number >= 1000:
-            return f"${number:,.2f}"
-        if number >= 1:
-            return f"${number:,.4f}".rstrip("0").rstrip(".")
-        return f"${number:.8f}".rstrip("0").rstrip(".")
+    if text:
+        data["text"] = text
 
-    except (TypeError, ValueError):
-        return "нет данных"
+    telegram_request("answerCallbackQuery", data)
 
 
-def fmt_change(value):
-    if not isinstance(value, (int, float)):
-        return "нет данных"
-
-    number = float(value)
-    if number > 0:
-        return f"🟢 +{number:.2f}%"
-    if number < 0:
-        return f"🔴 {number:.2f}%"
-    return "⚪ 0.00%"
+def format_price(value):
+    if value >= 1000:
+        return f"${value:,.2f}"
+    if value >= 1:
+        return f"${value:,.4f}"
+    return f"${value:.8f}"
 
 
-def menu_text():
-    return (
-        "<b>🌊 CryptoPulse</b>\n"
-        "Криптовалюты и курсы в одном месте.\n\n"
-        "Выбери нужный раздел:"
-    )
+def market_message():
+    prices, error = get_prices()
 
+    if not prices:
+        return (
+            "⚠️ Сейчас не удалось получить цены с Bybit.\n"
+            "Попробуй нажать «Обновить» позже."
+        )
 
-def prices_text(force=False):
-    data = get_prices(force)
     lines = [
-        "<b>📊 CryptoPulse · 15 монет</b>",
-        "<i>Цена в USD · изменение за 24 часа</i>",
+        "📊 CryptoPulse — рынок Bybit",
+        "",
+        "Цены спотовых пар к USDT:",
         "",
     ]
 
-    for coin in data["prices"]:
-        lines.extend([
-            f"<b>{html.escape(coin['name'])} ({coin['symbol']})</b>",
-            f"  💵 {fmt_price(coin['price'])}  ·  "
-            f"{fmt_change(coin.get('change24h'))}",
-        ])
+    for coin in prices:
+        change = coin["change24h"]
+        sign = "+" if change >= 0 else ""
 
-    if data.get("warning"):
-        lines.extend(["", "⚠️ " + html.escape(data["warning"])])
+        lines.append(
+            f"{coin['symbol']}: {format_price(coin['price'])} "
+            f"({sign}{change:.2f}%)"
+        )
 
     lines.extend([
         "",
-        f"<i>Источник: {html.escape(str(data.get('source') or 'неизвестен'))}</i>",
+        "Обновлено: "
+        + datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
     ])
 
-    return "\n".join(lines)[:4096]
+    if error:
+        lines.append(
+            "\n⚠️ Показаны последние сохранённые цены: "
+            "обновить данные сейчас не удалось."
+        )
+
+    return "\n".join(lines)
 
 
-def rate_text(force=False):
-    rate = get_usdt_rub(force)
+def usd_rub_message():
+    rate = get_usd_rub()
 
-    if rate is None:
+    if not rate:
         return (
-            "<b>💱 USDT → RUB</b>\n\n"
-            "Текущий курс временно недоступен. "
-            "Попробуй ещё раз чуть позже."
+            "⚠️ Не удалось получить курс USD/RUB.\n"
+            "Попробуй обновить позже."
         )
 
     return (
-        "<b>💱 USDT → RUB</b>\n\n"
-        f"1 USDT ≈ <b>{rate:,.2f} ₽</b>\n"
-        f"10 USDT ≈ <b>{rate * 10:,.2f} ₽</b>\n"
-        f"100 USDT ≈ <b>{rate * 100:,.2f} ₽</b>\n\n"
-        "<i>Ориентировочная котировка; курс обменника "
-        "и комиссии могут отличаться.</i>"
+        "💱 Индикативный курс USD / RUB\n\n"
+        f"1 USD ≈ {rate:.2f} RUB\n\n"
+        "Справочный курс может отличаться от курса на бирже."
     )
 
 
-def calc_prompt():
-    return (
-        "<b>🧮 Калькулятор USDT → RUB</b>\n\n"
-        "Отправь сумму USDT одним сообщением, например: "
-        "<code>125.50</code>."
+# --------------------------------------------------
+# TELEGRAM MESSAGE HANDLING
+# --------------------------------------------------
+
+pending_calculations = set()
+pending_lock = threading.Lock()
+
+
+def handle_message(message):
+    chat_id = (message.get("chat") or {}).get("id")
+    text = (message.get("text") or "").strip()
+
+    if not chat_id:
+        return
+
+    if text in ("/start", "/menu"):
+        send_message(
+            chat_id,
+            "👋 Добро пожаловать в CryptoPulse!\n\nВыбери действие:",
+            main_keyboard(),
+        )
+        return
+
+    if text == "/health":
+        send_message(chat_id, "✅ CryptoPulse работает.")
+        return
+
+    if text == "/prices":
+        send_message(chat_id, market_message(), main_keyboard())
+        return
+
+    with pending_lock:
+        waiting = chat_id in pending_calculations
+
+    if waiting:
+        try:
+            amount = float(text.replace(",", "."))
+
+            if amount <= 0:
+                raise ValueError("Amount must be positive")
+
+            with pending_lock:
+                pending_calculations.discard(chat_id)
+
+            prices, _ = get_prices()
+            btc = next(
+                (item for item in prices if item["symbol"] == "BTC"),
+                None,
+            )
+
+            if not btc:
+                send_message(
+                    chat_id,
+                    "⚠️ Цена BTC сейчас недоступна.",
+                    main_keyboard(),
+                )
+                return
+
+            btc_amount = amount / btc["price"]
+
+            send_message(
+                chat_id,
+                "🧮 Расчёт\n\n"
+                f"Сумма: ${amount:,.2f}\n"
+                f"BTC по текущей цене: {btc_amount:.8f}\n\n"
+                "Расчёт ориентировочный, без комиссий.",
+                main_keyboard(),
+            )
+
+        except ValueError:
+            send_message(
+                chat_id,
+                "Введи положительную сумму числом, например 100 или 25.50.",
+            )
+
+        return
+
+    send_message(
+        chat_id,
+        "Выбери действие в меню или отправь /start.",
+        main_keyboard(),
     )
 
 
-def calc_result(amount):
-    rate = get_usdt_rub()
+def handle_callback(callback):
+    callback_id = callback.get("id")
+    data = callback.get("data", "")
+    message = callback.get("message") or {}
+    chat_id = (message.get("chat") or {}).get("id")
+    message_id = message.get("message_id")
 
-    if rate is None:
-        return (
-            "⚠️ Не удалось получить курс USDT/RUB. "
-            "Попробуй позже."
+    answer_callback(callback_id)
+
+    if not chat_id:
+        return
+
+    if data in ("prices", "refresh"):
+        text = market_message()
+
+    elif data == "usd_rub":
+        text = usd_rub_message()
+
+    elif data == "calculator":
+        with pending_lock:
+            pending_calculations.add(chat_id)
+
+        send_message(
+            chat_id,
+            "🧮 Введи сумму в долларах США, например 100.\n"
+            "Я рассчитаю примерное количество BTC по текущей цене.",
+        )
+        return
+
+    else:
+        text = "Выбери действие в меню."
+
+    if message_id:
+        result = edit_message(
+            chat_id,
+            message_id,
+            text,
+            main_keyboard(),
         )
 
-    return (
-        f"<b>🧮 Результат</b>\n\n"
-        f"{amount:,.8f} USDT ≈ <b>{amount * rate:,.2f} ₽</b>\n"
-        f"Курс: 1 USDT ≈ {rate:,.2f} ₽\n\n"
-        "<i>Без учёта комиссий обменника.</i>"
-    )
+        # Telegram can reject an edit if the message is unchanged.
+        # Send a new message if editing failed.
+        if not result or not result.get("ok"):
+            description = (result or {}).get("description", "")
+
+            if "message is not modified" not in description.lower():
+                send_message(chat_id, text, main_keyboard())
+    else:
+        send_message(chat_id, text, main_keyboard())
 
 
-@app.get("/")
+# --------------------------------------------------
+# FLASK ROUTES
+# --------------------------------------------------
+
+@app.route("/")
 def index():
-    return send_from_directory("static", "index.html")
+    index_file = os.path.join(STATIC_DIR, "index.html")
+
+    if os.path.isfile(index_file):
+        return send_from_directory(STATIC_DIR, "index.html")
+
+    return "CryptoPulse is running.", 200
 
 
-@app.get("/health")
+@app.route("/health")
 def health():
-    return jsonify({"ok": True, "service": "cryptopulse"}), 200
+    return jsonify({
+        "status": "ok",
+        "service": "CryptoPulse",
+        "time": datetime.now(timezone.utc).isoformat(),
+    })
 
 
-@app.get("/api/config")
+@app.route("/api/config")
 def api_config():
-    return jsonify({"webapp_url": WEBAPP_URL}), 200
+    return jsonify({
+        "source": "Bybit",
+        "currency": "USD",
+        "coins": COINS,
+    })
 
 
-@app.get("/api/prices")
+@app.route("/api/prices")
 def api_prices():
-    force = request.args.get("refresh") == "1"
-    return jsonify(get_prices(force)), 200
+    prices, error = get_prices()
+
+    with cache_lock:
+        updated_at = price_cache["updated_at"]
+
+    return jsonify({
+        "source": "Bybit",
+        "currency": "USD",
+        "prices": prices,
+        "updatedAt": (
+            datetime.fromtimestamp(
+                updated_at,
+                timezone.utc,
+            ).isoformat()
+            if updated_at else None
+        ),
+        "cached": bool(error and prices),
+        "error": error if not prices else None,
+    })
 
 
-@app.route("/telegram-webhook", methods=["GET", "POST"])
-def telegram_webhook():
-    if request.method == "GET":
+@app.route("/api/usd-rub")
+def api_usd_rub():
+    rate = get_usd_rub()
+
+    if not rate:
         return jsonify({
-            "ok": True,
-            "message": "Webhook is available.",
-        }), 200
+            "ok": False,
+            "error": "Exchange rate temporarily unavailable",
+        }), 503
 
+    return jsonify({
+        "ok": True,
+        "source": "public exchange-rate API",
+        "USD_RUB": rate,
+    })
+
+
+@app.route("/telegram-webhook", methods=["POST"])
+def telegram_webhook():
     update = request.get_json(silent=True) or {}
 
     try:
-        message = update.get("message") or update.get("edited_message")
-
-        if message:
-            chat_id = (message.get("chat") or {}).get("id")
-            text = (message.get("text") or "").strip()
-            command = text.split()[0].split("@")[0].lower() if text else ""
-
-            if chat_id is not None:
-                if command in ("/start", "/help"):
-                    _pending_calculations.discard(chat_id)
-                    send_message(chat_id, menu_text(), main_keyboard())
-
-                elif command == "/prices":
-                    _pending_calculations.discard(chat_id)
-                    send_message(chat_id, prices_text(), prices_keyboard())
-
-                elif command == "/rate":
-                    _pending_calculations.discard(chat_id)
-                    send_message(chat_id, rate_text(), back_keyboard())
-
-                elif chat_id in _pending_calculations:
-                    raw = text.replace(",", ".").strip()
-
-                    if re.fullmatch(r"\d+(?:\.\d{1,8})?", raw):
-                        amount = float(raw)
-
-                        if 0 < amount <= 1_000_000_000:
-                            _pending_calculations.discard(chat_id)
-                            send_message(
-                                chat_id,
-                                calc_result(amount),
-                                main_keyboard(),
-                            )
-                        else:
-                            send_message(
-                                chat_id,
-                                "Введи сумму больше нуля и не больше "
-                                "1 000 000 000 USDT.",
-                                back_keyboard(),
-                            )
-                    else:
-                        send_message(
-                            chat_id,
-                            "Не распознал сумму. Пример: "
-                            "<code>25</code> или <code>12,50</code>.",
-                            back_keyboard(),
-                        )
-
-                else:
-                    send_message(
-                        chat_id,
-                        "Нажми /start, чтобы открыть меню CryptoPulse.",
-                        main_keyboard(),
-                    )
-
-        callback = update.get("callback_query")
-
-        if callback:
-            if callback.get("id"):
-                telegram(
-                    "answerCallbackQuery",
-                    {"callback_query_id": callback["id"]},
-                )
-
-            message = callback.get("message") or {}
-            chat_id = (message.get("chat") or {}).get("id")
-            message_id = message.get("message_id")
-            data = callback.get("data", "")
-
-            if chat_id is not None and message_id is not None:
-                if data == "menu:home":
-                    _pending_calculations.discard(chat_id)
-                    edit_message(
-                        chat_id, message_id, menu_text(), main_keyboard()
-                    )
-
-                elif data == "menu:prices":
-                    _pending_calculations.discard(chat_id)
-                    edit_message(
-                        chat_id, message_id, prices_text(), prices_keyboard()
-                    )
-
-                elif data == "menu:prices:refresh":
-                    edit_message(
-                        chat_id,
-                        message_id,
-                        prices_text(True),
-                        prices_keyboard(),
-                    )
-
-                elif data == "menu:rate":
-                    _pending_calculations.discard(chat_id)
-                    edit_message(
-                        chat_id, message_id, rate_text(True), back_keyboard()
-                    )
-
-                elif data == "menu:calc":
-                    _pending_calculations.add(chat_id)
-                    edit_message(
-                        chat_id, message_id, calc_prompt(), back_keyboard()
-                    )
+        if "message" in update:
+            handle_message(update["message"])
+        elif "callback_query" in update:
+            handle_callback(update["callback_query"])
 
     except Exception:
-        log.exception("Error processing Telegram update.")
+        logger.exception("Error processing Telegram update")
 
-    return jsonify({"ok": True}), 200
+    return jsonify({"ok": True})
 
+
+# --------------------------------------------------
+# TELEGRAM WEBHOOK CONFIGURATION
+# --------------------------------------------------
 
 def configure_telegram():
-    if not TOKEN:
-        log.warning("Telegram token missing; set it in Render Environment.")
+    if not TELEGRAM_TOKEN:
+        logger.warning(
+            "Telegram token missing. Set TELEGRAM_TOKEN in Render environment."
+        )
         return
 
-    result = telegram(
+    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+
+    if not render_host:
+        logger.warning(
+            "RENDER_EXTERNAL_HOSTNAME is missing; "
+            "configure the Telegram webhook manually if needed."
+        )
+        return
+
+    webhook_url = f"https://{render_host}/telegram-webhook"
+
+    result = telegram_request(
         "setWebhook",
-        {"url": f"{WEBAPP_URL}/telegram-webhook"},
+        {"url": webhook_url},
     )
 
-    if result is not None:
-        log.info("Telegram webhook configured.")
-    else:
-        log.error("Telegram webhook configuration failed.")
-
-    telegram("setMyCommands", {
-        "commands": [
-            {"command": "start", "description": "Главное меню"},
-            {"command": "prices", "description": "Цены 15 монет"},
-            {"command": "rate", "description": "Курс USDT к рублю"},
-            {"command": "help", "description": "Помощь"},
-        ]
-    })
+    if result and result.get("ok"):
+        logger.info("Telegram webhook configured successfully")
 
 
 configure_telegram()
 
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "10000")),
-    )
+    port = int(os.getenv("PORT", "10000"))
+    app.run(host="0.0.0.0", port=port)

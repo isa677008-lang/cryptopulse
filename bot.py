@@ -118,8 +118,9 @@ database_status = {
 
 telegram_configured = bool(TELEGRAM_TOKEN)
 
-# Chats waiting to enter a calculator expression.
-calculator_waiting = set()
+# Chat ID -> bot message ID used by the calculator.
+# The calculator edits its own prompt instead of sending a new result message.
+calculator_waiting = {}
 calculator_lock = threading.RLock()
 
 
@@ -814,11 +815,77 @@ def telegram_send_message(chat_id, text, reply_markup=None, parse_mode=None):
         result = telegram_api("sendMessage", payload)
         if not result.get("ok"):
             logger.error("Telegram sendMessage failed: %s", result.get("description"))
-            return False
-        return True
+            return None
+
+        return result.get("result", {}).get("message_id")
+
     except Exception:
         logger.exception("Could not send Telegram message")
+        return None
+
+
+def telegram_edit_message(
+    chat_id,
+    message_id,
+    text,
+    reply_markup=None,
+    parse_mode=None,
+):
+    """Edit the existing bot message instead of sending another one."""
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+    }
+
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+
+    try:
+        result = telegram_api("editMessageText", payload)
+
+        if result.get("ok"):
+            return True
+
+        description = str(result.get("description", ""))
+
+        # Telegram returns this when the requested content is already displayed.
+        if "message is not modified" in description.lower():
+            return True
+
+        logger.warning("Telegram editMessageText failed: %s", description)
         return False
+
+    except Exception:
+        logger.exception("Could not edit Telegram message")
+        return False
+
+
+def telegram_delete_message(chat_id, message_id):
+    """Try to remove the user's calculator input to keep the chat tidy."""
+    if not message_id:
+        return
+
+    try:
+        result = telegram_api(
+            "deleteMessage",
+            {
+                "chat_id": chat_id,
+                "message_id": message_id,
+            },
+        )
+
+        if not result.get("ok"):
+            logger.debug(
+                "Telegram deleteMessage failed: %s",
+                result.get("description"),
+            )
+
+    except Exception:
+        # Deleting the user's message is optional; the bot should keep working.
+        logger.debug("Could not delete Telegram message", exc_info=True)
 
 
 def telegram_answer_callback(callback_id, text=None):
@@ -836,7 +903,7 @@ def main_keyboard():
         "inline_keyboard": [
             [
                 {
-                    "text": "🌐 Открыть сайт",
+                    "text": "🌐 CryptoPulse",
                     "web_app": {"url": TELEGRAM_WEBAPP_URL},
                 },
                 {
@@ -858,7 +925,35 @@ def main_keyboard():
     }
 
 
+def edit_or_send_home(chat_id, message_id, greeting=True):
+    if greeting:
+        message = (
+            "<b>CryptoPulse</b>\n\n"
+            "Цены криптовалют, калькулятор и курс USDT/RUB.\n"
+            "Реальная торговля отключена."
+        )
+    else:
+        message = "Выбери действие в меню CryptoPulse."
+
+    if message_id and telegram_edit_message(
+        chat_id,
+        message_id,
+        message,
+        reply_markup=main_keyboard(),
+        parse_mode="HTML",
+    ):
+        return
+
+    telegram_send_message(
+        chat_id,
+        message,
+        reply_markup=main_keyboard(),
+        parse_mode="HTML",
+    )
+
+
 def send_home(chat_id, greeting=True):
+    # /start creates the initial menu message.
     if greeting:
         message = (
             "<b>CryptoPulse</b>\n\n"
@@ -909,7 +1004,6 @@ def format_change(value):
 
 
 def build_telegram_price_table(payload):
-    # Compact monospace columns fit better on a phone screen.
     rows = [
         f"{'Монета':<6} {'USD':>12} {'1ч':>8} {'24ч':>8}",
         "-" * 37,
@@ -928,36 +1022,56 @@ def build_telegram_price_table(payload):
     return "\n".join(rows)
 
 
-def send_prices(chat_id):
+def render_prices_message():
+    payload = build_market_payload()
+    table = build_telegram_price_table(payload)
+
+    source = html.escape(str(payload.get("source") or "unknown"))
+    updated = datetime.now(timezone.utc).strftime("%H:%M UTC")
+
+    return (
+        "<b>📊 CryptoPulse — цены</b>\n"
+        f"<pre>{html.escape(table)}</pre>\n"
+        f"Источник: {source}\n"
+        f"Обновлено: {updated}\n"
+        "«—» означает, что данных для изменения пока недостаточно."
+    )
+
+
+def show_prices(chat_id, message_id):
     try:
-        payload = build_market_payload()
-        table = build_telegram_price_table(payload)
+        message = render_prices_message()
 
-        source = html.escape(str(payload.get("source") or "unknown"))
-        updated = datetime.now(timezone.utc).strftime("%H:%M UTC")
-
-        message = (
-            "<b>📊 CryptoPulse — цены</b>\n"
-            f"<pre>{html.escape(table)}</pre>\n"
-            f"Источник: {source}\n"
-            f"Обновлено: {updated}\n"
-            "«—» означает, что данных для изменения пока недостаточно."
-        )
-
-        telegram_send_message(
+        if not telegram_edit_message(
             chat_id,
+            message_id,
             message,
             reply_markup=main_keyboard(),
             parse_mode="HTML",
-        )
+        ):
+            telegram_send_message(
+                chat_id,
+                message,
+                reply_markup=main_keyboard(),
+                parse_mode="HTML",
+            )
 
     except Exception:
         logger.exception("Telegram price table failed")
-        telegram_send_message(
+
+        error_message = "Не удалось получить цены. Попробуй ещё раз позже."
+
+        if not telegram_edit_message(
             chat_id,
-            "Не удалось получить цены. Попробуй ещё раз позже.",
+            message_id,
+            error_message,
             reply_markup=main_keyboard(),
-        )
+        ):
+            telegram_send_message(
+                chat_id,
+                error_message,
+                reply_markup=main_keyboard(),
+            )
 
 
 # ============================================================
@@ -1050,45 +1164,104 @@ def calculate_value(text):
     return result
 
 
-def send_usdt_rub(chat_id):
-    try:
-        payload = build_market_payload()
-        rate = payload.get("usdRub")
+def calculator_prompt():
+    return (
+        "🧮 <b>Калькулятор</b>\n\n"
+        "Отправь сумму и тикер, например:\n"
+        "<code>BTC 0.025</code>\n"
+        "<code>ETH 2</code>\n"
+        "<code>100 USDT</code>\n"
+        "<code>5000 RUB</code>\n\n"
+        "Для выхода напиши /cancel."
+    )
 
-        if rate is None:
-            rate = fetch_usd_rub()
 
-        usdt = next(
-            (coin for coin in payload["coins"] if coin["symbol"] == "USDT"),
-            None,
-        )
+def show_calculator(chat_id, message_id):
+    with calculator_lock:
+        calculator_waiting[chat_id] = message_id
 
-        # If CoinGecko supplied USDT, use its USD price.
-        usdt_usd = usdt["priceUsd"] if usdt else 1.0
-        usdt_rub = usdt_usd * rate
-
-        message = (
-            "<b>💵 USDT / RUB</b>\n\n"
-            f"1 USDT ≈ {usdt_rub:,.2f} RUB\n"
-            f"Справочный USD/RUB: {rate:,.4f}\n\n"
-            "Это ориентировочная оценка, не цена покупки или продажи "
-            "на конкретной бирже."
-        )
+    if not telegram_edit_message(
+        chat_id,
+        message_id,
+        calculator_prompt(),
+        reply_markup=main_keyboard(),
+        parse_mode="HTML",
+    ):
+        with calculator_lock:
+            calculator_waiting.pop(chat_id, None)
 
         telegram_send_message(
             chat_id,
-            message,
+            calculator_prompt(),
             reply_markup=main_keyboard(),
             parse_mode="HTML",
         )
 
+
+# ============================================================
+# USDT / RUB
+# ============================================================
+
+def render_usdt_rub_message():
+    payload = build_market_payload()
+    rate = payload.get("usdRub")
+
+    if rate is None:
+        rate = fetch_usd_rub()
+
+    usdt = next(
+        (coin for coin in payload["coins"] if coin["symbol"] == "USDT"),
+        None,
+    )
+
+    usdt_usd = usdt["priceUsd"] if usdt else 1.0
+    usdt_rub = usdt_usd * rate
+
+    return (
+        "<b>💵 USDT / RUB</b>\n\n"
+        f"1 USDT ≈ {usdt_rub:,.2f} RUB\n"
+        f"Справочный USD/RUB: {rate:,.4f}\n\n"
+        "Это ориентировочная оценка, не цена покупки или продажи "
+        "на конкретной бирже."
+    )
+
+
+def show_usdt_rub(chat_id, message_id):
+    try:
+        message = render_usdt_rub_message()
+
+        if not telegram_edit_message(
+            chat_id,
+            message_id,
+            message,
+            reply_markup=main_keyboard(),
+            parse_mode="HTML",
+        ):
+            telegram_send_message(
+                chat_id,
+                message,
+                reply_markup=main_keyboard(),
+                parse_mode="HTML",
+            )
+
     except Exception:
         logger.exception("USDT/RUB request failed")
-        telegram_send_message(
-            chat_id,
-            "Не удалось получить курс USDT/RUB. Попробуй позже.",
-            reply_markup=main_keyboard(),
+
+        error_message = (
+            "Не удалось получить курс USDT/RUB. Попробуй позже."
         )
+
+        if not telegram_edit_message(
+            chat_id,
+            message_id,
+            error_message,
+            reply_markup=main_keyboard(),
+        ):
+            telegram_send_message(
+                chat_id,
+                error_message,
+                reply_markup=main_keyboard(),
+            )
 
 
 # ============================================================
@@ -1153,41 +1326,34 @@ def telegram_webhook():
 
     update = request.get_json(silent=True) or {}
 
-    # Inline keyboard button presses.
+    # Handle inline keyboard button presses by editing the existing message.
     callback = update.get("callback_query")
     if callback:
         callback_id = callback.get("id")
         data = callback.get("data", "")
         message = callback.get("message") or {}
+
         chat_id = (message.get("chat") or {}).get("id")
+        message_id = message.get("message_id")
 
         telegram_answer_callback(callback_id)
 
-        if not chat_id:
+        if not chat_id or not message_id:
             return jsonify({"ok": True})
 
+        # Any non-calculator screen cancels a pending calculator prompt.
+        if data != "calculator":
+            with calculator_lock:
+                calculator_waiting.pop(chat_id, None)
+
         if data == "show_prices":
-            send_prices(chat_id)
+            show_prices(chat_id, message_id)
 
         elif data == "calculator":
-            with calculator_lock:
-                calculator_waiting.add(chat_id)
-
-            telegram_send_message(
-                chat_id,
-                "🧮 <b>Калькулятор</b>\n\n"
-                "Отправь сумму и тикер, например:\n"
-                "<code>BTC 0.025</code>\n"
-                "<code>ETH 2</code>\n"
-                "<code>100 USDT</code>\n"
-                "<code>5000 RUB</code>\n\n"
-                "Для выхода напиши /cancel.",
-                reply_markup=main_keyboard(),
-                parse_mode="HTML",
-            )
+            show_calculator(chat_id, message_id)
 
         elif data == "usdt_rub":
-            send_usdt_rub(chat_id)
+            show_usdt_rub(chat_id, message_id)
 
         return jsonify({"ok": True})
 
@@ -1196,7 +1362,9 @@ def telegram_webhook():
         or update.get("edited_message")
         or {}
     )
+
     chat_id = (message.get("chat") or {}).get("id")
+    message_id = message.get("message_id")
     text = (message.get("text") or "").strip()
 
     if not chat_id or not text:
@@ -1206,18 +1374,26 @@ def telegram_webhook():
 
     if command in ("/start", "/help"):
         with calculator_lock:
-            calculator_waiting.discard(chat_id)
+            calculator_waiting.pop(chat_id, None)
+
         send_home(chat_id)
         return jsonify({"ok": True})
 
     if command == "/cancel":
         with calculator_lock:
-            calculator_waiting.discard(chat_id)
-        telegram_send_message(
-            chat_id,
-            "Расчёт отменён.",
-            reply_markup=main_keyboard(),
-        )
+            prompt_message_id = calculator_waiting.pop(chat_id, None)
+
+        telegram_delete_message(chat_id, message_id)
+
+        if prompt_message_id:
+            edit_or_send_home(
+                chat_id,
+                prompt_message_id,
+                greeting=False,
+            )
+        else:
+            send_home(chat_id, greeting=False)
+
         return jsonify({"ok": True})
 
     if command == "/status":
@@ -1227,6 +1403,7 @@ def telegram_webhook():
             f"Режим: {TRADING_MODE}\n"
             "Реальные ордера: отключены"
         )
+
         telegram_send_message(
             chat_id,
             reply,
@@ -1236,50 +1413,101 @@ def telegram_webhook():
         return jsonify({"ok": True})
 
     if command == "/prices":
-        send_prices(chat_id)
+        with calculator_lock:
+            calculator_waiting.pop(chat_id, None)
+
+        # This explicit command still works independently of the menu.
+        try:
+            table_message = render_prices_message()
+            telegram_send_message(
+                chat_id,
+                table_message,
+                reply_markup=main_keyboard(),
+                parse_mode="HTML",
+            )
+        except Exception:
+            logger.exception("Telegram price command failed")
+            telegram_send_message(
+                chat_id,
+                "Не удалось получить цены. Попробуй ещё раз позже.",
+                reply_markup=main_keyboard(),
+            )
+
         return jsonify({"ok": True})
 
     with calculator_lock:
-        waiting = chat_id in calculator_waiting
+        prompt_message_id = calculator_waiting.get(chat_id)
 
-    if waiting:
+    if prompt_message_id:
         try:
             result = calculate_value(text)
-            with calculator_lock:
-                calculator_waiting.discard(chat_id)
 
-            telegram_send_message(
+            with calculator_lock:
+                calculator_waiting.pop(chat_id, None)
+
+            # Remove the user's input when Telegram allows it.
+            telegram_delete_message(chat_id, message_id)
+
+            # Replace the calculator prompt with the result.
+            if not telegram_edit_message(
                 chat_id,
+                prompt_message_id,
                 result,
+                reply_markup=main_keyboard(),
+                parse_mode="HTML",
+            ):
+                telegram_send_message(
+                    chat_id,
+                    result,
+                    reply_markup=main_keyboard(),
+                    parse_mode="HTML",
+                )
+
+        except ValueError as exc:
+            telegram_delete_message(chat_id, message_id)
+
+            # Keep the calculator open if the input was invalid.
+            error_message = (
+                f"⚠️ {html.escape(str(exc))}\n\n"
+                "Попробуй ещё раз, например: <code>BTC 0.025</code>."
+            )
+
+            telegram_edit_message(
+                chat_id,
+                prompt_message_id,
+                error_message,
                 reply_markup=main_keyboard(),
                 parse_mode="HTML",
             )
 
-        except ValueError as exc:
-            telegram_send_message(
-                chat_id,
-                html.escape(str(exc)),
-                reply_markup=main_keyboard(),
-            )
-
         except Exception:
             logger.exception("Calculator failed")
-            with calculator_lock:
-                calculator_waiting.discard(chat_id)
 
-            telegram_send_message(
-                chat_id,
-                "Не удалось выполнить расчёт. Попробуй ещё раз позже.",
-                reply_markup=main_keyboard(),
+            with calculator_lock:
+                calculator_waiting.pop(chat_id, None)
+
+            telegram_delete_message(chat_id, message_id)
+
+            error_message = (
+                "Не удалось выполнить расчёт. Попробуй ещё раз позже."
             )
+
+            if not telegram_edit_message(
+                chat_id,
+                prompt_message_id,
+                error_message,
+                reply_markup=main_keyboard(),
+            ):
+                telegram_send_message(
+                    chat_id,
+                    error_message,
+                    reply_markup=main_keyboard(),
+                )
 
         return jsonify({"ok": True})
 
-    telegram_send_message(
-        chat_id,
-        "Выбери нужное действие с помощью кнопок ниже.",
-        reply_markup=main_keyboard(),
-    )
+    # Avoid sending a new bot message for arbitrary text.
+    # Keep the current menu message as the main interaction point.
     return jsonify({"ok": True})
 
 

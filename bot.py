@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 import requests
 from flask import Flask, jsonify, send_from_directory, request
 
-# --------------------------------------------------
-# CONFIGURATION
-# --------------------------------------------------
+# ==================================================
+# CONFIG
+# ==================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -30,13 +30,19 @@ TELEGRAM_TOKEN = (
 
 TELEGRAM_API = (
     f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-    if TELEGRAM_TOKEN
-    else None
+    if TELEGRAM_TOKEN else None
 )
 
-BYBIT_API = "https://api.bybit.com/v5/market/tickers"
-REQUEST_TIMEOUT = 12
+# Official Bybit API hosts
+BYBIT_HOSTS = [
+    "https://api.bybit.com",
+    "https://api.bytick.com",
+]
+
+REQUEST_TIMEOUT = 10
 CACHE_TTL = 30
+
+SITE_URL = "https://cryptopulse-lpc9.onrender.com"
 
 COINS = [
     {"symbol": "BTC", "name": "Bitcoin"},
@@ -80,85 +86,113 @@ session.headers.update({"User-Agent": "CryptoPulse/1.0"})
 cache_lock = threading.Lock()
 
 price_cache = {
-    "updated_at": 0,
     "prices": [],
+    "updated_at": 0,
     "error": None,
 }
 
 usd_rub_cache = {
-    "updated_at": 0,
     "rate": None,
+    "updated_at": 0,
 }
 
-# --------------------------------------------------
-# BYBIT PRICES
-# --------------------------------------------------
+pending_calculations = set()
+pending_lock = threading.Lock()
+
+
+# ==================================================
+# BYBIT MARKET DATA
+# ==================================================
 
 def fetch_bybit_prices():
-    response = session.get(
-        BYBIT_API,
-        params={"category": "spot"},
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
+    errors = []
 
-    payload = response.json()
-
-    if payload.get("retCode") != 0:
-        raise RuntimeError(
-            f"Bybit API error: {payload.get('retMsg', 'unknown error')}"
-        )
-
-    rows = payload.get("result", {}).get("list", [])
-
-    if not rows:
-        raise RuntimeError("Bybit returned an empty ticker list")
-
-    tickers = {
-        row.get("symbol"): row
-        for row in rows
-        if row.get("symbol")
-    }
-
-    prices = []
-
-    for coin in COINS:
-        symbol = coin["symbol"]
-        ticker = tickers.get(f"{symbol}USDT")
-
-        if not ticker:
-            logger.warning("Bybit pair %sUSDT is unavailable", symbol)
-            continue
+    for host in BYBIT_HOSTS:
+        url = f"{host}/v5/market/tickers"
 
         try:
-            price = float(ticker.get("lastPrice", 0))
-            change = float(ticker.get("price24hPcnt", 0)) * 100
-        except (TypeError, ValueError):
-            continue
+            response = session.get(
+                url,
+                params={"category": "spot"},
+                timeout=REQUEST_TIMEOUT,
+            )
 
-        if price <= 0:
-            continue
+            if response.status_code == 403:
+                errors.append(f"{host}: HTTP 403 Forbidden")
+                continue
 
-        prices.append({
-            "symbol": symbol,
-            "name": coin["name"],
-            "price": price,
-            "change24h": change,
-            "image": COIN_IMAGES.get(symbol, ""),
-        })
+            response.raise_for_status()
+            payload = response.json()
 
-    if not prices:
-        raise RuntimeError("No configured Bybit spot pairs were found")
+            if payload.get("retCode") != 0:
+                errors.append(
+                    f"{host}: {payload.get('retMsg', 'Bybit API error')}"
+                )
+                continue
 
-    return prices
+            rows = payload.get("result", {}).get("list", [])
+
+            if not rows:
+                errors.append(f"{host}: empty ticker list")
+                continue
+
+            tickers = {
+                row.get("symbol"): row
+                for row in rows
+                if row.get("symbol")
+            }
+
+            prices = []
+
+            for coin in COINS:
+                symbol = coin["symbol"]
+                ticker = tickers.get(f"{symbol}USDT")
+
+                if not ticker:
+                    continue
+
+                try:
+                    price = float(ticker["lastPrice"])
+                    change = float(ticker.get("price24hPcnt", 0)) * 100
+                except (KeyError, TypeError, ValueError):
+                    continue
+
+                if price <= 0:
+                    continue
+
+                prices.append({
+                    "symbol": symbol,
+                    "name": coin["name"],
+                    "price": price,
+                    "change24h": change,
+                    "image": COIN_IMAGES.get(symbol, ""),
+                })
+
+            if not prices:
+                errors.append(f"{host}: no matching USDT spot pairs")
+                continue
+
+            logger.info(
+                "Successfully fetched %s Bybit spot prices from %s",
+                len(prices),
+                host,
+            )
+
+            return prices
+
+        except Exception as exc:
+            errors.append(f"{host}: {exc}")
+            logger.warning("Bybit request failed: %s", host)
+
+    raise RuntimeError("Bybit unavailable. " + " | ".join(errors))
 
 
 def get_prices(force_refresh=False):
     now = time.time()
 
     with cache_lock:
-        cached_at = price_cache["updated_at"]
         cached_prices = list(price_cache["prices"])
+        cached_at = price_cache["updated_at"]
 
     if (
         not force_refresh
@@ -171,8 +205,8 @@ def get_prices(force_refresh=False):
         prices = fetch_bybit_prices()
 
         with cache_lock:
-            price_cache["updated_at"] = time.time()
             price_cache["prices"] = prices
+            price_cache["updated_at"] = time.time()
             price_cache["error"] = None
 
         return prices, None
@@ -190,9 +224,9 @@ def get_prices(force_refresh=False):
         return [], str(exc)
 
 
-# --------------------------------------------------
-# USD / RUB RATE
-# --------------------------------------------------
+# ==================================================
+# USD / RUB
+# ==================================================
 
 def fetch_usd_rub():
     urls = [
@@ -206,16 +240,16 @@ def fetch_usd_rub():
             response.raise_for_status()
             data = response.json()
 
-            rates = data.get("rates")
+            rates = data.get("rates", {})
             if isinstance(rates, dict) and rates.get("RUB"):
                 return float(rates["RUB"])
 
-            usd = data.get("usd")
+            usd = data.get("usd", {})
             if isinstance(usd, dict) and usd.get("rub"):
                 return float(usd["rub"])
 
         except Exception:
-            logger.warning("Exchange-rate source failed: %s", url)
+            logger.warning("USD/RUB source failed: %s", url)
 
     return None
 
@@ -224,30 +258,30 @@ def get_usd_rub():
     now = time.time()
 
     with cache_lock:
-        cached_rate = usd_rub_cache["rate"]
-        cached_at = usd_rub_cache["updated_at"]
+        rate = usd_rub_cache["rate"]
+        updated = usd_rub_cache["updated_at"]
 
-    if cached_rate and now - cached_at < 900:
-        return cached_rate
-
-    rate = fetch_usd_rub()
-
-    if rate and rate > 0:
-        with cache_lock:
-            usd_rub_cache["rate"] = rate
-            usd_rub_cache["updated_at"] = time.time()
+    if rate and now - updated < 900:
         return rate
 
-    return cached_rate
+    new_rate = fetch_usd_rub()
+
+    if new_rate and new_rate > 0:
+        with cache_lock:
+            usd_rub_cache["rate"] = new_rate
+            usd_rub_cache["updated_at"] = time.time()
+        return new_rate
+
+    return rate
 
 
-# --------------------------------------------------
-# TELEGRAM HELPERS
-# --------------------------------------------------
+# ==================================================
+# TELEGRAM
+# ==================================================
 
 def telegram_request(method, data=None):
     if not TELEGRAM_API:
-        logger.warning("Telegram token is not configured")
+        logger.error("Telegram token is missing in Render environment")
         return None
 
     try:
@@ -260,7 +294,7 @@ def telegram_request(method, data=None):
 
         if not result.get("ok"):
             logger.warning(
-                "Telegram error (%s): %s",
+                "Telegram %s error: %s",
                 method,
                 result.get("description", "unknown error"),
             )
@@ -276,19 +310,40 @@ def main_keyboard():
     return {
         "inline_keyboard": [
             [
-                {"text": "📊 Крипторынок", "callback_data": "prices"},
-                {"text": "💱 USD / RUB", "callback_data": "usd_rub"},
+                {
+                    "text": "🌐 Открыть CryptoPulse",
+                    "url": SITE_URL,
+                }
             ],
             [
-                {"text": "🧮 Калькулятор", "callback_data": "calculator"},
-                {"text": "🔄 Обновить", "callback_data": "refresh"},
+                {
+                    "text": "📊 Крипторынок",
+                    "callback_data": "prices",
+                },
+                {
+                    "text": "💱 USD / RUB",
+                    "callback_data": "usd_rub",
+                },
+            ],
+            [
+                {
+                    "text": "🧮 Калькулятор BTC",
+                    "callback_data": "calculator",
+                },
+                {
+                    "text": "🔄 Обновить",
+                    "callback_data": "refresh",
+                },
             ],
         ]
     }
 
 
 def send_message(chat_id, text, keyboard=None):
-    data = {"chat_id": chat_id, "text": text}
+    data = {
+        "chat_id": chat_id,
+        "text": text,
+    }
 
     if keyboard:
         data["reply_markup"] = keyboard
@@ -331,14 +386,15 @@ def market_message():
 
     if not prices:
         return (
-            "⚠️ Сейчас не удалось получить цены с Bybit.\n"
-            "Попробуй нажать «Обновить» позже."
+            "⚠️ Не удалось получить котировки непосредственно с Bybit.\n\n"
+            "Сервер временно не имеет доступа к API. "
+            "Попробуй позже."
         )
 
     lines = [
-        "📊 CryptoPulse — рынок Bybit",
+        "📊 CryptoPulse — Bybit Spot",
         "",
-        "Цены спотовых пар к USDT:",
+        "Цены торговых пар к USDT:",
         "",
     ]
 
@@ -351,16 +407,16 @@ def market_message():
             f"({sign}{change:.2f}%)"
         )
 
-    lines.extend([
-        "",
-        "Обновлено: "
-        + datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
-    ])
+    updated = datetime.fromtimestamp(
+        price_cache["updated_at"],
+        timezone.utc,
+    ).strftime("%H:%M:%S UTC")
+
+    lines.extend(["", f"Время обновления: {updated}"])
 
     if error:
         lines.append(
-            "\n⚠️ Показаны последние сохранённые цены: "
-            "обновить данные сейчас не удалось."
+            "\n⚠️ API недоступен; отображаются последние сохранённые цены."
         )
 
     return "\n".join(lines)
@@ -370,25 +426,18 @@ def usd_rub_message():
     rate = get_usd_rub()
 
     if not rate:
-        return (
-            "⚠️ Не удалось получить курс USD/RUB.\n"
-            "Попробуй обновить позже."
-        )
+        return "⚠️ Сейчас не удалось получить справочный курс USD/RUB."
 
     return (
-        "💱 Индикативный курс USD / RUB\n\n"
+        "💱 Справочный курс USD / RUB\n\n"
         f"1 USD ≈ {rate:.2f} RUB\n\n"
-        "Справочный курс может отличаться от курса на бирже."
+        "Курс справочный и может отличаться от биржевого."
     )
 
 
-# --------------------------------------------------
-# TELEGRAM MESSAGE HANDLING
-# --------------------------------------------------
-
-pending_calculations = set()
-pending_lock = threading.Lock()
-
+# ==================================================
+# TELEGRAM UPDATE HANDLERS
+# ==================================================
 
 def handle_message(message):
     chat_id = (message.get("chat") or {}).get("id")
@@ -400,7 +449,8 @@ def handle_message(message):
     if text in ("/start", "/menu"):
         send_message(
             chat_id,
-            "👋 Добро пожаловать в CryptoPulse!\n\nВыбери действие:",
+            "👋 Добро пожаловать в CryptoPulse!\n\n"
+            "Здесь можно посмотреть котировки Bybit и открыть сайт.",
             main_keyboard(),
         )
         return
@@ -435,18 +485,16 @@ def handle_message(message):
             if not btc:
                 send_message(
                     chat_id,
-                    "⚠️ Цена BTC сейчас недоступна.",
+                    "⚠️ Цена BTC с Bybit сейчас недоступна.",
                     main_keyboard(),
                 )
                 return
 
-            btc_amount = amount / btc["price"]
-
             send_message(
                 chat_id,
-                "🧮 Расчёт\n\n"
+                "🧮 Расчёт по текущей цене BTC на Bybit\n\n"
                 f"Сумма: ${amount:,.2f}\n"
-                f"BTC по текущей цене: {btc_amount:.8f}\n\n"
+                f"BTC: {amount / btc['price']:.8f}\n\n"
                 "Расчёт ориентировочный, без комиссий.",
                 main_keyboard(),
             )
@@ -454,7 +502,7 @@ def handle_message(message):
         except ValueError:
             send_message(
                 chat_id,
-                "Введи положительную сумму числом, например 100 или 25.50.",
+                "Введи положительную сумму, например 100 или 25.50.",
             )
 
         return
@@ -491,7 +539,7 @@ def handle_callback(callback):
         send_message(
             chat_id,
             "🧮 Введи сумму в долларах США, например 100.\n"
-            "Я рассчитаю примерное количество BTC по текущей цене.",
+            "Я рассчитаю примерное количество BTC по цене Bybit.",
         )
         return
 
@@ -506,20 +554,18 @@ def handle_callback(callback):
             main_keyboard(),
         )
 
-        # Telegram can reject an edit if the message is unchanged.
-        # Send a new message if editing failed.
         if not result or not result.get("ok"):
-            description = (result or {}).get("description", "")
+            description = (result or {}).get("description", "").lower()
 
-            if "message is not modified" not in description.lower():
+            if "message is not modified" not in description:
                 send_message(chat_id, text, main_keyboard())
     else:
         send_message(chat_id, text, main_keyboard())
 
 
-# --------------------------------------------------
+# ==================================================
 # FLASK ROUTES
-# --------------------------------------------------
+# ==================================================
 
 @app.route("/")
 def index():
@@ -528,7 +574,10 @@ def index():
     if os.path.isfile(index_file):
         return send_from_directory(STATIC_DIR, "index.html")
 
-    return "CryptoPulse is running.", 200
+    return (
+        "CryptoPulse is running, but static/index.html was not found.",
+        200,
+    )
 
 
 @app.route("/health")
@@ -605,9 +654,9 @@ def telegram_webhook():
     return jsonify({"ok": True})
 
 
-# --------------------------------------------------
-# TELEGRAM WEBHOOK CONFIGURATION
-# --------------------------------------------------
+# ==================================================
+# WEBHOOK SETUP
+# ==================================================
 
 def configure_telegram():
     if not TELEGRAM_TOKEN:
@@ -616,16 +665,13 @@ def configure_telegram():
         )
         return
 
-    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 
-    if not render_host:
-        logger.warning(
-            "RENDER_EXTERNAL_HOSTNAME is missing; "
-            "configure the Telegram webhook manually if needed."
-        )
+    if not hostname:
+        logger.warning("Render hostname unavailable; webhook not configured.")
         return
 
-    webhook_url = f"https://{render_host}/telegram-webhook"
+    webhook_url = f"https://{hostname}/telegram-webhook"
 
     result = telegram_request(
         "setWebhook",

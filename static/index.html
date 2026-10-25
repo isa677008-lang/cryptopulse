@@ -1,13 +1,193 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1220"><title>CryptoPulse</title>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>CryptoPulse — цены криптовалют</title>
 <style>
-:root{color-scheme:dark;--bg:#0b1220;--line:#24324a;--muted:#91a2bb;--text:#f3f6fb;--accent:#58d6a3}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172744,var(--bg) 55%);font-family:system-ui,sans-serif;color:var(--text);min-height:100vh}.wrap{max-width:1000px;margin:auto;padding:28px 16px 48px}.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.brand{font-size:1.45rem;font-weight:800}.brand span{color:var(--accent)}.sub,.label,.symbol,th,.footer{color:var(--muted)}.sub{margin-top:5px}button{border:1px solid #36506e;background:#1b2b43;color:var(--text);border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}.card{background:#121d30;border:1px solid var(--line);border-radius:16px;padding:16px}.label,th{font-size:.82rem}.value{font-size:1.15rem;font-weight:750;margin-top:8px}.notice{padding:12px 14px;border-radius:12px;background:#15243a;color:#bfd0e6;margin:14px 0;line-height:1.5}.error{background:#3b1b26;color:#ffd4dc}.tablebox{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#121d30}table{width:100%;border-collapse:collapse;min-width:540px}th,td{text-align:left;padding:14px 16px;border-bottom:1px solid var(--line)}th{font-weight:600}tbody tr:last-child td{border-bottom:0}.coin,.price{font-weight:700}.symbol{font-size:.82rem;margin-left:8px}.price{font-variant-numeric:tabular-nums}.positive{color:#62e6ad}.negative{color:#ff8294}.footer{font-size:.82rem;margin-top:16px}@media(max-width:600px){.summary{grid-template-columns:1fr}.wrap{padding-top:20px}}
-</style></head><body><main class="wrap"><header class="top"><div><div class="brand">Crypto<span>Pulse</span></div><div class="sub">Котировки криптовалют*</div></div><button id="refresh">↻ Обновить</button></header>
-<section class="summary"><div class="card"><div class="label">Монет загружено</div><div class="value" id="count">—</div></div><div class="card"><div class="label">Источник данных</div><div class="value" id="source">Загрузка…</div></div><div class="card"><div class="label">Обновлено</div><div class="value" id="updated">—</div></div></section>
-<div id="notice" class="notice">Загружаем котировки…</div><div class="tablebox"><table><thead><tr><th>Актив</th><th>Цена, USD</th><th>Изменение за 24 ч.</th></tr></thead><tbody id="prices"><tr><td colspan="3">Загрузка…</td></tr></tbody></table></div>
-<div class="footer">Данные предоставляются публичными API и могут обновляться с задержкой. Не является инвестиционной рекомендацией.</div></main>
+:root{color-scheme:dark;--bg:#0b1220;--line:#24324a;--muted:#91a2bb;--text:#f3f6fb;--accent:#58d6a3}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at top,#172744,var(--bg) 55%);font-family:system-ui,sans-serif;color:var(--text);min-height:100vh}
+.wrap{max-width:1000px;margin:auto;padding:28px 16px 48px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{font-size:1.45rem;font-weight:800}.brand span{color:var(--accent)}
+.sub,.label,th,.footer{color:var(--muted)}.sub{margin-top:5px}
+button{border:1px solid #36506e;background:#1b2b43;color:var(--text);border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0}
+.card{background:#121d30;border:1px solid var(--line);border-radius:16px;padding:16px}
+.label,th{font-size:.82rem}.value{font-size:1.15rem;font-weight:750;margin-top:8px;overflow-wrap:anywhere}
+.notice{padding:12px 14px;border-radius:12px;background:#15243a;color:#bfd0e6;margin:14px 0;line-height:1.5}
+.error{background:#3b1b26;color:#ffd4dc}
+.tablebox{overflow:auto;border:1px solid var(--line);border-radius:16px;background:#121d30}
+table{width:100%;border-collapse:collapse;min-width:580px}
+th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line)}
+th{font-weight:600}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#17253a}
+.asset{display:flex;align-items:center;gap:11px;min-width:190px}
+.logo{width:36px;height:36px;object-fit:contain;border-radius:50%;background:#fff;flex-shrink:0}
+.logo-fallback{display:none;width:36px;height:36px;border-radius:50%;background:#253651;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0}
+.coin{font-weight:750}.symbol{color:var(--muted);font-size:.82rem;margin-top:3px}
+.price{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.positive{color:#62e6ad}.negative{color:#ff8294}.muted{color:var(--muted)}
+.footer{font-size:.82rem;margin-top:16px;line-height:1.5}
+@media(max-width:600px){.summary{grid-template-columns:1fr}.wrap{padding-top:20px}.card{padding:13px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header class="top">
+  <div>
+    <div class="brand">Crypto<span>Pulse</span></div>
+    <div class="sub">Котировки 15 криптовалют в долларах США</div>
+  </div>
+  <button id="refresh">↻ Обновить</button>
+</header>
+
+<section class="summary">
+  <div class="card"><div class="label">Монет в списке</div><div class="value" id="count">15</div></div>
+  <div class="card"><div class="label">Источник данных</div><div class="value" id="source">Загрузка…</div></div>
+  <div class="card"><div class="label">Обновлено</div><div class="value" id="updated">—</div></div>
+</section>
+
+<div id="notice" class="notice">Загружаем котировки…</div>
+<div class="tablebox">
+<table>
+<thead><tr><th>Актив</th><th>Цена, USD</th><th>Изменение за 24 ч.</th></tr></thead>
+<tbody id="prices"></tbody>
+</table>
+</div>
+<div class="footer">
+  Логотипы и рыночные данные загружаются из публичных источников. Если источник временно недоступен, отдельная цена может отсутствовать. Данные могут обновляться с задержкой и не являются инвестиционной рекомендацией.
+</div>
+</main>
+
 <script>
-const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:n<1?6:2}).format(n),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function load(){let b=$('refresh');b.disabled=true;b.textContent='Загрузка…';try{let r=await fetch('/api/prices',{cache:'no-store'}),d=await r.json();if(!r.ok||!d.ok||!Array.isArray(d.prices)||!d.prices.length)throw Error(d.error||'Поставщик не вернул цены');$('prices').innerHTML=d.prices.map(c=>{let v=Number(c.change24h)||0;return `<tr><td><span class="coin">${esc(c.name)}</span><span class="symbol">${esc(c.symbol)}</span></td><td class="price">${money(Number(c.price))}</td><td class="${v>=0?'positive':'negative'}">${v>0?'+':''}${v.toFixed(2)}%</td></tr>`}).join('');$('count').textContent=d.count||d.prices.length;$('source').textContent=esc(d.source||'API');$('updated').textContent=new Date(d.updatedAt||Date.now()).toLocaleTimeString('ru-RU');$('notice').className='notice'+(d.stale?' error':'');$('notice').textContent=d.stale?(d.warning||'Последние доступные данные'):'Котировки успешно загружены.'}catch(e){$('notice').className='notice error';$('notice').textContent='Не удалось загрузить котировки: '+e.message+'. Попробуйте позже.';$('prices').innerHTML='<tr><td colspan="3">Временно нет данных.</td></tr>';$('source').textContent='Недоступен';$('count').textContent='0'}finally{b.disabled=false;b.textContent='↻ Обновить'}}
-$('refresh').addEventListener('click',load);load();setInterval(load,60000);
-</script></body></html>
+const $ = id => document.getElementById(id);
+
+const fallbackCoins = [
+  ["BTC","Bitcoin"],["ETH","Ethereum"],["USDT","Tether"],
+  ["BNB","BNB"],["XRP","XRP"],["USDC","USD Coin"],
+  ["SOL","Solana"],["TRX","TRON"],["DOGE","Dogecoin"],
+  ["TON","Toncoin"],["ADA","Cardano"],["BCH","Bitcoin Cash"],
+  ["LINK","Chainlink"],["AVAX","Avalanche"],["LTC","Litecoin"]
+];
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined || value === "") {
+    return '<span class="muted">Временно недоступна</span>';
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '<span class="muted">Временно недоступна</span>';
+  const digits = n >= 1000 ? 2 : n >= 1 ? 4 : 8;
+  return new Intl.NumberFormat("en-US", {
+    style:"currency", currency:"USD", maximumFractionDigits:digits
+  }).format(n);
+}
+
+function formatChange(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+    return '<span class="muted">Нет данных</span>';
+  }
+  const n = Number(value);
+  const cls = n > 0 ? "positive" : n < 0 ? "negative" : "muted";
+  return `<span class="${cls}">${n > 0 ? "+" : ""}${n.toFixed(2)}%</span>`;
+}
+
+function coinRow(coin) {
+  const symbol = String(coin.symbol || "").toUpperCase();
+  const name = coin.name || symbol || "Неизвестная монета";
+  const image = typeof coin.image === "string" ? coin.image : "";
+  const safeImage = /^https:\/\/[a-z0-9.-]+\//i.test(image) ? image : "";
+  const fallback = symbol.slice(0, 4) || "?";
+
+  return `<tr>
+    <td>
+      <div class="asset">
+        <img class="logo" src="${escapeHtml(safeImage)}" alt=""
+             loading="lazy" ${safeImage ? "" : "hidden"}
+             onerror="this.hidden=true;this.nextElementSibling.style.display='flex'">
+        <span class="logo-fallback" style="${safeImage ? "" : "display:flex"}">${escapeHtml(fallback)}</span>
+        <div><div class="coin">${escapeHtml(name)}</div>
+        <div class="symbol">${escapeHtml(symbol)}</div></div>
+      </div>
+    </td>
+    <td class="price">${formatMoney(coin.price)}</td>
+    <td>${formatChange(coin.change24h)}</td>
+  </tr>`;
+}
+
+function showFallback() {
+  $("prices").innerHTML = fallbackCoins.map(([symbol,name]) =>
+    coinRow({symbol,name,price:null,change24h:null,image:null})
+  ).join("");
+}
+
+async function load() {
+  const button = $("refresh");
+  button.disabled = true;
+  button.textContent = "Загрузка…";
+
+  try {
+    const response = await fetch("/api/prices?refresh=1", {cache:"no-store"});
+    const data = await response.json();
+
+    if (!response.ok || !Array.isArray(data.prices)) {
+      throw new Error(data.error || "Не удалось получить список монет");
+    }
+
+    const received = new Map(
+      data.prices.map(c => [String(c.symbol || "").toUpperCase(), c])
+    );
+
+    // Always render all 15 known assets, even if an API response omits one.
+    const completeList = fallbackCoins.map(([symbol,name]) => {
+      const item = received.get(symbol) || {};
+      return {
+        symbol,
+        name: item.name || name,
+        price: item.price ?? null,
+        change24h: item.change24h ?? null,
+        image: item.image || null
+      };
+    });
+
+    $("prices").innerHTML = completeList.map(coinRow).join("");
+    $("count").textContent = `${completeList.length} / 15`;
+    $("source").textContent = data.source || "Публичный API";
+    $("updated").textContent = new Date(data.updatedAt || Date.now())
+      .toLocaleTimeString("ru-RU");
+
+    const unavailable = completeList.filter(c => c.price === null || c.price === undefined).length;
+    $("notice").className = "notice" + (unavailable ? " error" : "");
+    $("notice").textContent = unavailable
+      ? `В списке все 15 монет. Для ${unavailable} монет цена временно недоступна; остальные данные показаны.`
+      : "Котировки успешно загружены.";
+
+  } catch (error) {
+    showFallback();
+    $("count").textContent = "15";
+    $("source").textContent = "Недоступен";
+    $("updated").textContent = "—";
+    $("notice").className = "notice error";
+    $("notice").textContent =
+      "Не удалось обновить цены. Все 15 монет остаются в списке. Попробуйте позже.";
+  } finally {
+    button.disabled = false;
+    button.textContent = "↻ Обновить";
+  }
+}
+
+$("refresh").addEventListener("click", load);
+showFallback();
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>

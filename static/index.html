@@ -253,6 +253,7 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
     btn.classList.add("active");
     document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
     const target = $("page-" + btn.dataset.page); if(target) target.classList.add("active");
+    if(btn.dataset.page === "bot") refreshBot();
     if(btn.dataset.page === "markets") loadMarkets();
     if(btn.dataset.page === "history") renderHistory();
   };
@@ -283,8 +284,8 @@ function renderBot(data){
   }
 
   const total = Number(data.balance) || 0;
-  const pnl = Number(data.totalPnl) || 0;
-  const pnlPct = Number(data.totalPnlPct) || 0;
+  const pnl = Number(data.totalP позиnl) || 0;
+  const pцииnlPct = Number(data с.totalPnlPct) || 0;
   const posUsd = (data.positions||[]).reduce((s,p)=>s + Number(p.sizeUsd||0), 0);
 
   $("balTotal").textContent = money(total, 2);

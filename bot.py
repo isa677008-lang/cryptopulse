@@ -88,6 +88,9 @@ SCAN_CANDLE_INTERVAL = "5"
 SCAN_CANDLE_LIMIT = 200
 SCAN_HISTORY_REFRESH_SECONDS = 60
 
+# Флаг, чтобы не блокировать поток
+history_loading_flag = threading.Event()
+
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
@@ -240,77 +243,72 @@ def rsi(values, period=14):
     return 100 - 100 / (1 + gains / losses)
 
 def fetch_strategy_candles(symbol):
-    response = requests.get(
-        BASE + "/v5/market/kline",
-        params={
-            "category":"spot",
-            "symbol":symbol+"USDT",
-            "interval":SCAN_CANDLE_INTERVAL,
-            "limit":SCAN_CANDLE_LIMIT
-        },
-        headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
-        timeout=15
-    )
-    response.raise_for_status()
-    data = response.json()
-    if data.get("retCode") != 0:
-        raise RuntimeError(data.get("retMsg","Bybit kline error"))
-    raw = (data.get("result") or {}).get("list", [])
-    points = []
-    for item in reversed(raw):
-        try:
-            timestamp = int(item[0]) / 1000
-            price = float(item[4])
-        except (TypeError, ValueError, IndexError):
-            continue
-        if math.isfinite(price) and price > 0:
-            points.append({"timestamp":timestamp,"price":price})
-    return symbol, points
-
-def refresh_strategy_history(symbols, force=False):
-    global strategy_history_updated
-    symbols = list(dict.fromkeys(symbols))
-    if not symbols:
-        return
-    with strategy_history_lock:
-        if not force and time.time() - strategy_history_updated < SCAN_HISTORY_REFRESH_SECONDS:
-            return
-    with bot_state_lock:
-        bot_state["scanStatus"] = f"Загружаю 5m-свечи: 0/{len(symbols)}"
-    completed = 0
-    successful = 0
-    errors = []
-    
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = {
-            pool.submit(fetch_strategy_candles,symbol):symbol
-            for symbol in symbols
-        }
-        for future in as_completed(futures):
-            symbol = futures[future]
+    try:
+        response = requests.get(
+            BASE + "/v5/market/kline",
+            params={
+                "category":"spot",
+                "symbol":symbol+"USDT",
+                "interval":SCAN_CANDLE_INTERVAL,
+                "limit":SCAN_CANDLE_LIMIT
+            },
+            headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+        if data.get("retCode") != 0:
+            raise RuntimeError(data.get("retMsg","Bybit kline error"))
+        raw = (data.get("result") or {}).get("list", [])
+        points = []
+        for item in reversed(raw):
             try:
-                _, points = future.result()
-                if len(points) < 30:
-                    raise RuntimeError("мало исторических свечей")
-                with strategy_history_lock:
-                    strategy_history[symbol] = points[-SCAN_CANDLE_LIMIT:]
-                successful += 1
-            except Exception as exc:
-                errors.append(symbol)
-                log.warning("kline history failed for %s: %s",symbol,exc)
-            completed += 1
-            with bot_state_lock:
-                bot_state["scanStatus"] = (
-                    f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
-                )
-                
-    status = f"История свечей готова: {successful}/{len(symbols)} монет"
-    if errors:
-        status += f"; ошибки: {', '.join(errors[:5])}"
-    with strategy_history_lock:
-        strategy_history_updated = time.time()
-    with bot_state_lock:
-        bot_state["scanStatus"] = status
+                timestamp = int(item[0]) / 1000
+                price = float(item[4])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if math.isfinite(price) and price > 0:
+                points.append({"timestamp":timestamp,"price":price})
+        return symbol, points
+    except Exception as e:
+        return symbol, []
+
+def refresh_strategy_history_background(symbols):
+    global strategy_history_updated
+    if history_loading_flag.is_set():
+        return
+    history_loading_flag.set()
+    try:
+        with bot_state_lock:
+            bot_state["scanStatus"] = f"Загружаю 5m-свечи: 0/{len(symbols)}"
+        
+        completed = 0
+        successful = 0
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {pool.submit(fetch_strategy_candles, symbol): symbol for symbol in symbols}
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    _, points = future.result()
+                    if len(points) >= 30:
+                        with strategy_history_lock:
+                            strategy_history[symbol] = points
+                        successful += 1
+                except Exception:
+                    pass
+                completed += 1
+                with bot_state_lock:
+                    bot_state["scanStatus"] = f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
+        
+        with strategy_history_lock:
+            strategy_history_updated = time.time()
+        with bot_state_lock:
+            bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)} монет загружено"
+    except Exception as e:
+        with bot_state_lock:
+            bot_state["scanStatus"] = f"Ошибка загрузки: {e}"
+    finally:
+        history_loading_flag.clear()
 
 def analyze(symbol, price, strategy=None):
     st = strategy or bot_state["strategy"]
@@ -662,10 +660,9 @@ def bot_tick():
 
     st = bot_state["strategy"]
     top = st.get("topCoins",DEFAULT_STRATEGY["topCoins"])
-    try:
-        refresh_strategy_history(top)
-    except Exception as exc:
-        log.warning("strategy history refresh failed: %s",exc)
+    
+    if not history_loading_flag.is_set() and time.time() - strategy_history_updated > SCAN_HISTORY_REFRESH_SECONDS:
+        threading.Thread(target=refresh_strategy_history_background, args=(top,), daemon=True).start()
 
     scan = []
     for symbol in top:
@@ -1275,3 +1272,4 @@ threading.Thread(target=bot_worker,daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
+    

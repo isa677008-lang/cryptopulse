@@ -651,8 +651,20 @@ def signed_get(path, params):
     )
 
     if data.get("retCode") != 0:
+        code = data.get("retCode")
+        message = data.get(
+            "retMsg",
+            "Bybit private API failed"
+        )
+
+        log.warning(
+            "Bybit private API error: retCode=%s, retMsg=%s",
+            code,
+            message
+        )
+
         raise RuntimeError(
-            data.get("retMsg", "Bybit private API failed")
+            f"Bybit error {code}: {message}"
         )
 
     return data.get("result") or {}
@@ -814,14 +826,16 @@ def rub_api():
 def balance_api():
     try:
         return jsonify(wallet_balance())
+
     except Exception as exc:
         log.warning("Balance unavailable: %s", exc)
+
         return jsonify({
             "success": False,
             "available": False,
             "error": (
-                "Баланс недоступен. Проверь API key/secret "
-                "и доступ Read-Only для Unified Account."
+                "Баланс временно недоступен. "
+                "Подробности доступны в логах сервера."
             )
         }), 503
 

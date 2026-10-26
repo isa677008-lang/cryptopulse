@@ -415,6 +415,87 @@ def calculate_change_24h(provider_change, source, symbol, current_price):
     return (current_price / reference["price"] - 1) * 100
 
 
+
+def calculate_ema(values, period):
+    """Calculate an EMA from chronological price observations."""
+    values = [float(value) for value in values if value is not None and float(value) > 0]
+    if len(values) < period:
+        return None
+
+    seed = sum(values[:period]) / period
+    multiplier = 2 / (period + 1)
+    ema = seed
+    for value in values[period:]:
+        ema = (value - ema) * multiplier + ema
+    return ema
+
+
+def calculate_rsi(values, period=14):
+    """Calculate RSI using average gains/losses over the latest observations."""
+    values = [float(value) for value in values if value is not None and float(value) > 0]
+    if len(values) < period + 1:
+        return None
+
+    changes = [values[i] - values[i - 1] for i in range(1, len(values))]
+    recent = changes[-period:]
+    gains = [change if change > 0 else 0.0 for change in recent]
+    losses = [-change if change < 0 else 0.0 for change in recent]
+    average_gain = sum(gains) / period
+    average_loss = sum(losses) / period
+
+    if average_loss == 0:
+        return 100.0 if average_gain > 0 else 50.0
+    relative_strength = average_gain / average_loss
+    return 100 - (100 / (1 + relative_strength))
+
+
+def analyze_coin(source, symbol, current_price):
+    """
+    Build a cautious indicator-based candidate signal.
+    EMA/RSI periods are observations, not guaranteed clock-time candles.
+    """
+    points = get_history_points(source, symbol)
+    points = sorted(
+        (point for point in points if point.get("price", 0) > 0),
+        key=lambda point: point["timestamp"],
+    )
+
+    prices = [float(point["price"]) for point in points]
+    if current_price is not None and current_price > 0:
+        if not prices or abs(prices[-1] - current_price) > 1e-12:
+            prices.append(float(current_price))
+
+    sample_count = len(prices)
+    ema_fast = calculate_ema(prices, 9)
+    ema_slow = calculate_ema(prices, 21)
+    rsi = calculate_rsi(prices, 14)
+
+    signal = "insufficient_history"
+    explanation = "Нужно больше исторических наблюдений."
+    if sample_count >= 30 and ema_fast is not None and ema_slow is not None and rsi is not None:
+        if current_price > ema_fast and ema_fast > ema_slow and 50 <= rsi < 68:
+            signal = "buy_candidate"
+            explanation = "Цена выше EMA 9, EMA 9 выше EMA 21, RSI подтверждает умеренный импульс."
+        elif current_price < ema_fast and ema_fast < ema_slow and 32 < rsi <= 50:
+            signal = "sell_candidate"
+            explanation = "Цена ниже EMA 9, EMA 9 ниже EMA 21, RSI подтверждает отрицательный импульс."
+        else:
+            signal = "neutral"
+            explanation = "Условия стратегии не дают согласованного сигнала."
+
+    return {
+        "symbol": symbol,
+        "signal": signal,
+        "price": float(current_price) if current_price is not None else None,
+        "ema9": ema_fast,
+        "ema21": ema_slow,
+        "rsi14": rsi,
+        "sampleCount": sample_count,
+        "explanation": explanation,
+        "mode": "simulation",
+    }
+
+
 # ============================================================
 # COINGECKO AND BYBIT
 # ============================================================
@@ -757,30 +838,19 @@ def trading_signals():
     try:
         payload = build_market_payload()
         signals = []
+        source = payload.get("source") or "unknown"
 
         for coin in payload["coins"]:
-            change = coin["change1h"]
-
-            if change is None:
-                label = "insufficient_history"
-            elif change >= 1:
-                label = "positive_momentum"
-            elif change <= -1:
-                label = "negative_momentum"
-            else:
-                label = "neutral"
-
-            signals.append({
-                "symbol": coin["symbol"],
-                "signal": label,
-                "change1h": change,
-                "mode": "simulation",
-            })
+            analysis = analyze_coin(source, coin["symbol"], coin["priceUsd"])
+            analysis["change1h"] = coin.get("change1h")
+            analysis["change24h"] = coin.get("change24h")
+            signals.append(analysis)
 
         return jsonify({
             "success": True,
             "mode": "simulation",
             "liveTradingEnabled": False,
+            "strategy": "EMA9/EMA21 + RSI14 (experimental; observation-based)",
             "signals": signals,
         })
 

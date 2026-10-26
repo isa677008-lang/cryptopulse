@@ -4,15 +4,19 @@ import html
 import logging
 import threading
 import re
-import json
+import math
 import hmac
-import hashlib
-from urllib.parse import urlencode
 from datetime import datetime, timezone
 
 import requests
-import psycopg
-from psycopg.rows import dict_row
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:  # PostgreSQL is optional for local/demo operation.
+    psycopg = None
+    dict_row = None
+
 from flask import Flask, jsonify, send_from_directory, request
 
 
@@ -21,6 +25,7 @@ from flask import Flask, jsonify, send_from_directory, request
 # ============================================================
 
 app = Flask(__name__, static_folder="static")
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -50,6 +55,18 @@ TELEGRAM_WEBHOOK_URL = (
 ).strip()
 
 COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "").strip()
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
+
+TELEGRAM_AUTO_CONFIGURE = (
+    os.getenv("TELEGRAM_AUTO_CONFIGURE", "true").lower()
+    in ("1", "true", "yes", "on")
+)
+
+ENABLE_BACKGROUND_WORKER = (
+    os.getenv("ENABLE_BACKGROUND_WORKER", "true").lower()
+    in ("1", "true", "yes", "on")
+)
+
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if DATABASE_URL.startswith("postgres://"):
@@ -58,16 +75,7 @@ if DATABASE_URL.startswith("postgres://"):
     )
 
 TRADING_MODE = "simulation"
-LIVE_TRADING_ENABLED = False  # Hard safety lock: no real orders are implemented.
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
-BYBIT_API_KEY = os.getenv("BYBIT_API_KEY", "").strip()
-BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "").strip()
-BYBIT_RECV_WINDOW = os.getenv("BYBIT_RECV_WINDOW", "5000").strip()
-SIMULATION_FEE_RATE = float(os.getenv("SIMULATION_FEE_RATE", "0.001"))
-SIMULATION_SLIPPAGE_RATE = float(os.getenv("SIMULATION_SLIPPAGE_RATE", "0.0005"))
-SIMULATION_TICK_SECONDS = max(5, int(os.getenv("SIMULATION_TICK_SECONDS", "15")))
-DEFAULT_SIM_DEPOSIT_USDT = max(10.0, float(os.getenv("DEFAULT_SIM_DEPOSIT_USDT", "100")))
-OWNER_TELEGRAM_IDS = {x.strip() for x in os.getenv("OWNER_TELEGRAM_IDS", "").split(",") if x.strip()}
+LIVE_TRADING_ENABLED = False
 
 REQUEST_TIMEOUT = 12
 PRICE_CACHE_SECONDS = 30
@@ -131,13 +139,6 @@ database_status = {
 
 telegram_configured = bool(TELEGRAM_TOKEN)
 
-# Trading state is persisted in PostgreSQL when DATABASE_URL is available.
-# In RAM-only deployments it is intentionally marked non-persistent.
-trading_state_lock = threading.RLock()
-trading_state_ram = None
-trading_last_tick = 0.0
-trading_journal_ram = []
-
 # Chat ID -> bot message ID used by the calculator.
 # The calculator edits its own prompt instead of sending a new result message.
 calculator_waiting = {}
@@ -178,6 +179,8 @@ def get_json(url, params=None, headers=None):
 def get_db_connection():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not configured")
+    if psycopg is None:
+        raise RuntimeError("psycopg is not installed; install requirements.txt")
 
     return psycopg.connect(
         DATABASE_URL,
@@ -213,27 +216,6 @@ def init_database():
                     CREATE INDEX IF NOT EXISTS idx_price_history_source_symbol_time
                     ON price_history (source, symbol, observed_at DESC)
                 """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS cryptopulse_trading_state (
-                        id SMALLINT PRIMARY KEY CHECK (id = 1),
-                        data JSONB NOT NULL,
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    )
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS cryptopulse_trade_journal (
-                        id BIGSERIAL PRIMARY KEY,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        event TEXT NOT NULL,
-                        symbol TEXT,
-                        side TEXT,
-                        quantity DOUBLE PRECISION,
-                        price_usdt DOUBLE PRECISION,
-                        fee_usdt DOUBLE PRECISION,
-                        pnl_usdt DOUBLE PRECISION,
-                        details JSONB NOT NULL DEFAULT '{}'::jsonb
-                    )
-                """)
                 conn.commit()
 
         database_status["available"] = True
@@ -245,8 +227,6 @@ def init_database():
         database_status["available"] = False
         database_status["last_error"] = str(exc)
         logger.exception("Database initialization failed")
-
-
 def load_database_history():
     if not DATABASE_URL:
         return
@@ -298,7 +278,7 @@ def save_history_to_database(source, prices, observed_at):
         except (TypeError, ValueError):
             continue
 
-        if price > 0:
+        if math.isfinite(price) and price > 0:
             records.append((source, symbol, price, observed_at))
 
     if not records:
@@ -343,7 +323,7 @@ def remember_prices(source, prices, observed_at=None):
             except (TypeError, ValueError):
                 continue
 
-            if price <= 0:
+            if not math.isfinite(price) or price <= 0:
                 continue
 
             key = (source, symbol)
@@ -456,10 +436,13 @@ def calculate_change_24h(provider_change, source, symbol, current_price):
     return (current_price / reference["price"] - 1) * 100
 
 
-
 def calculate_ema(values, period):
     """Calculate an EMA from chronological price observations."""
-    values = [float(value) for value in values if value is not None and float(value) > 0]
+    values = [
+        float(value)
+        for value in values
+        if value is not None and float(value) > 0
+    ]
     if len(values) < period:
         return None
 
@@ -568,7 +551,7 @@ def fetch_coingecko_prices():
             continue
 
         value = float(value)
-        if value <= 0:
+        if not math.isfinite(value) or value <= 0:
             continue
 
         prices[symbol] = value
@@ -601,8 +584,10 @@ def fetch_bybit_prices():
             items = data.get("result", {}).get("list", [])
             if items:
                 value = items[0].get("lastPrice")
-                if value is not None and float(value) > 0:
-                    prices[symbol] = float(value)
+                if value is not None:
+                    parsed = float(value)
+                    if math.isfinite(parsed) and parsed > 0:
+                        prices[symbol] = parsed
 
         except Exception as exc:
             logger.warning("Bybit request failed for %s: %s", symbol, exc)
@@ -644,6 +629,10 @@ def refresh_prices(force=False):
             ):
                 return {
                     "prices": dict(price_cache["prices"]),
+                    "changes24h": dict(price_cache["changes24h"]),
+                    "source": price_cache["source"],
+                    "error": price_cache["error"],
+                }
                     "changes24h": dict(price_cache["changes24h"]),
                     "source": price_cache["source"],
                     "error": price_cache["error"],
@@ -720,7 +709,7 @@ def fetch_usd_rub():
         data = get_json("https://open.er-api.com/v6/latest/USD")
         rate = data.get("rates", {}).get("RUB")
 
-        if rate is not None and float(rate) > 0:
+        if rate is not None and math.isfinite(float(rate)) and float(rate) > 0:
             rate = float(rate)
             with state_lock:
                 usd_rub_cache.update({
@@ -792,354 +781,21 @@ def build_market_payload(force=False):
 
 
 # ============================================================
-# SAFE SIMULATION ENGINE + BYBIT READ-ONLY BALANCE
+# BASIC SECURITY HEADERS
 # ============================================================
 
-def _default_trading_state():
-    return {
-        "running": False,
-        "mode": "simulation",
-        "depositUsdt": DEFAULT_SIM_DEPOSIT_USDT,
-        "cashUsdt": DEFAULT_SIM_DEPOSIT_USDT,
-        "profitTargetRub": 500.0,
-        "lossLimitRub": 50.0,
-        "startEquityUsdt": DEFAULT_SIM_DEPOSIT_USDT,
-        "realizedPnlUsdt": 0.0,
-        "unrealizedPnlUsdt": 0.0,
-        "totalPnlUsdt": 0.0,
-        "totalPnlRub": 0.0,
-        "positions": {},
-        "tradesCount": 0,
-        "statusMessage": "Симуляция остановлена. Настрой параметры и нажми «Запустить». ",
-        "lastTickAt": None,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "persistence": "postgresql" if DATABASE_URL else "ram-only",
-    }
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 
-def _load_trading_state(cur=None):
-    global trading_state_ram
-    if DATABASE_URL:
-        own = cur is None
-        conn = get_db_connection() if own else None
-        try:
-            cursor = conn.cursor() if own else cur
-            cursor.execute("SELECT data FROM cryptopulse_trading_state WHERE id=1")
-            row = cursor.fetchone()
-            if row:
-                data = row["data"]
-                if isinstance(data, str):
-                    data = json.loads(data)
-                data.setdefault("positions", {})
-                data["persistence"] = "postgresql"
-                return data
-            data = _default_trading_state()
-            cursor.execute(
-                "INSERT INTO cryptopulse_trading_state (id, data) VALUES (1, %s::jsonb) ON CONFLICT (id) DO NOTHING",
-                (json.dumps(data),),
-            )
-            if own:
-                conn.commit()
-            return data
-        finally:
-            if own and conn:
-                conn.close()
-    with trading_state_lock:
-        if trading_state_ram is None:
-            trading_state_ram = _default_trading_state()
-        return json.loads(json.dumps(trading_state_ram))
-
-
-def _save_trading_state(data, cur=None):
-    global trading_state_ram
-    data["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    data["persistence"] = "postgresql" if DATABASE_URL else "ram-only"
-    if DATABASE_URL:
-        own = cur is None
-        conn = get_db_connection() if own else None
-        try:
-            cursor = conn.cursor() if own else cur
-            cursor.execute("""
-                INSERT INTO cryptopulse_trading_state (id, data, updated_at)
-                VALUES (1, %s::jsonb, NOW())
-                ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()
-            """, (json.dumps(data),))
-            if own:
-                conn.commit()
-        finally:
-            if own and conn:
-                conn.close()
-    else:
-        with trading_state_lock:
-            trading_state_ram = json.loads(json.dumps(data))
-
-
-def _journal(event, symbol=None, side=None, quantity=None, price=None, fee=0.0, pnl=0.0, details=None, cur=None):
-    if not DATABASE_URL:
-        with trading_state_lock:
-            trading_journal_ram.insert(0, {
-                "id": len(trading_journal_ram) + 1,
-                "createdAt": datetime.now(timezone.utc).isoformat(),
-                "event": event, "symbol": symbol, "side": side,
-                "quantity": quantity, "priceUsdt": price, "feeUsdt": fee,
-                "pnlUsdt": pnl, "details": details or {},
-            })
-            del trading_journal_ram[100:]
-        return
-    own = cur is None
-    conn = get_db_connection() if own else None
-    try:
-        cursor = conn.cursor() if own else cur
-        cursor.execute("""
-            INSERT INTO cryptopulse_trade_journal
-            (event, symbol, side, quantity, price_usdt, fee_usdt, pnl_usdt, details)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
-        """, (event, symbol, side, quantity, price, fee, pnl, json.dumps(details or {})))
-        if own:
-            conn.commit()
-    finally:
-        if own and conn:
-            conn.close()
-
-
-def _require_admin():
-    # Fail closed: if ADMIN_TOKEN isn't configured, no browser control is allowed.
-    supplied = request.headers.get("X-Admin-Token", "").strip()
-    return bool(ADMIN_TOKEN and supplied and hmac.compare_digest(supplied, ADMIN_TOKEN))
-
-
-def _bybit_signed_get(path, params):
-    if not (BYBIT_API_KEY and BYBIT_API_SECRET):
-        raise RuntimeError("BYBIT_API_KEY и BYBIT_API_SECRET не настроены")
-    timestamp = str(int(time.time() * 1000))
-    query = urlencode(sorted((k, str(v)) for k, v in params.items()))
-    recv = BYBIT_RECV_WINDOW or "5000"
-    payload = timestamp + BYBIT_API_KEY + recv + query
-    signature = hmac.new(BYBIT_API_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
-    headers = {
-        "X-BAPI-API-KEY": BYBIT_API_KEY,
-        "X-BAPI-TIMESTAMP": timestamp,
-        "X-BAPI-RECV-WINDOW": recv,
-        "X-BAPI-SIGN": signature,
-    }
-    response = http.get(BYBIT_BASE_URL + path, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
-    body = response.json()
-    if body.get("retCode") != 0:
-        raise RuntimeError("Bybit API error: " + str(body.get("retMsg", "unknown error")))
-    return body.get("result", {})
-
-
-def get_bybit_readonly_balance():
-    if not (BYBIT_API_KEY and BYBIT_API_SECRET):
-        return {"configured": False, "available": False, "error": "Ключи Bybit только для чтения пока не настроены."}
-    try:
-        result = _bybit_signed_get("/v5/account/wallet-balance", {"accountType": "UNIFIED"})
-        accounts = result.get("list") or []
-        account = accounts[0] if accounts else {}
-        coins = account.get("coin") or []
-        usdt = next((c for c in coins if c.get("coin") == "USDT"), {})
-        return {
-            "configured": True,
-            "available": True,
-            "accountType": account.get("accountType", "UNIFIED"),
-            "totalEquityUsd": _safe_float(account.get("totalEquity")),
-            "totalWalletBalanceUsdt": _safe_float(account.get("totalWalletBalance")),
-            "usdtWalletBalance": _safe_float(usdt.get("walletBalance")),
-            "usdtAvailableBalance": _safe_float(usdt.get("availableToWithdraw") or usdt.get("availableBalance") or usdt.get("walletBalance")),
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
-            "note": "Только чтение. CryptoPulse не размещает реальные ордера.",
-        }
-    except Exception as exc:
-        logger.warning("Bybit read-only balance unavailable: %s", exc)
-        return {"configured": True, "available": False, "error": str(exc)}
-
-
-def _safe_float(value, default=0.0):
-    try:
-        number = float(value)
-        return number if number == number and abs(number) != float("inf") else default
-    except (TypeError, ValueError):
-        return default
-
-
-def _journal_rows(limit=30):
-    if not DATABASE_URL:
-        with trading_state_lock:
-            return json.loads(json.dumps(trading_journal_ram[:max(1, min(int(limit), 100))]))
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT id, created_at, event, symbol, side, quantity, price_usdt,
-                           fee_usdt, pnl_usdt, details
-                    FROM cryptopulse_trade_journal ORDER BY id DESC LIMIT %s
-                """, (max(1, min(int(limit), 100)),))
-                rows = cur.fetchall()
-        result = []
-        for row in rows:
-            item = dict(row)
-            item["createdAt"] = item.pop("created_at").isoformat() if item.get("created_at") else None
-            for old, new in (("price_usdt", "priceUsdt"), ("fee_usdt", "feeUsdt"), ("pnl_usdt", "pnlUsdt")):
-                item[new] = item.pop(old)
-            item["details"] = item.get("details") or {}
-            result.append(item)
-        return result
-    except Exception:
-        logger.exception("Trade journal read failed")
-        return []
-
-
-def _tick_simulation():
-    """Advance simulation once per interval. No real-order code exists here."""
-    global trading_last_tick
-    now = time.time()
-    if now - trading_last_tick < SIMULATION_TICK_SECONDS:
-        return
-    with trading_state_lock:
-        if now - trading_last_tick < SIMULATION_TICK_SECONDS:
-            return
-        trading_last_tick = now
-    try:
-        payload = build_market_payload()
-        coins = {c.get("symbol"): c for c in payload.get("coins", []) if c.get("priceUsd")}
-        if not coins:
-            return
-        rate = _safe_float(payload.get("usdRub"), 0.0)
-        if rate <= 0:
-            rate = 90.0  # Explicit fallback only for limit display; label in state warns.
-        # Lock row in PostgreSQL so concurrent gunicorn workers don't mutate state simultaneously.
-        conn = get_db_connection() if DATABASE_URL else None
-        try:
-            if conn:
-                cur = conn.cursor()
-                cur.execute("SELECT pg_advisory_xact_lock(7142052026)")
-                state = _load_trading_state(cur)
-            else:
-                cur = None
-                state = _load_trading_state()
-            if not state.get("running"):
-                if conn:
-                    conn.commit()
-                return
-            # A shared timestamp prevents duplicate simulation steps across gunicorn workers.
-            last_tick_text = state.get("lastTickAt")
-            if last_tick_text:
-                try:
-                    last_tick_dt = datetime.fromisoformat(str(last_tick_text).replace("Z", "+00:00"))
-                    if (datetime.now(timezone.utc) - last_tick_dt).total_seconds() < SIMULATION_TICK_SECONDS:
-                        if conn:
-                            conn.commit()
-                        return
-                except (TypeError, ValueError):
-                    pass
-            positions = state.setdefault("positions", {})
-            realized = _safe_float(state.get("realizedPnlUsdt"))
-            cash = _safe_float(state.get("cashUsdt"))
-            for symbol, pos in list(positions.items()):
-                coin = coins.get(symbol)
-                if not coin:
-                    continue
-                price = _safe_float(coin.get("priceUsd"))
-                if price <= 0:
-                    continue
-                pos["lastPrice"] = price
-                pos["unrealizedPnlUsdt"] = (price - _safe_float(pos.get("entryPrice"))) * _safe_float(pos.get("quantity"))
-                analysis = analyze_coin(payload.get("source") or "unknown", symbol, price)
-                rsi = _safe_float(analysis.get("rsi14"), 50)
-                ema_fast = _safe_float(analysis.get("ema9"))
-                ema_slow = _safe_float(analysis.get("ema21"))
-                if (ema_fast and ema_slow and ema_fast < ema_slow) or rsi >= 72:
-                    quantity = _safe_float(pos.get("quantity"))
-                    gross = quantity * price
-                    fee = gross * SIMULATION_FEE_RATE
-                    slippage = gross * SIMULATION_SLIPPAGE_RATE
-                    entry_cost = quantity * _safe_float(pos.get("entryPrice"))
-                    pnl = gross - fee - slippage - entry_cost - _safe_float(pos.get("entryFeeUsdt"))
-                    cash += gross - fee - slippage
-                    realized += pnl
-                    _journal("SELL", symbol, "SELL", quantity, price, fee + slippage, pnl,
-                             {"reason": "EMA/RSI exit", "entryPrice": pos.get("entryPrice")}, cur)
-                    positions.pop(symbol, None)
-                    state["tradesCount"] = int(state.get("tradesCount", 0)) + 1
-            # Open at most one position per tick; use 20% of initial deposit per position.
-            if len(positions) < 3:
-                candidates = []
-                for symbol, coin in coins.items():
-                    if symbol == "USDT" or symbol in positions:
-                        continue
-                    price = _safe_float(coin.get("priceUsd"))
-                    if price <= 0:
-                        continue
-                    analysis = analyze_coin(payload.get("source") or "unknown", symbol, price)
-                    rsi = _safe_float(analysis.get("rsi14"), 50)
-                    fast, slow = _safe_float(analysis.get("ema9")), _safe_float(analysis.get("ema21"))
-                    if fast > slow > 0 and 45 <= rsi <= 68 and _safe_float(analysis.get("sampleCount")) >= 30:
-                        candidates.append((symbol, price, analysis))
-                if candidates:
-                    symbol, price, analysis = candidates[0]
-                    gross = min(cash, _safe_float(state.get("depositUsdt")) * 0.20)
-                    fee = gross * SIMULATION_FEE_RATE
-                    slippage = gross * SIMULATION_SLIPPAGE_RATE
-                    spend = gross + fee + slippage
-                    if gross > 1 and spend <= cash:
-                        quantity = gross / price
-                        cash -= spend
-                        positions[symbol] = {"symbol": symbol, "quantity": quantity, "entryPrice": price,
-                                             "lastPrice": price, "entryFeeUsdt": fee + slippage,
-                                             "openedAt": datetime.now(timezone.utc).isoformat(),
-                                             "unrealizedPnlUsdt": 0.0}
-                        _journal("BUY", symbol, "BUY", quantity, price, fee + slippage, 0,
-                                 {"reason": "EMA9>EMA21 and RSI 45-68", "grossUsdt": gross}, cur)
-                        state["tradesCount"] = int(state.get("tradesCount", 0)) + 1
-            unrealized = sum(_safe_float(p.get("unrealizedPnlUsdt")) - _safe_float(p.get("entryFeeUsdt")) for p in positions.values())
-            market_value = sum(_safe_float(p.get("lastPrice")) * _safe_float(p.get("quantity")) for p in positions.values())
-            equity = cash + market_value
-            total_pnl = equity - _safe_float(state.get("startEquityUsdt"), _safe_float(state.get("depositUsdt")))
-            total_rub = total_pnl * rate
-            state.update({"cashUsdt": cash, "realizedPnlUsdt": realized, "unrealizedPnlUsdt": unrealized,
-                          "totalPnlUsdt": total_pnl, "totalPnlRub": total_rub,
-                          "equityUsdt": equity, "usdRubRate": rate,
-                          "lastTickAt": datetime.now(timezone.utc).isoformat()})
-            target = _safe_float(state.get("profitTargetRub"), 500)
-            loss = abs(_safe_float(state.get("lossLimitRub"), 50))
-            if total_rub >= target:
-                state["running"] = False
-                state["statusMessage"] = f"Достигнута цель прибыли ({total_rub:.2f} ₽). Симуляция остановлена; открытые позиции сохранены виртуально."
-                _journal("AUTO_STOP_PROFIT", details={"totalPnlRub": total_rub}, cur=cur)
-            elif total_rub <= -loss:
-                state["running"] = False
-                state["statusMessage"] = f"Достигнут лимит убытка ({total_rub:.2f} ₽). Симуляция остановлена; открытые позиции сохранены виртуально."
-                _journal("AUTO_STOP_LOSS", details={"totalPnlRub": total_rub}, cur=cur)
-            else:
-                state["statusMessage"] = "Симуляция работает. Стратегия экспериментальная; прибыль не гарантируется."
-            _save_trading_state(state, cur)
-            if conn:
-                conn.commit()
-        except Exception:
-            if conn:
-                conn.rollback()
-            raise
-        finally:
-            if conn:
-                conn.close()
-    except Exception:
-        logger.exception("Simulation tick failed")
-
-
-def _trading_snapshot(run_tick=True):
-    if run_tick:
-        _tick_simulation()
-    state = _load_trading_state()
-    positions = state.get("positions", {})
-    return {"success": True, "mode": "simulation", "liveTradingEnabled": False,
-            "running": bool(state.get("running")), "state": state,
-            "positions": list(positions.values()), "journal": _journal_rows(30),
-            "bybitBalance": get_bybit_readonly_balance(),
-            "strategy": "EMA9/EMA21 + RSI14 (экспериментальная, не гарантия доходности)",
-            "adminControlConfigured": bool(ADMIN_TOKEN),
-            "persistence": "postgresql" if DATABASE_URL else "ram-only"}
+@app.errorhandler(413)
+def request_too_large(_error):
+    return jsonify({"success": False, "error": "Request body too large"}), 413
 
 
 # ============================================================
@@ -1157,6 +813,8 @@ def health():
         "status": "ok",
         "service": "CryptoPulse",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "databaseConfigured": bool(DATABASE_URL),
+        "databaseAvailable": bool(database_status["available"]),
     })
 
 
@@ -1166,8 +824,6 @@ def api_config():
         "success": True,
         "tradingMode": TRADING_MODE,
         "liveTradingEnabled": LIVE_TRADING_ENABLED,
-        "adminControlConfigured": bool(ADMIN_TOKEN),
-        "bybitBalanceConfigured": bool(BYBIT_API_KEY and BYBIT_API_SECRET),
         "telegramConfigured": telegram_configured,
         "telegramWebAppUrl": TELEGRAM_WEBAPP_URL,
         "databaseConfigured": bool(DATABASE_URL),
@@ -1186,7 +842,7 @@ def api_prices():
         return jsonify(build_market_payload())
     except Exception as exc:
         logger.exception("Price API failed")
-        return jsonify({"success": False, "error": str(exc), "coins": []}), 503
+        return jsonify({"success": False, "error": "Market data temporarily unavailable", "coins": []}), 503
 
 
 @app.route("/api/market-prices")
@@ -1214,77 +870,17 @@ def api_usd_rub():
             "base": "USD",
         })
     except Exception as exc:
-        return jsonify({"success": False, "error": str(exc)}), 503
+        return jsonify({"success": False, "error": "Exchange rate temporarily unavailable"}), 503
 
 
 @app.route("/api/trading/status")
 def trading_status():
-    try:
-        return jsonify(_trading_snapshot())
-    except Exception as exc:
-        logger.exception("Trading status failed")
-        return jsonify({"success": False, "error": str(exc)}), 503
-
-
-@app.route("/api/trading/balance")
-def trading_balance():
-    return jsonify({"success": True, "balance": get_bybit_readonly_balance()})
-
-
-@app.route("/api/trading/journal")
-def trading_journal():
-    return jsonify({"success": True, "journal": _journal_rows(100), "persistence": "postgresql" if DATABASE_URL else "ram-only"})
-
-
-@app.route("/api/trading/control", methods=["POST"])
-def trading_control():
-    if not _require_admin():
-        return jsonify({"success": False, "error": "Управление закрыто. Настрой ADMIN_TOKEN в Render и введи его в панели."}), 401
-    body = request.get_json(silent=True) or {}
-    action = str(body.get("action", "")).lower()
-    try:
-        conn = get_db_connection() if DATABASE_URL else None
-        try:
-            cur = conn.cursor() if conn else None
-            if conn:
-                cur.execute("SELECT pg_advisory_xact_lock(7142052026)")
-            state = _load_trading_state(cur)
-            if action == "start":
-                if state.get("running"):
-                    return jsonify({"success": True, "message": "Симуляция уже запущена.", "state": state})
-                deposit = _safe_float(body.get("depositUsdt"), _safe_float(state.get("depositUsdt"), DEFAULT_SIM_DEPOSIT_USDT))
-                target = _safe_float(body.get("profitTargetRub"), _safe_float(state.get("profitTargetRub"), 500))
-                loss = abs(_safe_float(body.get("lossLimitRub"), _safe_float(state.get("lossLimitRub"), 50)))
-                if not (10 <= deposit <= 10000000):
-                    return jsonify({"success": False, "error": "Виртуальный депозит должен быть от 10 до 10 000 000 USDT."}), 400
-                if not (1 <= target <= 100000000 and 1 <= loss <= 100000000):
-                    return jsonify({"success": False, "error": "Лимиты прибыли и убытка должны быть от 1 до 100 000 000 ₽."}), 400
-                state.update({"running": True, "depositUsdt": deposit, "cashUsdt": deposit,
-                              "profitTargetRub": target, "lossLimitRub": loss, "startEquityUsdt": deposit,
-                              "realizedPnlUsdt": 0.0, "unrealizedPnlUsdt": 0.0, "totalPnlUsdt": 0.0,
-                              "totalPnlRub": 0.0, "equityUsdt": deposit, "positions": {}, "tradesCount": 0,
-                              "createdAt": datetime.now(timezone.utc).isoformat(),
-                              "statusMessage": "Симуляция запущена. Реальные ордера отключены."})
-                _journal("SIMULATION_START", details={"depositUsdt": deposit, "profitTargetRub": target, "lossLimitRub": loss}, cur=cur)
-            elif action == "stop":
-                state["running"] = False
-                state["statusMessage"] = "Симуляция остановлена вручную. Виртуальные позиции сохранены."
-                _journal("SIMULATION_STOP", details={"totalPnlRub": state.get("totalPnlRub", 0)}, cur=cur)
-            elif action == "reset":
-                state = _default_trading_state()
-                _journal("SIMULATION_RESET", details={}, cur=cur)
-            else:
-                return jsonify({"success": False, "error": "Неизвестное действие."}), 400
-            _save_trading_state(state, cur)
-            if conn:
-                conn.commit()
-        finally:
-            if conn:
-                conn.close()
-        return jsonify({"success": True, "message": state.get("statusMessage"), "state": state})
-    except Exception as exc:
-        logger.exception("Trading control failed")
-        return jsonify({"success": False, "error": str(exc)}), 503
+    return jsonify({
+        "success": True,
+        "mode": TRADING_MODE,
+        "liveTradingEnabled": False,
+        "message": "Simulation only. Real trading is disabled.",
+    })
 
 
 @app.route("/api/trading/signals")
@@ -1310,7 +906,7 @@ def trading_signals():
 
     except Exception as exc:
         logger.exception("Signal API failed")
-        return jsonify({"success": False, "error": str(exc), "signals": []}), 503
+        return jsonify({"success": False, "error": "Signals temporarily unavailable", "signals": []}), 503
 
 
 # ============================================================
@@ -1444,13 +1040,6 @@ def main_keyboard():
                     "text": "💵 USDT / RUB",
                     "callback_data": "usdt_rub",
                 },
-            ],
-            [
-                {"text": "🧪 Статус симуляции", "callback_data": "sim_status"},
-                {"text": "▶️ Запуск симуляции", "callback_data": "sim_start"},
-            ],
-            [
-                {"text": "⏹ Остановить симуляцию", "callback_data": "sim_stop"},
             ],
         ]
     }
@@ -1636,8 +1225,8 @@ def parse_calculator_input(text):
         else:
             amount, symbol = float(match.group(1)), match.group(2)
 
-        if amount <= 0:
-            raise ValueError("Количество должно быть больше нуля.")
+        if not math.isfinite(amount) or amount <= 0:
+            raise ValueError("Количество должно быть конечным числом больше нуля.")
 
         return symbol, amount
 
@@ -1705,8 +1294,6 @@ def calculator_prompt():
         "<code>5000 RUB</code>\n\n"
         "Для выхода напиши /cancel."
     )
-
-
 def show_calculator(chat_id, message_id):
     with calculator_lock:
         calculator_waiting[chat_id] = message_id
@@ -1831,10 +1418,10 @@ def configure_telegram():
         return
 
     try:
-        result = telegram_api(
-            "setWebhook",
-            {"url": TELEGRAM_WEBHOOK_URL},
-        )
+        webhook_payload = {"url": TELEGRAM_WEBHOOK_URL}
+        if TELEGRAM_WEBHOOK_SECRET:
+            webhook_payload["secret_token"] = TELEGRAM_WEBHOOK_SECRET
+        result = telegram_api("setWebhook", webhook_payload)
         if result.get("ok"):
             logger.info("Telegram webhook configured")
         else:
@@ -1847,26 +1434,14 @@ def configure_telegram():
 # TELEGRAM CALLBACKS AND MESSAGES
 # ============================================================
 
-def _telegram_owner_allowed(chat_id, user_id=None):
-    if not OWNER_TELEGRAM_IDS:
-        return False
-    return str(user_id or chat_id) in OWNER_TELEGRAM_IDS or str(chat_id) in OWNER_TELEGRAM_IDS
-
-
-def _telegram_simulation_text():
-    snapshot = _trading_snapshot()
-    st = snapshot.get("state", {})
-    return ("<b>CryptoPulse — симуляция</b>\n"
-            f"Статус: {'работает' if st.get('running') else 'остановлена'}\n"
-            f"Виртуальный капитал: {_safe_float(st.get('equityUsdt'), st.get('depositUsdt', 0)):.2f} USDT\n"
-            f"Результат: {_safe_float(st.get('totalPnlRub')):.2f} ₽\n"
-            f"Лимиты: +{_safe_float(st.get('profitTargetRub')):.0f} ₽ / -{abs(_safe_float(st.get('lossLimitRub'))):.0f} ₽\n"
-            f"{html.escape(str(st.get('statusMessage', '')))}\n\n"
-            "Реальные ордера отключены. Для управления ботом нужен OWNER_TELEGRAM_IDS.")
-
-
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
+    # Telegram supports a per-webhook secret header. Configure it in production.
+    if TELEGRAM_WEBHOOK_SECRET:
+        supplied_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if not hmac.compare_digest(supplied_secret, TELEGRAM_WEBHOOK_SECRET):
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
     if not TELEGRAM_TOKEN:
         return jsonify({
             "ok": False,
@@ -1874,6 +1449,8 @@ def telegram_webhook():
         }), 503
 
     update = request.get_json(silent=True) or {}
+    if not isinstance(update, dict):
+        return jsonify({"ok": False, "error": "Invalid update payload"}), 400
 
     # Handle inline keyboard button presses by editing the existing message.
     callback = update.get("callback_query")
@@ -1904,38 +1481,6 @@ def telegram_webhook():
         elif data == "usdt_rub":
             show_usdt_rub(chat_id, message_id)
 
-        elif data in ("sim_status", "sim_start", "sim_stop"):
-            user_id = (callback.get("from") or {}).get("id")
-            if not _telegram_owner_allowed(chat_id, user_id):
-                telegram_send_message(chat_id, "Управление симуляцией не разрешено для этого Telegram-аккаунта.", reply_markup=main_keyboard())
-            else:
-                try:
-                    if data == "sim_start":
-                        conn = get_db_connection() if DATABASE_URL else None
-                        try:
-                            cur = conn.cursor() if conn else None
-                            state = _load_trading_state(cur)
-                            if not state.get("running"):
-                                state.update({"running": True, "statusMessage": "Симуляция запущена через Telegram."})
-                                _save_trading_state(state, cur)
-                            if conn: conn.commit()
-                        finally:
-                            if conn: conn.close()
-                    elif data == "sim_stop":
-                        conn = get_db_connection() if DATABASE_URL else None
-                        try:
-                            cur = conn.cursor() if conn else None
-                            state = _load_trading_state(cur)
-                            state.update({"running": False, "statusMessage": "Симуляция остановлена через Telegram."})
-                            _save_trading_state(state, cur)
-                            if conn: conn.commit()
-                        finally:
-                            if conn: conn.close()
-                    telegram_edit_message(chat_id, message_id, _telegram_simulation_text(), reply_markup=main_keyboard(), parse_mode="HTML")
-                except Exception:
-                    logger.exception("Telegram simulation control failed")
-                    telegram_send_message(chat_id, "Не удалось изменить состояние симуляции. Проверь DATABASE_URL и логи.", reply_markup=main_keyboard())
-
         return jsonify({"ok": True})
 
     message = (
@@ -1960,32 +1505,11 @@ def telegram_webhook():
         send_home(chat_id)
         return jsonify({"ok": True})
 
-    if command in ("/sim", "/simstatus", "/simstart", "/simstop"):
-        user_id = (message.get("from") or {}).get("id")
-        if not _telegram_owner_allowed(chat_id, user_id):
-            telegram_send_message(chat_id, "Управление симуляцией не разрешено для этого Telegram-аккаунта.", reply_markup=main_keyboard())
-        else:
-            try:
-                if command == "/simstart":
-                    state = _load_trading_state()
-                    state.update({"running": True, "statusMessage": "Симуляция запущена через Telegram."})
-                    _save_trading_state(state)
-                elif command == "/simstop":
-                    state = _load_trading_state()
-                    state.update({"running": False, "statusMessage": "Симуляция остановлена через Telegram."})
-                    _save_trading_state(state)
-                telegram_send_message(chat_id, _telegram_simulation_text(), reply_markup=main_keyboard(), parse_mode="HTML")
-            except Exception:
-                logger.exception("Telegram sim command failed")
-                telegram_send_message(chat_id, "Ошибка управления симуляцией.", reply_markup=main_keyboard())
-        return jsonify({"ok": True})
-
     if command == "/cancel":
         with calculator_lock:
             prompt_message_id = calculator_waiting.pop(chat_id, None)
 
         telegram_delete_message(chat_id, message_id)
-
         if prompt_message_id:
             edit_or_send_home(
                 chat_id,
@@ -2141,28 +1665,20 @@ def start_price_history_worker():
     worker.start()
 
 
-def simulation_worker():
-    """Background ticking is enabled only with PostgreSQL-backed shared state."""
-    if not DATABASE_URL:
-        logger.warning("Simulation worker disabled: DATABASE_URL is required for safe shared state")
-        return
-    logger.info("Simulation worker started")
-    while True:
-        try:
-            _tick_simulation()
-        except Exception:
-            logger.exception("Simulation worker iteration failed")
-        time.sleep(SIMULATION_TICK_SECONDS)
-
-
 # ============================================================
 # STARTUP
 # ============================================================
 
 init_database()
-configure_telegram()
-start_price_history_worker()
-threading.Thread(target=simulation_worker, name="simulation-worker", daemon=True).start()
+if TELEGRAM_AUTO_CONFIGURE:
+    configure_telegram()
+else:
+    logger.info("Telegram auto-configuration disabled by TELEGRAM_AUTO_CONFIGURE")
+
+if ENABLE_BACKGROUND_WORKER:
+    start_price_history_worker()
+else:
+    logger.info("Background price-history worker disabled by ENABLE_BACKGROUND_WORKER")
 
 
 if __name__ == "__main__":

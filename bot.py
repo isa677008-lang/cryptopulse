@@ -46,7 +46,6 @@ BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
 BOT_TICK_SECONDS = 15
 BOT_START_BALANCE = 100.0
 
-# 15 монет
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
     "rsiBuyMin": 50, "rsiBuyMax": 68,
@@ -82,7 +81,6 @@ bot_state = {
 }
 bot_state_lock = threading.RLock()
 
-# История свечей для сканера
 strategy_history = {}
 strategy_history_updated = 0.0
 strategy_history_lock = threading.Lock()
@@ -549,8 +547,8 @@ def bot_open_position(symbol,price,side,reason=""):
             "reason":reason
         }
         bot_state["positions"].append(position)
-        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ {price:,.4f}"
-    bot_log(f"Открыта {side} {symbol}/USDT. Вход {price:,.4f}, TP {tp:,.4f}, SL {sl:,.4f}", "blue")
+        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f}"
+    bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f}", "blue")
     bot_save()
     return position
 
@@ -584,7 +582,7 @@ def bot_close_position(position,price,reason="manual"):
             f"Закрыта {position['side']} {position['symbol']}/USDT: {pnl:+.2f}$ [{reason}]"
         )
     push_equity_point()
-    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ {price:,.4f}. P&L {pnl:+.2f}$ ({pnl_pct:+.2f}%) [{reason}]", "green" if pnl >= 0 else "red")
+    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if pnl >= 0 else "red")
     bot_save()
     return trade
 
@@ -833,7 +831,8 @@ def compute_stats():
         "equityCurve":equity
     }
 
-@app.after_requestdef headers(response):
+@app.after_request
+def headers(response):
     response.headers.setdefault("X-Content-Type-Options","nosniff")
     response.headers.setdefault("X-Frame-Options","SAMEORIGIN")
     return response

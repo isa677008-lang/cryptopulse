@@ -35,7 +35,6 @@ button{cursor:pointer;border:0;background:none}
 .topbar-left .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
 .topbar-right{display:flex;align-items:center;gap:10px}
 .mode-pill{display:flex;align-items:center;gap:8px;background:var(--blue-soft);border:1px solid #2b4a80;padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#bcd4ff}
-.icon-btn{width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center}
 .content{padding:18px 22px;overflow-y:auto;flex:1}
 .content::-webkit-scrollbar{width:8px}
 .content::-webkit-scrollbar-thumb{background:#1c2a44;border-radius:4px}
@@ -132,6 +131,18 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 .scan-signal.sell{background:var(--red-soft);color:var(--red)}
 .scan-signal.neutral{background:var(--panel2);color:var(--muted)}
 .scan-rsi{width:50px;text-align:right;font-family:monospace}
+
+/* ИКОНКИ МОНЕТ */
+.coin-badge{
+  width:32px;height:32px;border-radius:50%;
+  display:grid;place-items:center;
+  font-weight:800;font-size:11px;color:#fff;
+  flex:0 0 32px;box-shadow:0 2px 8px #0006;
+  text-transform:uppercase;
+}
+.coin-cell { display: flex; align-items: center; gap: 10px; }
+.coin-name { font-weight: 700; }
+
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
 @media(max-width:780px){
   body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}
@@ -161,7 +172,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
     <button class="nav-item" data-page="history">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span>
     </button>
-    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.0 beta</div></div>
+    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.1 beta</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
@@ -243,7 +254,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         </div>
       </section>
 
-      <!-- ТОРГОВЫЙ БОТ (НОВАЯ СТРАНИЦА) -->
+      <!-- ТОРГОВЫЙ БОТ -->
       <section id="page-bot" class="page">
         <div class="stats-grid">
           <div class="stat-card"><div class="k">Всего сделок</div><div class="v" id="stTrades">0</div></div>
@@ -281,14 +292,14 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         </div>
       </section>
 
-      <!-- РЫНКИ -->
+      <!-- РЫНКИ (ОБНОВЛЕНО) -->
       <section id="page-markets" class="page">
         <div class="card">
           <h2>Рынки <small id="mktCount">—</small></h2>
-          <input id="mktSearch" placeholder="Поиск монеты..." style="width:100%;padding:11px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);margin-bottom:12px">
+          <input id="mktSearch" placeholder="Поиск: BTC, ETH, SOL…" style="width:100%;padding:11px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);margin-bottom:12px">
           <div style="overflow:auto;max-height:70vh">
             <table class="pos-table" style="width:100%">
-              <thead><tr><th>Актив</th><th>USD</th><th>24ч</th></tr></thead>
+              <thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>24ч</th></tr></thead>
               <tbody id="mktRows"></tbody>
             </table>
           </div>
@@ -307,7 +318,6 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
           </div>
         </div>
       </section>
-
     </div>
   </div>
 </div>
@@ -337,6 +347,29 @@ async function api(url, opts){
   return data;
 }
 
+// ЛОГИКА ИКОНОК
+function colorFromHash(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) & 0xffffff;
+  return `hsl(${h % 360}, 60%, 42%)`;
+}
+const COIN_STYLE = {
+  BTC:{bg:"#f7931a",label:"₿"}, ETH:{bg:"#5c6f8a",label:"Ξ"}, USDT:{bg:"#26a17b",label:"₮"},
+  USDC:{bg:"#2775ca",label:"$"}, BUSD:{bg:"#f0b90b",label:"B"}, DAI:{bg:"#f5ac37",label:"◈"},
+  SOL:{bg:"linear-gradient(135deg,#9945ff,#14f195)",label:"◎"}, BNB:{bg:"#f3ba2f",label:"B"},
+  XRP:{bg:"#23292f",label:"X"}, ADA:{bg:"#0033ad",label:"A"}, DOGE:{bg:"#c2a633",label:"Ð"},
+  TRX:{bg:"#eb0029",label:"T"}, TON:{bg:"#0098ea",label:"T"}, LTC:{bg:"#a6a9aa",label:"Ł"},
+  DOT:{bg:"#e6007a",label:"●"}, AVAX:{bg:"#e84142",label:"A"}, LINK:{bg:"#2a5ada",label:"L"},
+  NEAR:{bg:"#00c08b",label:"N"}, SUI:{bg:"#4da2ff",label:"S"}, PEPE:{bg:"#3f9f3f",label:"P"}
+};
+function coinBadge(symbol){
+  const s = (symbol||"").toUpperCase();
+  const style = COIN_STYLE[s];
+  const bg = style ? style.bg : colorFromHash(s);
+  const label = style ? style.label : s.slice(0,2);
+  return `<div class="coin-badge" style="background:${bg}">${esc(label)}</div>`;
+}
+
 // НАВИГАЦИЯ
 document.querySelectorAll(".nav-item").forEach(btn=>{
   btn.onclick = ()=>{
@@ -360,7 +393,6 @@ async function refreshBot(){
 }
 
 function renderBot(data){
-  // Статус на главной
   let state = "stopped", text = "Остановлен";
   if(data.running) { state = "running"; text = "Работает"; }
   else if(data.emergency) { state = "emergency"; text = "Аварийная остановка"; }
@@ -370,14 +402,12 @@ function renderBot(data){
   $("btnStart").disabled = data.running;
   $("btnStop").disabled = !data.running;
 
-  // Настройки
   if(data.settings){
     if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
     if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
     if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
   }
 
-  // Баланс
   const total = Number(data.balance) || 0;
   const pnl = Number(data.totalPnl) || 0;
   const pnlPct = Number(data.totalPnlPct) || 0;
@@ -389,13 +419,11 @@ function renderBot(data){
   $("balPnl").textContent = (pnl>=0?"+":"") + money(pnl, 2) + " (" + (pnlPct>=0?"+":"") + pnlPct.toFixed(2) + "%)";
   $("balPnl").className = "v " + (pnl>=0?"green":"red");
 
-  // Журнал на главной
   const logs = data.logs || [];
   $("logList").innerHTML = logs.length ? logs.map(l=>`
     <div class="log-row"><span class="log-time">${esc(l.time)}</span><span class="log-dot ${esc(l.color||"blue")}"></span><span class="log-text">${esc(l.text)}</span></div>
   `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
 
-  // Текущие позиции на главной
   const positions = data.positions || [];
   $("positionsBody").innerHTML = positions.length ? positions.map(p=>`
     <tr>
@@ -406,7 +434,6 @@ function renderBot(data){
     </tr>
   `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
 
-  // СТРАНИЦА ТОРГОВЫЙ БОТ
   if (data.stats) {
     $("stTrades").textContent = data.stats.trades || 0;
     $("stWinrate").textContent = (data.stats.winrate || 0).toFixed(1) + "%";
@@ -415,11 +442,9 @@ function renderBot(data){
     if (data.stats.winrate >= 50) $("stWinrate").className = "v green";
     else $("stWinrate").className = "v red";
     
-    // Пульс
     $("lastActionBox").textContent = data.lastAction || "Ожидание...";
     $("botPulse").textContent = data.running ? "Активен" : "Спит";
     
-    // Сканер
     const scan = data.scanResults || [];
     $("scanList").innerHTML = scan.length ? scan.map(s => `
       <div class="scan-row">
@@ -432,7 +457,6 @@ function renderBot(data){
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Сканирование...</div>`;
 
-    // Позиции на странице бота
     $("botPositions").innerHTML = positions.length ? positions.map(p=>`
       <div style="border-bottom:1px solid #16223a;padding:10px 0">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
@@ -453,7 +477,6 @@ function renderBot(data){
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Нет открытых позиций</div>`;
 
-    // Разбивка по монетам
     const bySym = data.stats.bySymbol || [];
     $("bySymbolList").innerHTML = bySym.length ? bySym.map(s=>`
       <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a">
@@ -463,7 +486,6 @@ function renderBot(data){
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Сделок пока нет</div>`;
   }
-
   renderHistory();
 }
 
@@ -520,7 +542,7 @@ $("btnReset").onclick = async ()=>{
   };
 });
 
-// МАРКЕТЫ
+// МАРКЕТЫ (С ИКОНКАМИ И РУБЛЯМИ)
 async function loadMarkets(){
   try{
     const data = await api("/api/prices");
@@ -532,7 +554,7 @@ async function loadMarkets(){
     sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
     if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
   }catch(e){
-    $("mktRows").innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
+    $("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
   }
 }
 function renderMarkets(){
@@ -541,11 +563,17 @@ function renderMarkets(){
   $("mktCount").textContent = list.length + " активов";
   $("mktRows").innerHTML = list.map(c=>`
     <tr>
-      <td><b>${esc(c.symbol)}</b></td>
+      <td>
+        <div class="coin-cell">
+          ${coinBadge(c.symbol)}
+          <span class="coin-name">${esc(c.symbol)}</span>
+        </div>
+      </td>
       <td>$${n(c.priceUsd)}</td>
+      <td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td>
       <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
     </tr>
-  `).join("") || `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
+  `).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
 }
 $("mktSearch").oninput = renderMarkets;
 

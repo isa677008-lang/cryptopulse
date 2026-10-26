@@ -249,7 +249,7 @@ def fetch_strategy_candles(symbol):
             "limit":SCAN_CANDLE_LIMIT
         },
         headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
-        timeout=8
+        timeout=15
     )
     response.raise_for_status()
     data = response.json()
@@ -280,7 +280,8 @@ def refresh_strategy_history(symbols, force=False):
     completed = 0
     successful = 0
     errors = []
-    with ThreadPoolExecutor(max_workers=min(10,len(symbols))) as pool:
+    
+    with ThreadPoolExecutor(max_workers=5) as pool:
         futures = {
             pool.submit(fetch_strategy_candles,symbol):symbol
             for symbol in symbols
@@ -302,6 +303,7 @@ def refresh_strategy_history(symbols, force=False):
                 bot_state["scanStatus"] = (
                     f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
                 )
+                
     status = f"История свечей готова: {successful}/{len(symbols)} монет"
     if errors:
         status += f"; ошибки: {', '.join(errors[:5])}"

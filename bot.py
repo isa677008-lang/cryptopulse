@@ -242,7 +242,7 @@ def rsi(values, period=14):
     return 100 - 100 / (1 + gains / losses)
 
 def fetch_strategy_candles(symbol):
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             response = requests.get(
                 BASE + "/v5/market/kline",
@@ -286,7 +286,7 @@ def refresh_strategy_history_background(symbols):
         
         completed = 0
         successful = 0
-        with ThreadPoolExecutor(max_workers=1) as pool:
+        with ThreadPoolExecutor(max_workers=2) as pool:
             futures = {pool.submit(fetch_strategy_candles, symbol): symbol for symbol in symbols}
             for future in as_completed(futures):
                 symbol = futures[future]
@@ -301,6 +301,7 @@ def refresh_strategy_history_background(symbols):
                 completed += 1
                 with bot_state_lock:
                     bot_state["scanStatus"] = f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
+                time.sleep(0.5)
         
         with strategy_history_lock:
             strategy_history_updated = time.time()

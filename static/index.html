@@ -345,6 +345,20 @@
                 padding: 14px 13px;
             }
         }
+
+        .trading-panel { border: 1px solid #31415d; background: linear-gradient(145deg, #111a2b, #0d1422); border-radius: 20px; padding: 22px; margin-bottom: 24px; }
+        .trading-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0; }
+        .trade-card { background:#0a1220; border:1px solid var(--border); border-radius:14px; padding:15px; min-width:0; }
+        .control-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:18px 0; }
+        .control-grid label { color:var(--muted); font-size:13px; display:flex; flex-direction:column; gap:8px; }
+        .control-grid input { width:100%; min-width:0; background:#080d18; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:11px; }
+        .pill { border:1px solid var(--border); border-radius:999px; padding:7px 11px; color:var(--yellow); font-size:12px; white-space:nowrap; }
+        .muted { color:var(--muted); margin-top:5px; font-size:13px; }
+        .small-notice { padding:12px; margin:12px 0; }
+        button.secondary { background:#26344b; }
+        .trade-actions { margin:10px 0 20px; }
+        @media(max-width:850px) { .trading-grid,.control-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media(max-width:520px) { .trading-grid,.control-grid { grid-template-columns:1fr 1fr; } .trading-panel { padding:14px; } .trade-actions button { width:100%; } }
     </style>
 </head>
 
@@ -392,6 +406,36 @@
             </div>
         </div>
     </div>
+
+    <section class="section trading-panel">
+        <div class="section-header">
+            <div><h2>Торговая лаборатория</h2><p class="muted">Только симуляция. Реальные ордера не размещаются.</p></div>
+            <span class="pill" id="simStatus">Проверка статуса…</span>
+        </div>
+        <div class="trading-grid">
+            <div class="trade-card"><div class="card-label">Виртуальный капитал</div><div class="card-value" id="simEquity">—</div><div class="card-note" id="simCash">Свободные средства: —</div></div>
+            <div class="trade-card"><div class="card-label">Общий результат</div><div class="card-value" id="simPnl">—</div><div class="card-note" id="simPnlUsd">—</div></div>
+            <div class="trade-card"><div class="card-label">Bybit · баланс USDT</div><div class="card-value" id="bybitBalance">—</div><div class="card-note" id="bybitBalanceNote">Ключи только для чтения</div></div>
+            <div class="trade-card"><div class="card-label">Открытые позиции</div><div class="card-value" id="simPositionsCount">0</div><div class="card-note" id="simPersistence">—</div></div>
+        </div>
+        <div class="control-grid">
+            <label>Виртуальный депозит (USDT)<input id="simDeposit" type="number" min="10" max="10000000" value="100" step="10"></label>
+            <label>Цель прибыли (RUB)<input id="simProfitTarget" type="number" min="1" max="100000000" value="500" step="10"></label>
+            <label>Лимит убытка (RUB)<input id="simLossLimit" type="number" min="1" max="100000000" value="50" step="5"></label>
+            <label>Ключ управления (ADMIN_TOKEN)<input id="adminToken" type="password" autocomplete="current-password" placeholder="Токен из Render Environment"></label>
+        </div>
+        <div class="actions trade-actions">
+            <button id="simStartButton" type="button">▶ Запустить симуляцию</button>
+            <button id="simStopButton" type="button" class="secondary">■ Остановить</button>
+            <button id="simRefreshButton" type="button" class="secondary">Обновить статус</button>
+        </div>
+        <p class="notice small-notice" id="simMessage">Загрузка состояния…</p>
+        <h3>Открытые виртуальные позиции</h3>
+        <div class="table-wrap"><table><thead><tr><th>Актив</th><th>Количество</th><th>Вход</th><th>Текущая цена</th><th>Нереализованный P/L</th></tr></thead><tbody id="positionsBody"><tr><td colspan="5" class="message">Нет открытых позиций</td></tr></tbody></table></div>
+        <h3>Журнал событий и сделок</h3>
+        <div class="table-wrap"><table><thead><tr><th>Время</th><th>Событие</th><th>Актив</th><th>Цена USDT</th><th>Комиссия</th><th>P/L USDT</th></tr></thead><tbody id="journalBody"><tr><td colspan="6" class="message">Загрузка журнала…</td></tr></tbody></table></div>
+        <p class="muted">Важно: если PostgreSQL не настроен, состояние будет храниться только в памяти и может потеряться при перезапуске. Публичное управление закрыто, пока ADMIN_TOKEN не задан.</p>
+    </section>
 
     <section class="section">
         <div class="section-header">
@@ -745,6 +789,70 @@
         }
     }
 
+
+    const simFmt = (n, digits=2) => Number(n || 0).toLocaleString("ru-RU", {minimumFractionDigits:digits, maximumFractionDigits:digits});
+    const simEsc = (s) => String(s ?? "—").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+    const adminTokenInput = document.getElementById("adminToken");
+    try { adminTokenInput.value = sessionStorage.getItem("cp_admin_token") || ""; } catch (_) {}
+    adminTokenInput.addEventListener("change", () => { try { sessionStorage.setItem("cp_admin_token", adminTokenInput.value); } catch (_) {} });
+
+    async function controlSimulation(action) {
+        const token = adminTokenInput.value.trim();
+        if (!token) { document.getElementById("simMessage").textContent = "Введи ADMIN_TOKEN, который задан в Render → Environment."; return; }
+        const body = {action};
+        if (action === "start") {
+            body.depositUsdt = Number(document.getElementById("simDeposit").value);
+            body.profitTargetRub = Number(document.getElementById("simProfitTarget").value);
+            body.lossLimitRub = Number(document.getElementById("simLossLimit").value);
+        }
+        const btns = ["simStartButton", "simStopButton"];
+        btns.forEach(id => document.getElementById(id).disabled = true);
+        try {
+            const response = await fetch("/api/trading/control", {method:"POST", headers:{"Content-Type":"application/json","X-Admin-Token":token,"Accept":"application/json"}, body:JSON.stringify(body)});
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || "Не удалось изменить состояние");
+            document.getElementById("simMessage").textContent = data.message || "Состояние обновлено.";
+            await loadTradingStatus();
+        } catch (error) { document.getElementById("simMessage").textContent = error.message; }
+        finally { btns.forEach(id => document.getElementById(id).disabled = false); }
+    }
+
+    async function loadTradingStatus() {
+        try {
+            const response = await fetch("/api/trading/status", {cache:"no-store"});
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || "Ошибка статуса");
+            const st = data.state || {};
+            document.getElementById("simStatus").textContent = st.running ? "СИМУЛЯЦИЯ РАБОТАЕТ" : "СИМУЛЯЦИЯ ОСТАНОВЛЕНА";
+            document.getElementById("simStatus").style.color = st.running ? "var(--green)" : "var(--yellow)";
+            document.getElementById("simEquity").textContent = simFmt(st.equityUsdt ?? st.depositUsdt) + " USDT";
+            document.getElementById("simCash").textContent = "Свободные средства: " + simFmt(st.cashUsdt) + " USDT";
+            const pnl = Number(st.totalPnlRub || 0);
+            const pnlEl = document.getElementById("simPnl");
+            pnlEl.textContent = (pnl > 0 ? "+" : "") + simFmt(pnl) + " ₽";
+            pnlEl.style.color = pnl > 0 ? "var(--green)" : pnl < 0 ? "var(--red)" : "var(--text)";
+            document.getElementById("simPnlUsd").textContent = (Number(st.totalPnlUsdt || 0) > 0 ? "+" : "") + simFmt(st.totalPnlUsdt) + " USDT · цель +" + simFmt(st.profitTargetRub,0) + " ₽ / стоп −" + simFmt(st.lossLimitRub,0) + " ₽";
+            document.getElementById("simPositionsCount").textContent = String((data.positions || []).length);
+            document.getElementById("simPersistence").textContent = data.persistence === "postgresql" ? "Сохранение в PostgreSQL" : "Только память процесса";
+            document.getElementById("simMessage").textContent = st.statusMessage || "Состояние загружено.";
+            if (st.profitTargetRub) document.getElementById("simProfitTarget").value = st.profitTargetRub;
+            if (st.lossLimitRub) document.getElementById("simLossLimit").value = st.lossLimitRub;
+            if (st.depositUsdt) document.getElementById("simDeposit").value = st.depositUsdt;
+            const bal = data.bybitBalance || {};
+            document.getElementById("bybitBalance").textContent = bal.available ? simFmt(bal.usdtWalletBalance) + " USDT" : "Не подключён";
+            document.getElementById("bybitBalanceNote").textContent = bal.available ? "Доступно: " + simFmt(bal.usdtAvailableBalance) + " USDT · только чтение" : (bal.error || "Ключи только для чтения не настроены");
+            const positions = data.positions || [];
+            document.getElementById("positionsBody").innerHTML = positions.length ? positions.map(p => `<tr><td>${simEsc(p.symbol)}</td><td>${simFmt(p.quantity,6)}</td><td>${simFmt(p.entryPrice)}</td><td>${simFmt(p.lastPrice)}</td><td>${simFmt(p.unrealizedPnlUsdt)} USDT</td></tr>`).join("") : '<tr><td colspan="5" class="message">Нет открытых виртуальных позиций</td></tr>';
+            const journal = data.journal || [];
+            document.getElementById("journalBody").innerHTML = journal.length ? journal.map(j => `<tr><td>${simEsc(j.createdAt ? new Date(j.createdAt).toLocaleString("ru-RU") : "—")}</td><td>${simEsc(j.event)}</td><td>${simEsc(j.symbol || "—")}</td><td>${simFmt(j.priceUsdt)}</td><td>${simFmt(j.feeUsdt)} USDT</td><td>${simFmt(j.pnlUsdt)} USDT</td></tr>`).join("") : '<tr><td colspan="6" class="message">Журнал пуст или PostgreSQL не настроен</td></tr>';
+        } catch (error) {
+            document.getElementById("simMessage").textContent = "Не удалось загрузить торговый статус: " + error.message;
+        }
+    }
+    document.getElementById("simStartButton").addEventListener("click", () => controlSimulation("start"));
+    document.getElementById("simStopButton").addEventListener("click", () => controlSimulation("stop"));
+    document.getElementById("simRefreshButton").addEventListener("click", loadTradingStatus);
+
     elements.refreshButton.addEventListener(
         "click",
         loadPrices
@@ -752,6 +860,8 @@
 
     loadConfig();
     loadPrices();
+    loadTradingStatus();
+    setInterval(loadTradingStatus, 15000);
 
     setInterval(loadPrices, REFRESH_INTERVAL);
 </script>

@@ -8,138 +8,62 @@
 <style>
 :root{
   color-scheme:dark;
-  --bg:#070b14;
-  --panel:#0e1627;
-  --panel2:#131e33;
-  --line:#1f2d45;
-  --line2:#2a3b57;
-  --text:#eaf1ff;
-  --muted:#8394b3;
-  --muted2:#5d6d88;
-  --blue:#4d8dff;
-  --blue-soft:#1d3157;
-  --green:#1fcf8a;
-  --green-soft:#123a2c;
-  --red:#ff5d73;
-  --red-soft:#3a1a22;
-  --gold:#f7c96a;
-  --purple:#8b6bff;
+  --bg:#070b14;--panel:#0e1627;--panel2:#131e33;--line:#1f2d45;--line2:#2a3b57;
+  --text:#eaf1ff;--muted:#8394b3;--muted2:#5d6d88;--blue:#4d8dff;--blue-soft:#1d3157;
+  --green:#1fcf8a;--green-soft:#123a2c;--red:#ff5d73;--red-soft:#3a1a22;--gold:#f7c96a;--purple:#8b6bff;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
-body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
-  overflow:hidden;
-}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;overflow:hidden}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 a{color:inherit;text-decoration:none}
 
-/* LAYOUT */
 .app{display:grid;grid-template-columns:230px 1fr;height:100vh}
-.sidebar{
-  background:linear-gradient(180deg,#0a1222,#070b14);
-  border-right:1px solid var(--line);
-  display:flex;flex-direction:column;
-  padding:14px 10px;
-  gap:4px;
-  overflow-y:auto;
-}
+.sidebar{background:linear-gradient(180deg,#0a1222,#070b14);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;gap:4px;overflow-y:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
-.brand-logo{
-  width:34px;height:34px;border-radius:9px;
-  background:linear-gradient(135deg,#4d8dff,#8b6bff);
-  display:grid;place-items:center;font-weight:900;font-size:16px;
-}
+.brand-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#4d8dff,#8b6bff);display:grid;place-items:center;font-weight:900;font-size:16px}
 .brand-name{font-size:17px;font-weight:800;letter-spacing:.2px}
 .brand-name span{color:var(--blue)}
-
-.nav-item{
-  display:flex;align-items:center;gap:12px;
-  padding:11px 12px;border-radius:9px;
-  color:var(--muted);font-weight:500;
-  transition:.15s;width:100%;text-align:left;
-}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;color:var(--muted);font-weight:500;transition:.15s;width:100%;text-align:left}
 .nav-item:hover{background:var(--panel);color:var(--text)}
 .nav-item.active{background:var(--blue-soft);color:#bcd4ff;box-shadow:inset 3px 0 0 var(--blue)}
 .nav-item svg{flex:0 0 20px}
-
-.sidebar-footer{
-  margin-top:auto;padding:12px;
-  border:1px solid var(--line);border-radius:10px;
-  background:var(--panel);
-  font-size:12px;
-}
+.sidebar-footer{margin-top:auto;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12px}
 .sidebar-footer .dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;box-shadow:0 0 8px var(--green)}
 .sidebar-footer .v{color:var(--muted2);margin-top:6px}
 
-/* MAIN */
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:14px 22px;border-bottom:1px solid var(--line);
-  background:#0a1222;
-}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--line);background:#0a1222}
 .topbar-left{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
 .topbar-left .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
 .topbar-right{display:flex;align-items:center;gap:10px}
-.mode-pill{
-  display:flex;align-items:center;gap:8px;
-  background:var(--blue-soft);border:1px solid #2b4a80;
-  padding:7px 14px;border-radius:99px;
-  font-size:12px;font-weight:600;color:#bcd4ff;
-}
-.icon-btn{
-  width:34px;height:34px;border-radius:50%;
-  background:var(--panel);border:1px solid var(--line);
-  display:grid;place-items:center;
-}
+.mode-pill{display:flex;align-items:center;gap:8px;background:var(--blue-soft);border:1px solid #2b4a80;padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#bcd4ff}
+.icon-btn{width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center}
 .icon-btn:hover{border-color:var(--blue)}
 
 .content{padding:18px 22px;overflow-y:auto;flex:1}
 .content::-webkit-scrollbar{width:8px}
 .content::-webkit-scrollbar-thumb{background:#1c2a44;border-radius:4px}
-
 .grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
 .col{display:flex;flex-direction:column;gap:16px;min-width:0}
-
-.card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:14px;
-  padding:16px;
-}
-.card h2{
-  margin:0 0 14px;font-size:16px;font-weight:700;
-  display:flex;justify-content:space-between;align-items:center;
-}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h2{margin:0 0 14px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .card h2 small{font-size:12px;color:var(--muted);font-weight:500}
 
-/* CONTROL PANEL */
 .controls{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
 .actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.btn-action{
-  padding:16px 10px;border-radius:11px;font-weight:700;
-  display:flex;flex-direction:column;align-items:center;gap:6px;
-  border:1px solid transparent;transition:.15s;
-  color:#fff;font-size:13px;
-}
+.btn-action{padding:16px 10px;border-radius:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid transparent;transition:.15s;color:#fff;font-size:13px}
 .btn-action svg{width:22px;height:22px}
-.btn-start{background:var(--green);}
+.btn-start{background:var(--green)}
 .btn-start:hover{filter:brightness(1.1)}
-.btn-stop{background:var(--red);}
+.btn-stop{background:var(--red)}
 .btn-stop:hover{filter:brightness(1.1)}
 .btn-emergency{background:#1a2842;border-color:var(--line2);color:#c9d6ee}
 .btn-emergency:hover{border-color:var(--red);color:var(--red)}
 .btn-action:disabled{opacity:.45;cursor:not-allowed;filter:none}
 
-.status-box{
-  min-width:180px;border-left:1px solid var(--line);
-  padding-left:16px;font-size:13px;
-}
+.status-box{min-width:180px;border-left:1px solid var(--line);padding-left:16px;font-size:13px}
 .status-box .label{color:var(--muted);font-size:12px;margin-bottom:8px}
 .status-box .state{display:flex;align-items:center;gap:8px;font-weight:600}
 .status-box .dot{width:9px;height:9px;border-radius:50%}
@@ -148,47 +72,21 @@ a{color:inherit;text-decoration:none}
 .status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
 .status-box .reason{margin-top:10px;color:var(--muted);font-size:12px}
 
-/* SETTINGS */
 .settings{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:12px;color:var(--muted)}
 .input-wrap{position:relative}
-.input-wrap input,.input-wrap select{
-  width:100%;padding:11px 12px 11px 30px;
-  background:#0a1322;border:1px solid var(--line);
-  border-radius:9px;color:var(--text);
-  font-weight:600;
-}
+.input-wrap input,.input-wrap select{width:100%;padding:11px 12px 11px 30px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);font-weight:600}
 .input-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
 .input-wrap select{padding-left:30px;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%238394b3' fill='none' stroke-width='1.5'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
 .field.blue input{border-color:#2b4a80}
 
-/* --- ФИКС ВЫПАДАЮЩИХ СПИСКОВ --- */
-select,
-select option,
-select optgroup{
-  background-color:#0e1627 !important;
-  color:#eaf1ff !important;
-  color-scheme:dark !important;
-}
-select option:checked,
-select option:hover,
-select option:focus{
-  background-color:#1d3157 !important;
-  color:#ffffff !important;
-}
-select:focus{
-  outline:none;
-}
-/* Firefox: убираем белую подсветку опций */
-@-moz-document url-prefix(){
-  select option{
-    background-color:#0e1627 !important;
-    color:#eaf1ff !important;
-  }
-}
+/* ФИКС ВЫПАДАЮЩИХ СПИСКОВ */
+select,select option,select optgroup{background-color:#0e1627 !important;color:#eaf1ff !important;color-scheme:dark !important}
+select option:checked,select option:hover,select option:focus{background-color:#1d3157 !important;color:#fff !important}
+select:focus{outline:none}
+@-moz-document url-prefix(){select option{background-color:#0e1627 !important;color:#eaf1ff !important}}
 
-/* CHART */
 .chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .chart-symbol{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
 .chart-symbol select{background:transparent;border:0;color:var(--text);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0}
@@ -199,7 +97,6 @@ select:focus{
 .chart-wrap{position:relative;height:300px}
 #chart{width:100%;height:100%;display:block}
 
-/* BALANCE */
 .balance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .balance-head h2{margin:0}
 .refresh-btn{color:var(--blue);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
@@ -210,8 +107,8 @@ select:focus{
 .balance-item .meta .k{font-size:12px;color:var(--muted)}
 .balance-item .meta .v{font-size:16px;font-weight:700;margin-top:2px}
 .balance-item .v.green{color:var(--green)}
+.balance-item .v.red{color:var(--red)}
 
-/* API STATUS */
 .api-box{border:1px solid var(--line);border-radius:12px;padding:14px}
 .api-box .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
 .api-box .ok{color:var(--green);font-size:12px;display:flex;align-items:center;gap:6px}
@@ -220,13 +117,12 @@ select:focus{
 .api-box button{width:100%;padding:10px;border-radius:9px;background:#0a1322;border:1px solid var(--line2);color:var(--muted);font-size:13px;font-weight:600}
 .api-box button:hover{border-color:var(--blue);color:#bcd4ff}
 
-/* BOT LOG & POSITIONS */
 .two-col{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
 .log-list{display:flex;flex-direction:column;gap:0;max-height:280px;overflow-y:auto}
 .log-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #16223a;font-size:13px}
 .log-row:last-child{border:0}
-.log-time{color:var(--muted2);font-size:12px;min-width:44px;flex:0 0 44px;padding-top:1px}
-.log-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
+.log-time{color:var(--muted2);font-size:12px;min-width:48px;flex:0 0 48px;padding-top:1px}
+-d.logot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
 .log-text{color:#c5d3ea;font-size:13px}
 .log-dot.green{background:var(--green)}
 .log-dot.blue{background:var(--blue)}
@@ -244,28 +140,19 @@ select:focus{
 .pnl-pos{color:var(--green);font-weight:700}
 .pnl-neg{color:var(--red);font-weight:700}
 
-/* WARNING */
 .warn{display:flex;gap:12px;align-items:flex-start;background:#0e1c33;border:1px solid #1d3357;border-radius:12px;padding:14px;font-size:12px;color:#a8bcdc}
 .warn svg{flex:0 0 18px;color:var(--blue);margin-top:1px}
 
-/* PAGES */
 .page{display:none}
 .page.active{display:block}
 
-/* RESPONSIVE */
-@media(max-width:1100px){
-  .grid{grid-template-columns:1fr}
-  .settings{grid-template-columns:repeat(2,1fr)}
-  .two-col{grid-template-columns:1fr}
-}
+@media(max-width:1100px){.grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
 @media(max-width:780px){
   body{overflow:auto}
   .app{grid-template-columns:1fr;height:auto}
   .sidebar{flex-direction:row;overflow-x:auto;padding:8px}
-  .brand{padding:6px 8px}
-  .brand-name{display:none}
-  .nav-item span{display:none}
-  .nav-item{padding:9px}
+  .brand{padding:6px 8px}.brand-name{display:none}
+  .nav-item span{display:none}.nav-item{padding:9px}
   .sidebar-footer{display:none}
   .actions{grid-template-columns:1fr}
   .controls{grid-template-columns:1fr}
@@ -277,7 +164,6 @@ select:focus{
 <body>
 
 <div class="app">
-  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-logo">₿</div>
@@ -285,41 +171,33 @@ select:focus{
     </div>
 
     <button class="nav-item active" data-page="home">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
-      <span>Главная</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg><span>Главная</span>
     </button>
     <button class="nav-item" data-page="bot">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg>
-      <span>Торговый бот</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg><span>Торговый бот</span>
     </button>
     <button class="nav-item" data-page="markets">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg>
-      <span>Рынки</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span>
     </button>
     <button class="nav-item" data-page="signals">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
-      <span>Сигналы</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span>
     </button>
     <button class="nav-item" data-page="portfolio">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-      <span>Портфель</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Портфель</span>
     </button>
     <button class="nav-item" data-page="history">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      <span>История сделок</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span>
     </button>
     <button class="nav-item" data-page="settings">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-      <span>Настройки</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Настройки</span>
     </button>
 
     <div class="sidebar-footer">
       <div><span class="dot"></span>Сервер работает</div>
-      <div class="v">v1.2.0</div>
+      <div class="v">v1.3.0 beta</div>
     </div>
   </aside>
 
-  <!-- MAIN -->
   <div class="main">
     <div class="topbar">
       <div class="topbar-left">
@@ -329,7 +207,7 @@ select:focus{
       <div class="topbar-right">
         <div class="mode-pill">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          Симуляция
+          Симуляция (бета)
         </div>
         <button class="icon-btn" title="Уведомления">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
@@ -341,12 +219,10 @@ select:focus{
     </div>
 
     <div class="content">
-      <!-- PAGE: HOME / BOT -->
       <section id="page-home" class="page active">
         <div class="grid">
           <div class="col">
 
-            <!-- CONTROL -->
             <div class="card">
               <h2>Управление ботом</h2>
               <div class="controls">
@@ -375,37 +251,23 @@ select:focus{
               <div class="settings">
                 <div class="field">
                   <label>Цель по прибыли</label>
-                  <div class="input-wrap">
-                    <span class="prefix">$</span>
-                    <input type="number" id="profitTarget" value="100" min="0" step="1">
-                  </div>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="100" min="0" step="1"></div>
                 </div>
                 <div class="field">
                   <label>Максимальный убыток</label>
-                  <div class="input-wrap">
-                    <span class="prefix">$</span>
-                    <input type="number" id="maxLoss" value="10" min="0" step="1">
-                  </div>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="10" min="0" step="1"></div>
                 </div>
                 <div class="field">
                   <label>Размер одной сделки</label>
-                  <div class="input-wrap">
-                    <span class="prefix">$</span>
-                    <input type="number" id="tradeSize" value="20" min="1" step="1">
-                  </div>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="20" min="1" step="1"></div>
                 </div>
                 <div class="field blue">
                   <label>Режим</label>
-                  <div class="input-wrap">
-                    <select id="modeSelect">
-                      <option value="simulation" selected>Симуляция</option>
-                    </select>
-                  </div>
+                  <div class="input-wrap"><select id="modeSelect"><option value="simulation" selected>Симуляция (бета)</option></select></div>
                 </div>
               </div>
             </div>
 
-            <!-- CHART -->
             <div class="card">
               <div class="chart-head">
                 <div class="chart-symbol">
@@ -424,12 +286,9 @@ select:focus{
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 15v5h-5M4 4l7 7M20 20l-7-7"/></svg>
                 </div>
               </div>
-              <div class="chart-wrap">
-                <canvas id="chart"></canvas>
-              </div>
+              <div class="chart-wrap"><canvas id="chart"></canvas></div>
             </div>
 
-            <!-- BOT LOG + POSITIONS -->
             <div class="two-col">
               <div class="card">
                 <h2>Журнал бота</h2>
@@ -450,60 +309,54 @@ select:focus{
 
             <div class="warn">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
-              <div>Важно: лимиты прибыли и убытка учитывают не только закрытые сделки, но и текущий результат открытых позиций, а также комиссии. Остановка не гарантирует точный результат (возможны проскальзывание, задержки API и резкие движения цены).</div>
+              <div>Бета-версия: бот торгует на виртуальные деньги по реальным ценам Bybit. Реальные ордера не отправляются. После теста можно перейти к реальной торговле (с осторожностью).</div>
             </div>
           </div>
 
-          <!-- RIGHT COLUMN -->
           <div class="col">
-            <!-- BALANCE -->
             <div class="card">
               <div class="balance-head">
-                <h2>Баланс Bybit</h2>
+                <h2>Баланс (симуляция)</h2>
                 <button class="refresh-btn" id="balanceRefresh">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
                   Обновить
                 </button>
               </div>
-              <div class="balance-list" id="balanceList">
+              <div class="balance-list">
                 <div class="balance-item">
-                  <div class="balance-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>
-                  </div>
-                  <div class="meta"><div class="k">Общий баланс</div><div class="v" id="balTotal">—</div></div>
+                  <div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></div>
+                  <div class="meta"><div class="k">Общий баланс</div><div class="v" id="balTotal">$100.00</div></div>
                 </div>
                 <div class="balance-item">
-                  <div class="balance-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>
-                  </div>
-                  <div class="meta"><div class="k">Доступные средства</div><div class="v" id="balFree">—</div></div>
+                  <div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg></div>
+                  <div class="meta"><div class="k">Доступные средства</div><div class="v" id="balFree">$100.00</div></div>
                 </div>
                 <div class="balance-item">
-                  <div class="balance-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/></svg>
-                  </div>
-                  <div class="meta"><div class="k">Средства в позициях</div><div class="v" id="balPos">—</div></div>
+                  <div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/></svg></div>
+                  <div class="meta"><div class="k">Средства в позициях</div><div class="v" id="balPos">$0.00</div></div>
                 </div>
                 <div class="balance-item">
-                  <div class="balance-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1fcf8a" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg>
-                  </div>
+                  <div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1fcf8a" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg></div>
                   <div class="meta"><div class="k">Текущий результат</div><div class="v green" id="balPnl">+$0.00 (+0.00%)</div></div>
                 </div>
               </div>
             </div>
 
-            <!-- API -->
             <div class="api-box">
               <div class="head">API Bybit <span class="ok" id="apiOk"><span class="dot"></span>Доступен</span></div>
               <div class="desc">Ключ с правами только на чтение</div>
               <button id="apiCheck">Проверить доступность</button>
             </div>
+
+            <div class="api-box" style="margin-top:12px">
+              <div class="head">Тест</div>
+              <div class="desc">Сбросить виртуальный баланс и историю для нового теста</div>
+              <button id="btnReset" style="color:var(--red);border-color:var(--red-soft)">Сбросить бота</button>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- PAGE: MARKETS -->
       <section id="page-markets" class="page">
         <div class="card">
           <h2>Рынки <small id="mktCount">—</small></h2>
@@ -517,5 +370,8 @@ select:focus{
         </div>
       </section>
 
-      <!-- PAGE: SIGNALS -->
-      <section id="
+      <section id="page-signals" class="page">
+        <div class="card">
+          <h2>Сигналы <small>EMA 9/21 + RSI 14 · симуляция</small></h2>
+          <div style="overflow:auto;max-height:70vh">
+            <table class="pos-table" style="width

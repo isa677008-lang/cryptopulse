@@ -202,8 +202,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
                 </div>
               </div>
               <div class="settings">
-                <div class="field"><label>Цель по прибыли</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="100" min="0"></div></div>
-                <div class="field"><label>Макс. убыток</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="10" min="0"></div></div>
+                <div class="field"><label>Цель по прибыли</label><div class="input-wrap"><span class="prefix"><LaTex></span><input type="number" id="profitTarget" value="100" min="0"></div></div>                 <div class="field"><label>Макс. убыток</label><div class="input-wrap"><span class="prefix"></LaTex></span><input type="number" id="maxLoss" value="10" min="0"></div></div>
                 <div class="field"><label>Размер сделки</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="20" min="1"></div></div>
                 <div class="field"><label>Режим</label><div class="input-wrap"><select id="modeSelect" style="padding-left:12px"><option>Симуляция</option></select></div></div>
               </div>
@@ -269,7 +268,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
               <div id="lastActionBox" style="font-size:15px;font-weight:600;color:var(--blue);padding:10px;background:#0a1322;border-radius:8px;border:1px solid var(--line)">Бот остановлен</div>
             </div>
             <div class="card">
-              <h2>Сканер рынка (топ-15)</h2>
+              <h2>Сканер рынка (топ-15) <small>EMA/RSI · свечи 5m</small></h2>
               <div id="scanList" style="max-height:400px;overflow-y:auto">
                 <div style="color:var(--muted);padding:10px">Ожидание данных...</div>
               </div>
@@ -396,93 +395,48 @@ function renderBot(data){
   let state = "stopped", text = "Остановлен";
   if(data.running) { state = "running"; text = "Работает"; }
   else if(data.emergency) { state = "emergency"; text = "Аварийная остановка"; }
-  $("statusText").textContent = text;
-  $("statusDot").className = "dot " + state;
-  $("statusReason").textContent = data.lastAction || "Не запущен";
-  $("btnStart").disabled = data.running;
-  $("btnStop").disabled = !data.running;
-
-  if(data.settings){
-    if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
-    if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
-    if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
-  }
-
-  const total = Number(data.balance) || 0;
-  const pnl = Number(data.totalPnl) || 0;
-  const pnlPct = Number(data.totalPnlPct) || 0;
-  const posUsd = (data.positions||[]).reduce((s,p)=>s + Number(p.sizeUsd||0), 0);
-
-  $("balTotal").textContent = money(total, 2);
-  $("balFree").textContent = money(total - posUsd, 2);
-  $("balPos").textContent = money(posUsd, 2);
-  $("balPnl").textContent = (pnl>=0?"+":"") + money(pnl, 2) + " (" + (pnlPct>=0?"+":"") + pnlPct.toFixed(2) + "%)";
-  $("balPnl").className = "v " + (pnl>=0?"green":"red");
+  <LaTex>("statusText").textContent = text;</LaTex>("statusDot").className = "dot " + state;
+  <LaTex>("statusReason").textContent = data.lastAction || "Не запущен";</LaTex>("btnStart").disabled = data.running;
+  <LaTex>("btnStop").disabled = !data.running;    if(data.settings){     if(document.activeElement !==</LaTex>("profitTarget")) <LaTex>("profitTarget").value = data.settings.profitTarget;     if(document.activeElement !==</LaTex>("maxLoss")) <LaTex>("maxLoss").value = data.settings.maxLoss;     if(document.activeElement !==</LaTex>("tradeSize")) <LaTex>("tradeSize").value = data.settings.tradeSize;   }    const total = Number(data.balance) || 0;   const pnl = Number(data.totalPnl) || 0;   const pnlPct = Number(data.totalPnlPct) || 0;   const posUsd = (data.positions||[]).reduce((s,p)=>s + Number(p.sizeUsd||0), 0);</LaTex>("balTotal").textContent = money(total, 2);
+  <LaTex>("balFree").textContent = money(total - posUsd, 2);</LaTex>("balPos").textContent = money(posUsd, 2);
+  <LaTex>("balPnl").textContent = (pnl>=0?"+":"") + money(pnl, 2) + " (" + (pnlPct>=0?"+":"") + pnlPct.toFixed(2) + "%)";</LaTex>("balPnl").className = "v " + (pnl>=0?"green":"red");
 
   const logs = data.logs || [];
-  $("logList").innerHTML = logs.length ? logs.map(l=>`
-    <div class="log-row"><span class="log-time">${esc(l.time)}</span><span class="log-dot ${esc(l.color||"blue")}"></span><span class="log-text">${esc(l.text)}</span></div>
+  <LaTex>("logList").innerHTML = logs.length ? logs.map(l=>`     <div class="log-row"><span class="log-time"></LaTex>{esc(l.time)}</span><span class="log-dot <LaTex>{esc(l.color||"blue")}"></span><span class="log-text"></LaTex>{esc(l.text)}</span></div>
   `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
 
   const positions = data.positions || [];
-  $("positionsBody").innerHTML = positions.length ? positions.map(p=>`
-    <tr>
-      <td class="pair">${esc(p.symbol)}/USDT</td>
-      <td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td>
-      <td>$${n(p.sizeUsd,0)}</td>
-      <td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td>
-    </tr>
-  `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
-
-  if (data.stats) {
-    $("stTrades").textContent = data.stats.trades || 0;
-    $("stWinrate").textContent = (data.stats.winrate || 0).toFixed(1) + "%";
-    $("stPF").textContent = data.stats.profitFactor ? data.stats.profitFactor.toFixed(2) : "0.0";
-    $("stDD").textContent = money(data.stats.maxDrawdown || 0);
-    if (data.stats.winrate >= 50) $("stWinrate").className = "v green";
-    else $("stWinrate").className = "v red";
-    
-    $("lastActionBox").textContent = data.lastAction || "Ожидание...";
-    $("botPulse").textContent = data.running ? "Активен" : "Спит";
-    
-    const scan = data.scanResults || [];
-    $("scanList").innerHTML = scan.length ? scan.map(s => `
-      <div class="scan-row">
-        <div class="scan-symbol">${esc(s.symbol)}</div>
-        <div class="scan-signal ${s.signal==="buy_candidate"?"buy":s.signal==="sell_candidate"?"sell":"neutral"}">
-          ${s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"ЖДЁМ"}
+  <LaTex>("positionsBody").innerHTML = positions.length ? positions.map(p=>`     <tr>       <td class="pair"></LaTex>{esc(p.symbol)}/USDT</td>
+      <td><span class="tag <LaTex>{p.side==="Long"?"long":"short"}"></LaTex>{esc(p.side)}</span></td>
+      <td><LaTexBlock>{n(p.sizeUsd,0)}</td>       <td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}</LaTexBlock>{Math.abs(p.pnl).toFixed(2)} <small>(<LaTex>{pct(p.pnlPct)})</small></td>     </tr>   `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;    if (data.stats) {</LaTex>("stTrades").textContent = data.stats.trades || 0;
+    <LaTex>("stWinrate").textContent = (data.stats.winrate || 0).toFixed(1) + "%";</LaTex>("stPF").textContent = data.stats.profitFactor ? data.stats.profitFactor.toFixed(2) : "0.0";
+    <LaTex>("stDD").textContent = money(data.stats.maxDrawdown || 0);     if (data.stats.winrate >= 50)</LaTex>("stWinrate").className = "v green";
+    else <LaTex>("stWinrate").className = "v red";</LaTex>("lastActionBox").textContent = data.lastAction || "Ожидание...";
+    <LaTex>("botPulse").textContent = data.scanStatus || (data.running ? "Активен" : "Спит");      const scan = data.scanResults || [];</LaTex>("scanList").innerHTML = scan.length ? scan.map(s => `
+      <div class="scan-row" title="<LaTex>{esc(s.explanation||"")}">         <div class="scan-symbol"></LaTex>{esc(s.symbol)}</div>
+        <div class="scan-signal <LaTex>{s.signal==="buy_candidate"?"buy":s.signal==="sell_candidate"?"sell":"neutral"}"></LaTex>{s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"ЖДЁМ"}
         </div>
-        <div class="scan-rsi">RSI: ${s.rsi14 ? s.rsi14.toFixed(1) : "—"}</div>
-        <div style="font-size:11px;color:var(--muted);width:80px;text-align:right">${s.sampleCount} точек</div>
+        <div class="scan-rsi">RSI: <LaTex>{s.rsi14 ? s.rsi14.toFixed(1) : "—"}</div>         <div style="font-size:11px;color:var(--muted);width:80px;text-align:right"></LaTex>{s.sampleCount} точек</div>
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Сканирование...</div>`;
 
-    $("botPositions").innerHTML = positions.length ? positions.map(p=>`
-      <div style="border-bottom:1px solid #16223a;padding:10px 0">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <b>${esc(p.symbol)}/USDT</b>
-          <span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span>
+    <LaTex>("botPositions").innerHTML = positions.length ? positions.map(p=>`       <div style="border-bottom:1px solid #16223a;padding:10px 0">         <div style="display:flex;justify-content:space-between;margin-bottom:4px">           <b></LaTex>{esc(p.symbol)}/USDT</b>
+          <span class="tag <LaTex>{p.side==="Long"?"long":"short"}"></LaTex>{esc(p.side)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px">
-          <span>Вход: ${money(p.entryPrice,4)}</span>
-          <span>Тек: ${money(p.currentPrice,4)}</span>
+          <span>Вход: <LaTex>{money(p.entryPrice,4)}</span>           <span>Тек:</LaTex>{money(p.currentPrice,4)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span style="color:var(--green)">TP: ${money(p.tp,4)}</span>
-          <span style="color:var(--red)">SL: ${money(p.sl,4)}</span>
+          <span style="color:var(--green)">TP: <LaTex>{money(p.tp,4)}</span>           <span style="color:var(--red)">SL:</LaTex>{money(p.sl,4)}</span>
         </div>
-        <div style="text-align:right;font-weight:700" class="${cls(p.pnl)}">
-          ${p.pnl>=0?"+":""}${money(p.pnl,2)} (${pct(p.pnlPct)})
+        <div style="text-align:right;font-weight:700" class="<LaTex>{cls(p.pnl)}"></LaTex>{p.pnl>=0?"+":""}<LaTex>{money(p.pnl,2)} (</LaTex>{pct(p.pnlPct)})
         </div>
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Нет открытых позиций</div>`;
 
     const bySym = data.stats.bySymbol || [];
-    $("bySymbolList").innerHTML = bySym.length ? bySym.map(s=>`
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a">
-        <b>${esc(s.symbol)}</b>
-        <span style="font-size:12px;color:var(--muted)">${s.trades} сд.</span>
-        <span class="${s.pnl>=0?"pnl-pos":"pnl-neg"}">${s.pnl>=0?"+":""}${money(s.pnl,2)}</span>
+    <LaTex>("bySymbolList").innerHTML = bySym.length ? bySym.map(s=>`       <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a">         <b></LaTex>{esc(s.symbol)}</b>
+        <span style="font-size:12px;color:var(--muted)"><LaTex>{s.trades} сд.</span>         <span class="</LaTex>{s.pnl>=0?"pnl-pos":"pnl-neg"}"><LaTex>{s.pnl>=0?"+":""}</LaTex>{money(s.pnl,2)}</span>
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Сделок пока нет</div>`;
   }
@@ -493,89 +447,46 @@ function renderHistory(){
   const data = S.bot;
   if(!data) return;
   const trades = data.closedTrades || [];
-  $("historyCount").textContent = trades.length + " сделок";
-  $("historyRows").innerHTML = trades.length ? trades.map(t=>{
+  <LaTex>("historyCount").textContent = trades.length + " сделок";</LaTex>("historyRows").innerHTML = trades.length ? trades.map(t=>{
     const dt = t.closedAt ? new Date(t.closedAt) : null;
-    const time = dt ? `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}` : "—";
+    const time = dt ? `<LaTex>{String(dt.getHours()).padStart(2,"0")}:</LaTex>{String(dt.getMinutes()).padStart(2,"0")}` : "—";
     return `<tr>
-      <td style="color:var(--muted);font-size:12px">${time}</td>
-      <td class="pair">${esc(t.symbol)}/USDT</td>
-      <td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td>
-      <td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}${money(t.pnl,2)}</td>
-      <td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td>
+      <td style="color:var(--muted);font-size:12px"><LaTex>{time}</td>       <td class="pair"></LaTex>{esc(t.symbol)}/USDT</td>
+      <td><span class="tag <LaTex>{t.side==="Long"?"long":"short"}"></LaTex>{esc(t.side)}</span></td>
+      <td class="<LaTex>{cls(t.pnl)}"></LaTex>{t.pnl>=0?"+":""}<LaTex>{money(t.pnl,2)}</td>       <td style="color:var(--muted);font-size:12px"></LaTex>{esc(t.reason||"—")}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
 }
 
 // КНОПКИ
-$("btnStart").onclick = async ()=>{
-  try{
-    await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
-      profitTarget: Number($("profitTarget").value)||100,
-      maxLoss: Number($("maxLoss").value)||10,
-      tradeSize: Number($("tradeSize").value)||20
+<LaTex>("btnStart").onclick = async ()=>{   try{     await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({       profitTarget: Number(</LaTex>("profitTarget").value)||100,
+      maxLoss: Number(<LaTex>("maxLoss").value)||10,       tradeSize: Number(</LaTex>("tradeSize").value)||20
     })});
     await api("/api/bot/start", {method:"POST"});
     refreshBot();
   }catch(e){ alert("Ошибка: " + e.message); }
 };
-$("btnStop").onclick = async ()=>{
-  try{ await api("/api/bot/stop", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); }
-};
-$("btnEmergency").onclick = async ()=>{
+<LaTex>("btnStop").onclick = async ()=>{   try{ await api("/api/bot/stop", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };</LaTex>("btnEmergency").onclick = async ()=>{
   if(!confirm("Закрыть все позиции?")) return;
   try{ await api("/api/bot/emergency", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); }
 };
-$("btnReset").onclick = async ()=>{
-  if(!confirm("Сбросить баланс и историю?")) return;
-  try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); }
-};
-["profitTarget","maxLoss","tradeSize"].forEach(id=>{
-  $(id).onchange = async ()=>{
+<LaTex>("btnReset").onclick = async ()=>{   if(!confirm("Сбросить баланс и историю?")) return;   try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } }; ["profitTarget","maxLoss","tradeSize"].forEach(id=>{</LaTex>(id).onchange = async ()=>{
     try{
       await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
-        profitTarget: Number($("profitTarget").value)||100,
-        maxLoss: Number($("maxLoss").value)||10,
-        tradeSize: Number($("tradeSize").value)||20
-      })});
-    }catch(e){ console.warn(e); }
-  };
-});
-
-// МАРКЕТЫ (С ИКОНКАМИ И РУБЛЯМИ)
-async function loadMarkets(){
-  try{
-    const data = await api("/api/prices");
-    S.coins = data.coins||[];
-    S.rub = data.usdRub;
-    renderMarkets();
-    const sym = $("chartSymbol");
+        profitTarget: Number(<LaTex>("profitTarget").value)||100,         maxLoss: Number(</LaTex>("maxLoss").value)||10,
+        tradeSize: Number(<LaTex>("tradeSize").value)||20       })});     }catch(e){ console.warn(e); }   }; });  // МАРКЕТЫ (С ИКОНКАМИ И РУБЛЯМИ) async function loadMarkets(){   try{     const data = await api("/api/prices");     S.coins = data.coins||[];     S.rub = data.usdRub;     renderMarkets();     const sym =</LaTex>("chartSymbol");
     const cur = sym.value;
-    sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
+    sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="<LaTex>{esc(c.symbol)}USDT"></LaTex>{esc(c.symbol)}/USDT</option>`).join("");
     if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
   }catch(e){
-    $("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
+    <LaTex>("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px"></LaTex>{esc(e.message)}</td></tr>`;
   }
 }
 function renderMarkets(){
-  const q = ($("mktSearch").value||"").toUpperCase().trim();
-  const list = S.coins.filter(c=>(c.symbol+" "+(c.name||"")).toUpperCase().includes(q));
-  $("mktCount").textContent = list.length + " активов";
-  $("mktRows").innerHTML = list.map(c=>`
-    <tr>
-      <td>
-        <div class="coin-cell">
-          ${coinBadge(c.symbol)}
-          <span class="coin-name">${esc(c.symbol)}</span>
-        </div>
-      </td>
-      <td>$${n(c.priceUsd)}</td>
-      <td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td>
-      <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
-}
-$("mktSearch").oninput = renderMarkets;
+  const q = (<LaTex>("mktSearch").value||"").toUpperCase().trim();   const list = S.coins.filter(c=>(c.symbol+" "+(c.name||"")).toUpperCase().includes(q));</LaTex>("mktCount").textContent = list.length + " активов";
+  <LaTex>("mktRows").innerHTML = list.map(c=>`     <tr>       <td>         <div class="coin-cell"></LaTex>{coinBadge(c.symbol)}
+          <span class="coin-name"><LaTex>{esc(c.symbol)}</span>         </div>       </td>       <td></LaTex>${n(c.priceUsd)}</td>
+      <td><LaTex>{c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td>       <td class="</LaTex>{cls(c.change24h)}"><LaTex>{pct(c.change24h)}</td>     </tr>   `).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`; }</LaTex>("mktSearch").oninput = renderMarkets;
 
 // ГРАФИК (СВЕЧИ)
 const canvas = $("chart");
@@ -643,8 +554,7 @@ function drawChart(){
     const x = pad.l + gap*idx + gap/2;
     const d = new Date(c.time);
     const label = chartState.interval.includes("d") || chartState.interval.includes("w")
-      ? `${d.getDate()}.${d.getMonth()+1}`
-      : `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+      ? `${d.getDate()}.<LaTex>{d.getMonth()+1}`       : `</LaTex>{String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     ctx.fillStyle = "#5d6d88"; ctx.fillText(label, x, h-6);
   }
 
@@ -670,7 +580,11 @@ function drawChart(){
   ctx.fillText(last.close.toFixed(last.close>100?2:4), pad.l+cw+6, lastY+4);
 }
 
-$("chartSymbol").onchange = () => { chartState.symbol = $("chartSymbol").value; loadCandles(chartState.symbol, chartState.interval); };
+$("chartSymbol").onchange = () => {
+  chartState.symbol = $("chartSymbol").value;
+  loadCandles(chartState.symbol, chartState.interval);
+};
+
 document.querySelectorAll(".chart-tf button").forEach(b=>{
   b.onclick = ()=>{
     document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active"));
@@ -679,7 +593,10 @@ document.querySelectorAll(".chart-tf button").forEach(b=>{
     loadCandles(chartState.symbol, chartState.interval);
   };
 });
-window.addEventListener("resize", ()=>{ if(chartState.candles.length) drawChart(); });
+
+window.addEventListener("resize", ()=>{
+  if(chartState.candles.length) drawChart();
+});
 
 // ИНИЦИАЛИЗАЦИЯ
 (async ()=>{
@@ -690,9 +607,18 @@ window.addEventListener("resize", ()=>{ if(chartState.candles.length) drawChart(
   await loadCandles(chartState.symbol, chartState.interval);
 })();
 
-setInterval(()=>{ if(document.visibilityState==="visible") refreshBot(); }, 5000);
-setInterval(()=>{ if(document.visibilityState==="visible") loadMarkets(); }, 30000);
-setInterval(()=>{ if(document.visibilityState==="visible" && chartState.candles.length) loadCandles(chartState.symbol, chartState.interval); }, 60000);
+setInterval(()=>{
+  if(document.visibilityState==="visible") refreshBot();
+}, 5000);
+
+setInterval(()=>{
+  if(document.visibilityState==="visible") loadMarkets();
+}, 30000);
+
+setInterval(()=>{
+  if(document.visibilityState==="visible" && chartState.candles.length)
+    loadCandles(chartState.symbol, chartState.interval);
+}, 60000);
 </script>
 </body>
 </html>

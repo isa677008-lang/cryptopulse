@@ -617,7 +617,6 @@ def refresh_prices(force=False):
                 "source": price_cache["source"],
                 "error": price_cache["error"],
             }
-
     with refresh_lock:
         now = time.time()
 
@@ -629,10 +628,6 @@ def refresh_prices(force=False):
             ):
                 return {
                     "prices": dict(price_cache["prices"]),
-                    "changes24h": dict(price_cache["changes24h"]),
-                    "source": price_cache["source"],
-                    "error": price_cache["error"],
-                }
                     "changes24h": dict(price_cache["changes24h"]),
                     "source": price_cache["source"],
                     "error": price_cache["error"],

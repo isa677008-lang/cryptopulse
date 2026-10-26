@@ -122,7 +122,7 @@ select:focus{outline:none}
 .log-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #16223a;font-size:13px}
 .log-row:last-child{border:0}
 .log-time{color:var(--muted2);font-size:12px;min-width:48px;flex:0 0 48px;padding-top:1px}
--d.logot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
+.log-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
 .log-text{color:#c5d3ea;font-size:13px}
 .log-dot.green{background:var(--green)}
 .log-dot.blue{background:var(--blue)}
@@ -374,4 +374,454 @@ select:focus{outline:none}
         <div class="card">
           <h2>Сигналы <small>EMA 9/21 + RSI 14 · симуляция</small></h2>
           <div style="overflow:auto;max-height:70vh">
-            <table class="pos-table" style="width
+            <table class="pos-table" style="width:100%">
+              <thead><tr><th>Актив</th><th>Сигнал</th><th>Цена</th><th>EMA9</th><th>EMA21</th><th>RSI14</th><th>Наблюдений</th></tr></thead>
+              <tbody id="sigRows"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Загрузка…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-portfolio" class="page">
+        <div class="card">
+          <h2>Портфель (симуляция)</h2>
+          <div id="portfolioSummary" style="margin-bottom:16px;color:var(--muted)">—</div>
+          <table class="pos-table" style="width:100%">
+            <thead><tr><th>Пара</th><th>Тип</th><th>Вход</th><th>Текущая</th><th>P&L</th><th>TP / SL</th></tr></thead>
+            <tbody id="portfolioRows"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="page-history" class="page">
+        <div class="card">
+          <h2>История сделок <small id="historyCount">—</small></h2>
+          <div style="overflow:auto;max-height:70vh">
+            <table class="pos-table" style="width:100%">
+              <thead><tr><th>Время</th><th>Пара</th><th>Тип</th><th>Объём</th><th>Вход</th><th>Выход</th><th>P&L</th><th>Причина</th></tr></thead>
+              <tbody id="historyRows"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-settings" class="page">
+        <div class="card">
+          <h2>Настройки</h2>
+          <div style="color:var(--muted);line-height:1.7">
+            <p><b>Режим:</b> Симуляция (бета). Бот торгует на виртуальные деньги по реальным ценам Bybit.</p>
+            <p><b>Реальные ордера:</b> отключены на сервере (LIVE_TRADING_ENABLED = False).</p>
+            <p><b>Стратегия:</b> EMA9/EMA21 + RSI14. Торгуются только топ-10 монет (BTC, ETH, SOL, XRP, ADA, DOGE, BNB, TON, AVAX, LINK).</p>
+            <p><b>Максимум позиций:</b> 3 одновременно.</p>
+            <p><b>TP/SL по сделке:</b> +2% / -1.5%.</p>
+            <p><b>Общие лимиты:</b> задаются в полях «Цель по прибыли» и «Максимальный убыток».</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const S = { coins: [], rub: null, bot: null };
+
+function n(v, d=8){
+  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
+  return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:2});
+}
+function money(v, d=2){
+  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
+  return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d});
+}
+function pct(v){
+  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
+  return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%";
+}
+function cls(v){ if(v==null) return ""; return Number(v)>0?"pnl-pos":Number(v)<0?"pnl-neg":""; }
+function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+async function api(url, opts){
+  const r = await fetch(url, {cache:"no-store", ...opts});
+  const data = await r.json();
+  if(!r.ok || data.success===false) throw Error(data.error || "Ошибка запроса");
+  return data;
+}
+
+document.querySelectorAll(".nav-item").forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    const target = $("page-" + btn.dataset.page);
+    if(target) target.classList.add("active");
+    if(btn.dataset.page === "markets") loadMarkets();
+    if(btn.dataset.page === "signals") loadSignals();
+    if(btn.dataset.page === "portfolio") refreshBot();
+    if(btn.dataset.page === "history") renderHistory();
+  };
+});
+
+/* ---------- BOT ---------- */
+async function refreshBot(){
+  try{
+    const data = await api("/api/bot/state");
+    S.bot = data;
+    renderBot(data);
+  }catch(e){
+    console.warn("bot state error", e);
+  }
+}
+
+function renderBot(data){
+  // статус
+  let state = "stopped", text = "Остановлен";
+  if(data.running) { state = "running"; text = "Работает"; }
+  else if(data.emergency) { state = "emergency"; text = "Аварийная остановка"; }
+  $("statusText").textContent = text;
+  $("statusDot").className = "dot " + state;
+  $("statusReason").textContent = data.reason || "—";
+  $("btnStart").disabled = data.running;
+  $("btnStop").disabled = !data.running;
+
+  // настройки
+  if(data.settings){
+    if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
+    if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
+    if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
+  }
+
+  // баланс
+  const total = Number(data.balance) || 0;
+  const pnl = Number(data.totalPnl) || 0;
+  const pnlPct = Number(data.totalPnlPct) || 0;
+  const start = Number(data.startBalance) || 100;
+
+  $("balTotal").textContent = money(total, 2);
+  $("balFree").textContent = money(total - (data.positions||[]).reduce((s,p)=>s + Number(p.sizeUsd||0), 0), 2);
+  $("balPos").textContent = money((data.positions||[]).reduce((s,p)=>s + Number(p.sizeUsd||0), 0), 2);
+  $("balPnl").textContent = (pnl>=0?"+":"") + money(pnl, 2) + " (" + (pnlPct>=0?"+":"") + pnlPct.toFixed(2) + "%)";
+  $("balPnl").className = "v " + (pnl>=0?"green":"red");
+
+  // журнал
+  const logs = data.logs || [];
+  $("logList").innerHTML = logs.length ? logs.map(l=>`
+    <div class="log-row"><span class="log-time">${esc(l.time)}</span><span class="log-dot ${esc(l.color||"blue")}"></span><span class="log-text">${esc(l.text)}</span></div>
+  `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
+
+  // позиции
+  const positions = data.positions || [];
+  $("positionsBody").innerHTML = positions.length ? positions.map(p=>`
+    <tr>
+      <td class="pair">${esc(p.symbol)}/USDT</td>
+      <td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td>
+      <td>$${n(p.sizeUsd,0)}</td>
+      <td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td>
+    </tr>
+  `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
+
+  // портфель
+  const posUsd = positions.reduce((s,p)=>s + Number(p.sizeUsd||0), 0);
+  $("portfolioSummary").innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div><div class="k">Баланс</div><b>${money(total,2)}</b></div>
+      <div><div class="k">В позициях</div><b>${money(posUsd,2)}</b></div>
+      <div><div class="k">Свободно</div><b>${money(total-posUsd,2)}</b></div>
+      <div><div class="k">P&L</div><b class="${pnl>=0?'pnl-pos':'pnl-neg'}">${pnl>=0?"+":""}${money(pnl,2)}</b></div>
+    </div>
+  `;
+  $("portfolioRows").innerHTML = positions.length ? positions.map(p=>`
+    <tr>
+      <td class="pair">${esc(p.symbol)}/USDT</td>
+      <td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td>
+      <td>$${n(p.entryPrice,4)}</td>
+      <td>$${n(p.currentPrice,4)}</td>
+      <td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)}</td>
+      <td style="font-size:11px;color:var(--muted)">${n(p.tp,4)} / ${n(p.sl,4)}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
+
+  renderHistory();
+}
+
+function renderHistory(){
+  const data = S.bot;
+  if(!data) return;
+  const trades = data.closedTrades || [];
+  $("historyCount").textContent = trades.length + " сделок";
+  $("historyRows").innerHTML = trades.length ? trades.map(t=>{
+    const dt = t.closedAt ? new Date(t.closedAt) : null;
+    const time = dt ? `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}` : "—";
+    return `<tr>
+      <td style="color:var(--muted);font-size:12px">${time}</td>
+      <td class="pair">${esc(t.symbol)}/USDT</td>
+      <td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td>
+      <td>$${n(t.sizeUsd,0)}</td>
+      <td>$${n(t.entryPrice,4)}</td>
+      <td>$${n(t.exitPrice,4)}</td>
+      <td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}$${Math.abs(t.pnl).toFixed(2)} <small>(${pct(t.pnlPct)})</small></td>
+      <td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
+}
+
+/* ---------- КНОПКИ БОТА ---------- */
+$("btnStart").onclick = async ()=>{
+  try{
+    await api("/api/bot/settings", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        profitTarget: Number($("profitTarget").value)||100,
+        maxLoss: Number($("maxLoss").value)||10,
+        tradeSize: Number($("tradeSize").value)||20
+      })
+    });
+    await api("/api/bot/start", {method:"POST"});
+    refreshBot();
+  }catch(e){ alert("Не удалось запустить: " + e.message); }
+};
+$("btnStop").onclick = async ()=>{
+  try{ await api("/api/bot/stop", {method:"POST"}); refreshBot(); }
+  catch(e){ alert("Не удалось остановить: " + e.message); }
+};
+$("btnEmergency").onclick = async ()=>{
+  if(!confirm("Аварийная остановка закроет все открытые позиции. Продолжить?")) return;
+  try{ await api("/api/bot/emergency", {method:"POST"}); refreshBot(); }
+  catch(e){ alert("Ошибка: " + e.message); }
+};
+$("btnReset").onclick = async ()=>{
+  if(!confirm("Сбросить виртуальный баланс и историю? Это для тестов.")) return;
+  try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }
+  catch(e){ alert("Ошибка: " + e.message); }
+};
+["profitTarget","maxLoss","tradeSize"].forEach(id=>{
+  $(id).onchange = async ()=>{
+    try{
+      await api("/api/bot/settings", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          profitTarget: Number($("profitTarget").value)||100,
+          maxLoss: Number($("maxLoss").value)||10,
+          tradeSize: Number($("tradeSize").value)||20
+        })
+      });
+    }catch(e){ console.warn(e); }
+  };
+});
+
+/* ---------- МАРКЕТЫ ---------- */
+async function loadMarkets(){
+  try{
+    const data = await api("/api/prices");
+    S.coins = data.coins||[];
+    S.rub = data.usdRub;
+    renderMarkets();
+    const sym = $("chartSymbol");
+    const cur = sym.value;
+    sym.innerHTML = S.coins.slice(0,300).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
+    if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
+  }catch(e){
+    $("mktRows").innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
+  }
+}
+function renderMarkets(){
+  const q = ($("mktSearch").value||"").toUpperCase().trim();
+  const list = S.coins.filter(c=>(c.symbol+" "+(c.name||"")).toUpperCase().includes(q));
+  $("mktCount").textContent = list.length + " активов";
+  $("mktRows").innerHTML = list.map(c=>`
+    <tr>
+      <td><b>${esc(c.symbol)}</b></td>
+      <td>$${n(c.priceUsd)}</td>
+      <td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td>
+      <td class="${cls(c.change1h)}">${pct(c.change1h)}</td>
+      <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
+}
+$("mktSearch").oninput = renderMarkets;
+
+/* ---------- СИГНАЛЫ ---------- */
+async function loadSignals(){
+  try{
+    const data = await api("/api/trading/signals");
+    const filtered = (data.signals||[]).filter(s=>s.signal !== "insufficient_history")
+      .sort((a,b)=>{
+        const order = {buy_candidate:0,sell_candidate:1,neutral:2};
+        return (order[a.signal]??9) - (order[b.signal]??9);
+      }).slice(0,80);
+    $("sigRows").innerHTML = filtered.map(s=>`
+      <tr>
+        <td><b>${esc(s.symbol)}</b></td>
+        <td><span class="tag ${s.signal==="buy_candidate"?"long":s.signal==="sell_candidate"?"short":""}" style="${s.signal==="neutral"?"background:#1d3157;color:#bcd4ff":""}">${
+          s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"NEUTRAL"
+        }</span></td>
+        <td>$${n(s.price)}</td>
+        <td>${n(s.ema9)}</td>
+        <td>${n(s.ema21)}</td>
+        <td>${s.rsi14==null?"—":Number(s.rsi14).toFixed(1)}</td>
+        <td>${s.sampleCount||0}</td>
+      </tr>
+    `).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Нет сигналов</td></tr>`;
+  }catch(e){
+    $("sigRows").innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
+  }
+}
+
+/* ---------- ЧАРТ (СВЕЧИ) ---------- */
+const canvas = $("chart");
+const ctx = canvas.getContext("2d");
+let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
+
+async function loadCandles(symbol, interval){
+  chartState.loading = true;
+  chartState.error = null;
+  drawChart();
+  try{
+    const r = await fetch(`/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=200`, {cache:"no-store"});
+    const data = await r.json();
+    if(!r.ok || data.success === false) throw new Error(data.error || "Ошибка загрузки свечей");
+    chartState.candles = data.candles || [];
+  }catch(e){
+    chartState.error = e.message;
+    chartState.candles = [];
+  }finally{
+    chartState.loading = false;
+    drawChart();
+  }
+}
+
+function drawChart(){
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w+"px"; canvas.style.height = h+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  if(chartState.loading){
+    ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("Загрузка свечей…", w/2, h/2); return;
+  }
+  if(chartState.error){
+    ctx.fillStyle = "#ff5d73"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
+    ctx.fillText(chartState.error, w/2, h/2); return;
+  }
+  const candles = chartState.candles;
+  if(!candles.length){
+    ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("Нет данных", w/2, h/2); return;
+  }
+
+  const pad = {l:10, r:64, t:12, b:26};
+  const cw = w - pad.l - pad.r;
+  const ch = h - pad.t - pad.b;
+
+  let min = Infinity, max = -Infinity;
+  for(const c of candles){ if(c.low<min) min=c.low; if(c.high>max) max=c.high; }
+  const range = (max-min)||1;
+  min -= range*0.03; max += range*0.03;
+
+  const yFor = v => pad.t + ch * (1 - (v-min)/(max-min));
+  const gap = cw / candles.length;
+  const candleWidth = Math.max(2, Math.min(12, gap*0.7));
+
+  // сетка цен
+  ctx.strokeStyle = "#131e33"; ctx.lineWidth = 1;
+  ctx.fillStyle = "#5d6d88"; ctx.font = "11px sans-serif"; ctx.textAlign = "left";
+  for(let i=0;i<=4;i++){
+    const y = pad.t + ch*i/4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+    const val = max - (max-min)*i/4;
+    ctx.fillText(val.toFixed(val>100?0:4), pad.l+cw+8, y+4);
+  }
+
+  // метки времени
+  ctx.textAlign = "center";
+  const steps = 6;
+  for(let i=0;i<=steps;i++){
+    const idx = Math.floor((candles.length-1) * i / steps);
+    const c = candles[idx];
+    if(!c) continue;
+    const x = pad.l + gap*idx + gap/2;
+    const d = new Date(c.time);
+    const label = chartState.interval.includes("d") || chartState.interval.includes("w")
+      ? `${d.getDate()}.${d.getMonth()+1}`
+      : `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    ctx.fillStyle = "#5d6d88";
+    ctx.fillText(label, x, h-6);
+  }
+
+  // свечи
+  candles.forEach((c,i)=>{
+    const x = pad.l + gap*i + gap/2;
+    const isUp = c.close >= c.open;
+    const color = isUp ? "#1fcf8a" : "#ff5d73";
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, yFor(c.high)); ctx.lineTo(x, yFor(c.low)); ctx.stroke();
+    const yO = yFor(c.open), yC = yFor(c.close);
+    const top = Math.min(yO,yC), hh = Math.max(1, Math.abs(yC-yO));
+    ctx.fillStyle = color;
+    ctx.fillRect(x - candleWidth/2, top, candleWidth, hh);
+  });
+
+  // последняя цена
+  const last = candles[candles.length-1];
+  const lastY = yFor(last.close);
+  const lastColor = last.close >= last.open ? "#1fcf8a" : "#ff5d73";
+  ctx.strokeStyle = lastColor; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(pad.l+cw, lastY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = lastColor;
+  ctx.fillRect(pad.l+cw+2, lastY-9, pad.r-8, 18);
+  ctx.fillStyle = "#0a1222"; ctx.font = "bold 11px sans-serif"; ctx.textAlign="left";
+  ctx.fillText(last.close.toFixed(last.close>100?2:4), pad.l+cw+6, lastY+4);
+}
+
+$("chartSymbol").onchange = () => {
+  chartState.symbol = $("chartSymbol").value;
+  loadCandles(chartState.symbol, chartState.interval);
+};
+document.querySelectorAll(".chart-tf button").forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    chartState.interval = b.dataset.tf;
+    loadCandles(chartState.symbol, chartState.interval);
+  };
+});
+window.addEventListener("resize", ()=>{ if(chartState.candles.length) drawChart(); });
+
+/* ---------- BALANCE REFRESH (для API статуса) ---------- */
+$("balanceRefresh").onclick = refreshBot;
+$("apiCheck").onclick = async ()=>{
+  try{
+    await api("/api/account/balance");
+    $("apiOk").innerHTML = '<span class="dot"></span>Доступен';
+  }catch(e){
+    $("apiOk").innerHTML = '<span class="dot" style="background:var(--red);box-shadow:0 0 8px var(--red)"></span>Недоступен';
+  }
+};
+
+/* ---------- INIT ---------- */
+(async ()=>{
+  await refreshBot();
+  await loadMarkets();
+  chartState.symbol = $("chartSymbol").value || "BTCUSDT";
+  chartState.interval = "5m";
+  await loadCandles(chartState.symbol, chartState.interval);
+})();
+
+// авто-обновления
+setInterval(()=>{ if(document.visibilityState==="visible") refreshBot(); }, 5000);
+setInterval(()=>{ if(document.visibilityState==="visible") loadMarkets(); }, 30000);
+setInterval(()=>{
+  if(document.visibilityState==="visible" && chartState.candles.length){
+    loadCandles(chartState.symbol, chartState.interval);
+  }
+}, 60000);
+</script>
+</body>
+</html>

@@ -6,27 +6,15 @@
 <meta name="theme-color" content="#070b14">
 <title>CryptoPulse — Бот</title>
 <style>
-:root{
-  color-scheme:dark;
-  --bg:#070b14;--panel:#0e1627;--panel2:#131e33;--line:#1f2d45;--line2:#2a3b57;
-  --text:#eaf1ff;--muted:#8394b3;--muted2:#5d6d88;--blue:#4d8dff;--blue-soft:#1d3157;
-  --green:#1fcf8a;--green-soft:#123a2c;--red:#ff5d73;--red-soft:#3a1a22;--gold:#f7c96a;
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
-button,input,select{font:inherit;color:inherit}
-button{cursor:pointer;border:0;background:none}
+:root{color-scheme:dark;--bg:#070b14;--panel:#0e1627;--panel2:#131e33;--line:#1f2d45;--line2:#2a3b57;--text:#eaf1ff;--muted:#8394b3;--muted2:#5d6d88;--blue:#4d8dff;--blue-soft:#1d3157;--green:#1fcf8a;--green-soft:#123a2c;--red:#ff5d73;--red-soft:#3a1a22;--gold:#f7c96a;}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}button,input,select{font:inherit;color:inherit}button{cursor:pointer;border:0;background:none}
 .app{display:grid;grid-template-columns:230px 1fr;height:100vh}
 .sidebar{background:linear-gradient(180deg,#0a1222,#070b14);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;gap:4px;overflow-y:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
 .brand-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#4d8dff,#8b6bff);display:grid;place-items:center;font-weight:900;font-size:16px}
-.brand-name{font-size:17px;font-weight:800}
-.brand-name span{color:var(--blue)}
+.brand-name{font-size:17px;font-weight:800}.brand-name span{color:var(--blue)}
 .nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;color:var(--muted);font-weight:500;transition:.15s;width:100%;text-align:left}
-.nav-item:hover{background:var(--panel);color:var(--text)}
-.nav-item.active{background:var(--blue-soft);color:#bcd4ff;box-shadow:inset 3px 0 0 var(--blue)}
-.nav-item svg{flex:0 0 20px}
+.nav-item:hover{background:var(--panel);color:var(--text)}.nav-item.active{background:var(--blue-soft);color:#bcd4ff;box-shadow:inset 3px 0 0 var(--blue)}.nav-item svg{flex:0 0 20px}
 .sidebar-footer{margin-top:auto;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12px}
 .sidebar-footer .dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;box-shadow:0 0 8px var(--green)}
 .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
@@ -36,8 +24,7 @@ button{cursor:pointer;border:0;background:none}
 .topbar-right{display:flex;align-items:center;gap:10px}
 .mode-pill{display:flex;align-items:center;gap:8px;background:var(--blue-soft);border:1px solid #2b4a80;padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#bcd4ff}
 .content{padding:18px 22px;overflow-y:auto;flex:1}
-.content::-webkit-scrollbar{width:8px}
-.content::-webkit-scrollbar-thumb{background:#1c2a44;border-radius:4px}
+.content::-webkit-scrollbar{width:8px}.content::-webkit-scrollbar-thumb{background:#1c2a44;border-radius:4px}
 .grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
 .col{display:flex;flex-direction:column;gap:16px;min-width:0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
@@ -47,24 +34,18 @@ button{cursor:pointer;border:0;background:none}
 .actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .btn-action{padding:16px 10px;border-radius:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid transparent;transition:.15s;color:#fff;font-size:13px}
 .btn-action svg{width:22px;height:22px}
-.btn-start{background:var(--green)}
-.btn-start:hover{filter:brightness(1.1)}
-.btn-stop{background:var(--red)}
-.btn-stop:hover{filter:brightness(1.1)}
-.btn-emergency{background:#1a2842;border-color:var(--line2);color:#c9d6ee}
-.btn-emergency:hover{border-color:var(--red);color:var(--red)}
+.btn-start{background:var(--green)}.btn-start:hover{filter:brightness(1.1)}
+.btn-stop{background:var(--red)}.btn-stop:hover{filter:brightness(1.1)}
+.btn-emergency{background:#1a2842;border-color:var(--line2);color:#c9d6ee}.btn-emergency:hover{border-color:var(--red);color:var(--red)}
 .btn-action:disabled{opacity:.45;cursor:not-allowed;filter:none}
 .status-box{min-width:180px;border-left:1px solid var(--line);padding-left:16px;font-size:13px}
 .status-box .label{color:var(--muted);font-size:12px;margin-bottom:8px}
 .status-box .state{display:flex;align-items:center;gap:8px;font-weight:600}
 .status-box .dot{width:9px;height:9px;border-radius:50%}
-.status-box .dot.stopped{background:var(--muted2)}
-.status-box .dot.running{background:var(--green);box-shadow:0 0 8px var(--green)}
-.status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
+.status-box .dot.stopped{background:var(--muted2)}.status-box .dot.running{background:var(--green);box-shadow:0 0 8px var(--green)}.status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
 .status-box .reason{margin-top:10px;color:var(--muted);font-size:12px}
 .settings{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
-.field{display:flex;flex-direction:column;gap:6px}
-.field label{font-size:12px;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:var(--muted)}
 .input-wrap{position:relative}
 .input-wrap input,.input-wrap select{width:100%;padding:11px 12px 11px 30px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);font-weight:600}
 .input-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
@@ -76,19 +57,14 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 .chart-tf{display:flex;gap:4px;background:#0a1322;padding:4px;border-radius:8px}
 .chart-tf button{padding:5px 10px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:600}
 .chart-tf button.active{background:#1d3157;color:#bcd4ff}
-.chart-wrap{position:relative;height:300px}
-#chart{width:100%;height:100%;display:block}
-.balance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-.balance-head h2{margin:0}
+.chart-wrap{position:relative;height:300px}#chart{width:100%;height:100%;display:block}
+.balance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.balance-head h2{margin:0}
 .refresh-btn{color:var(--blue);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
 .balance-list{display:flex;flex-direction:column;gap:14px}
 .balance-item{display:flex;align-items:center;gap:12px}
 .balance-icon{width:38px;height:38px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;flex:0 0 38px}
-.balance-item .meta{flex:1;min-width:0}
-.balance-item .meta .k{font-size:12px;color:var(--muted)}
-.balance-item .meta .v{font-size:16px;font-weight:700;margin-top:2px}
-.balance-item .v.green{color:var(--green)}
-.balance-item .v.red{color:var(--red)}
+.balance-item .meta{flex:1;min-width:0}.balance-item .meta .k{font-size:12px;color:var(--muted)}.balance-item .meta .v{font-size:16px;font-weight:700;margin-top:2px}
+.balance-item .v.green{color:var(--green)}.balance-item .v.red{color:var(--red)}
 .api-box{border:1px solid var(--line);border-radius:12px;padding:14px}
 .api-box .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
 .api-box .ok{color:var(--green);font-size:12px;display:flex;align-items:center;gap:6px}
@@ -98,8 +74,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 .api-box button:hover{border-color:var(--blue);color:#bcd4ff}
 .two-col{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
 .log-list{display:flex;flex-direction:column;gap:0;max-height:280px;overflow-y:auto}
-.log-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #16223a;font-size:13px}
-.log-row:last-child{border:0}
+.log-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #16223a;font-size:13px}.log-row:last-child{border:0}
 .log-time{color:var(--muted2);font-size:12px;min-width:48px;flex:0 0 48px;padding-top:1px}
 .log-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
 .log-text{color:#c5d3ea;font-size:13px}
@@ -107,70 +82,43 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 .pos-table{width:100%;border-collapse:collapse;font-size:13px}
 .pos-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px 10px;font-size:12px}
 .pos-table td{padding:10px 8px;border-top:1px solid #16223a}
-.pos-table td:last-child,.pos-table th:last-child{text-align:right}
-.pos-table .pair{font-weight:600}
+.pos-table td:last-child,.pos-table th:last-child{text-align:right}.pos-table .pair{font-weight:600}
 .tag{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700}
-.tag.long{background:var(--green-soft);color:var(--green)}
-.tag.short{background:var(--red-soft);color:var(--red)}
-.pnl-pos{color:var(--green);font-weight:700}
-.pnl-neg{color:var(--red);font-weight:700}
+.tag.long{background:var(--green-soft);color:var(--green)}.tag.short{background:var(--red-soft);color:var(--red)}
+.pnl-pos{color:var(--green);font-weight:700}.pnl-neg{color:var(--red);font-weight:700}
 .warn{display:flex;gap:12px;align-items:flex-start;background:#0e1c33;border:1px solid #1d3357;border-radius:12px;padding:14px;font-size:12px;color:#a8bcdc}
 .warn svg{flex:0 0 18px;color:var(--blue);margin-top:1px}
 .page{display:none}.page.active{display:block}
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
 .stat-card{background:#0a1322;border:1px solid var(--line);border-radius:10px;padding:12px}
-.stat-card .k{font-size:11px;color:var(--muted);margin-bottom:4px}
-.stat-card .v{font-size:18px;font-weight:700}
-.stat-card .v.green{color:var(--green)}
-.stat-card .v.red{color:var(--red)}
-.scan-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a;font-size:13px}
-.scan-row:last-child{border:0}
+.stat-card .k{font-size:11px;color:var(--muted);margin-bottom:4px}.stat-card .v{font-size:18px;font-weight:700}
+.stat-card .v.green{color:var(--green)}.stat-card .v.red{color:var(--red)}
+.scan-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a;font-size:13px}.scan-row:last-child{border:0}
 .scan-symbol{font-weight:600;width:60px}
 .scan-signal{font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700}
-.scan-signal.buy{background:var(--green-soft);color:var(--green)}
-.scan-signal.sell{background:var(--red-soft);color:var(--red)}
-.scan-signal.neutral{background:var(--panel2);color:var(--muted)}
+.scan-signal.buy{background:var(--green-soft);color:var(--green)}.scan-signal.sell{background:var(--red-soft);color:var(--red)}.scan-signal.neutral{background:var(--panel2);color:var(--muted)}
 .scan-rsi{width:50px;text-align:right;font-family:monospace}
-.coin-badge{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;flex:0 0 32px;box-shadow:0 2px 8px #0006;text-transform:uppercase;}
-.coin-cell { display: flex; align-items: center; gap: 10px; }
-.coin-name { font-weight: 700; }
+.coin-badge{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;flex:0 0 32px;box-shadow:0 2px 8px #0006;text-transform:uppercase}
+.coin-cell{display:flex;align-items:center;gap:10px}.coin-name{font-weight:700}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
-@media(max-width:780px){
-  body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}
-  .brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}
-  .sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}
-  .status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}
-  .settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}
-}
+@media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><div class="brand-logo">₿</div><div class="brand-name">Crypto<span>Pulse</span></div></div>
-    <button class="nav-item active" data-page="home">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg><span>Главная</span>
-    </button>
-    <button class="nav-item" data-page="bot">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg><span>Торговый бот</span>
-    </button>
-    <button class="nav-item" data-page="markets">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span>
-    </button>
-    <button class="nav-item" data-page="signals">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span>
-    </button>
-    <button class="nav-item" data-page="history">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span>
-    </button>
+    <button class="nav-item active" data-page="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg><span>Главная</span></button>
+    <button class="nav-item" data-page="bot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg><span>Торговый бот</span></button>
+    <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
+    <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
+    <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span></button>
     <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.1 beta</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
       <div class="topbar-left"><span class="dot"></span><span id="apiStatus">Bybit API работает</span></div>
-      <div class="topbar-right">
-        <div class="mode-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Симуляция</div>
-      </div>
+      <div class="topbar-right"><div class="mode-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Симуляция</div></div>
     </div>
     <div class="content">
       <section id="page-home" class="page active">
@@ -200,28 +148,14 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
             </div>
             <div class="card">
               <div class="chart-head">
-                <div class="chart-symbol">
-                  <select id="chartSymbol"><option>BTCUSDT</option></select>
-                  <div class="chart-tf">
-                    <button data-tf="1m">1m</button><button class="active" data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button><button data-tf="1d">1d</button>
-                  </div>
-                </div>
+                <div class="chart-symbol"><select id="chartSymbol"><option>BTCUSDT</option></select><div class="chart-tf"><button data-tf="1m">1m</button><button class="active" data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button><button data-tf="1d">1d</button></div></div>
                 <div class="chart-source" style="font-size:12px;color:var(--muted)">Bybit Spot</div>
               </div>
               <div class="chart-wrap"><canvas id="chart"></canvas></div>
             </div>
             <div class="two-col">
-              <div class="card">
-                <h2>Журнал бота</h2>
-                <div class="log-list" id="logList"><div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Ожидание…</span></div></div>
-              </div>
-              <div class="card">
-                <h2>Текущие позиции</h2>
-                <table class="pos-table">
-                  <thead><tr><th>Пара</th><th>Тип</th><th>Объём</th><th>P&L</th></tr></thead>
-                  <tbody id="positionsBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет позиций</td></tr></tbody>
-                </table>
-              </div>
+              <div class="card"><h2>Журнал бота</h2><div class="log-list" id="logList"><div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Ожидание…</span></div></div></div>
+              <div class="card"><h2>Текущие позиции</h2><table class="pos-table"><thead><tr><th>Пара</th><th>Тип</th><th>Объём</th><th>P&L</th></tr></thead><tbody id="positionsBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет позиций</td></tr></tbody></table></div>
             </div>
           </div>
           <div class="col">
@@ -253,30 +187,12 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         </div>
         <div class="grid">
           <div class="col">
-            <div class="card">
-              <h2>Пульс бота <small id="botPulse">—</small></h2>
-              <div id="lastActionBox" style="font-size:15px;font-weight:600;color:var(--blue);padding:10px;background:#0a1322;border-radius:8px;border:1px solid var(--line)">Бот остановлен</div>
-            </div>
-            <div class="card">
-              <h2>Сканер рынка (топ-15) <small>EMA/RSI · свечи 5m</small></h2>
-              <div id="scanList" style="max-height:400px;overflow-y:auto">
-                <div style="color:var(--muted);padding:10px">Ожидание данных...</div>
-              </div>
-            </div>
+            <div class="card"><h2>Пульс бота <small id="botPulse">—</small></h2><div id="lastActionBox" style="font-size:15px;font-weight:600;color:var(--blue);padding:10px;background:#0a1322;border-radius:8px;border:1px solid var(--line)">Бот остановлен</div></div>
+            <div class="card"><h2>Сканер рынка (топ-15) <small>EMA/RSI · свечи 5m</small></h2><div id="scanList" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Ожидание данных...</div></div></div>
           </div>
           <div class="col">
-            <div class="card">
-              <h2>Открытые позиции</h2>
-              <div id="botPositions" style="max-height:400px;overflow-y:auto">
-                <div style="color:var(--muted);padding:10px">Нет открытых позиций</div>
-              </div>
-            </div>
-            <div class="card">
-              <h2>Разбивка по монетам</h2>
-              <div id="bySymbolList" style="max-height:300px;overflow-y:auto">
-                <div style="color:var(--muted);padding:10px">Сделок пока нет</div>
-              </div>
-            </div>
+            <div class="card"><h2>Открытые позиции</h2><div id="botPositions" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Нет открытых позиций</div></div></div>
+            <div class="card"><h2>Разбивка по монетам</h2><div id="bySymbolList" style="max-height:300px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Сделок пока нет</div></div></div>
           </div>
         </div>
       </section>
@@ -285,24 +201,14 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         <div class="card">
           <h2>Рынки <small id="mktCount">—</small></h2>
           <input id="mktSearch" placeholder="Поиск: BTC, ETH, SOL…" style="width:100%;padding:11px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);margin-bottom:12px">
-          <div style="overflow:auto;max-height:70vh">
-            <table class="pos-table" style="width:100%">
-              <thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>24ч</th></tr></thead>
-              <tbody id="mktRows"></tbody>
-            </table>
-          </div>
+          <div style="overflow:auto;max-height:70vh"><table class="pos-table" style="width:100%"><thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>24ч</th></tr></thead><tbody id="mktRows"></tbody></table></div>
         </div>
       </section>
 
       <section id="page-history" class="page">
         <div class="card">
           <h2>История сделок <small id="historyCount">—</small></h2>
-          <div style="overflow:auto;max-height:70vh">
-            <table class="pos-table" style="width:100%">
-              <thead><tr><th>Время</th><th>Пара</th><th>Тип</th><th>P&L</th><th>Причина</th></tr></thead>
-              <tbody id="historyRows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Нет сделок</td></tr></tbody>
-            </table>
-          </div>
+          <div style="overflow:auto;max-height:70vh"><table class="pos-table" style="width:100%"><thead><tr><th>Время</th><th>Пара</th><th>Тип</th><th>P&L</th><th>Причина</th></tr></thead><tbody id="historyRows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Нет сделок</td></tr></tbody></table></div>
         </div>
       </section>
     </div>
@@ -313,18 +219,9 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 const $ = id => document.getElementById(id);
 const S = { coins: [], rub: null, bot: null };
 
-function n(v, d=8){
-  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
-  return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:2});
-}
-function money(v, d=2){
-  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
-  return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d});
-}
-function pct(v){
-  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
-  return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%";
-}
+function n(v, d=8){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:2}); }
+function money(v, d=2){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d}); }
+function pct(v){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%"; }
 function cls(v){ if(v==null) return ""; return Number(v)>0?"pnl-pos":Number(v)<0?"pnl-neg":""; }
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 async function api(url, opts){
@@ -334,11 +231,7 @@ async function api(url, opts){
   return data;
 }
 
-function colorFromHash(str){
-  let h = 0;
-  for(let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) & 0xffffff;
-  return `hsl(${h % 360}, 60%, 42%)`;
-}
+function colorFromHash(str){ let h = 0; for(let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) & 0xffffff; return `hsl(${h % 360}, 60%, 42%)`; }
 const COIN_STYLE = {
   BTC:{bg:"#f7931a",label:"₿"}, ETH:{bg:"#5c6f8a",label:"Ξ"}, USDT:{bg:"#26a17b",label:"₮"},
   USDC:{bg:"#2775ca",label:"$"}, BUSD:{bg:"#f0b90b",label:"B"}, DAI:{bg:"#f5ac37",label:"◈"},
@@ -349,10 +242,8 @@ const COIN_STYLE = {
   NEAR:{bg:"#00c08b",label:"N"}, SUI:{bg:"#4da2ff",label:"S"}, PEPE:{bg:"#3f9f3f",label:"P"}
 };
 function coinBadge(symbol){
-  const s = (symbol||"").toUpperCase();
-  const style = COIN_STYLE[s];
-  const bg = style ? style.bg : colorFromHash(s);
-  const label = style ? style.label : s.slice(0,2);
+  const s = (symbol||"").toUpperCase(); const style = COIN_STYLE[s];
+  const bg = style ? style.bg : colorFromHash(s); const label = style ? style.label : s.slice(0,2);
   return `<div class="coin-badge" style="background:${bg}">${esc(label)}</div>`;
 }
 
@@ -361,8 +252,7 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
     document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
     document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-    const target = $("page-" + btn.dataset.page);
-    if(target) target.classList.add("active");
+    const target = $("page-" + btn.dataset.page); if(target) target.classList.add("active");
     if(btn.dataset.page === "markets") loadMarkets();
     if(btn.dataset.page === "history") renderHistory();
   };
@@ -410,12 +300,7 @@ function renderBot(data){
 
   const positions = data.positions || [];
   $("positionsBody").innerHTML = positions.length ? positions.map(p=>`
-    <tr>
-      <td class="pair">${esc(p.symbol)}/USDT</td>
-      <td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td>
-      <td>$${n(p.sizeUsd,0)}</td>
-      <td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td>
-    </tr>
+    <tr><td class="pair">${esc(p.symbol)}/USDT</td><td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td><td>$${n(p.sizeUsd,0)}</td><td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td></tr>
   `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
 
   if (data.stats) {
@@ -423,146 +308,83 @@ function renderBot(data){
     $("stWinrate").textContent = (data.stats.winrate || 0).toFixed(1) + "%";
     $("stPF").textContent = data.stats.profitFactor ? data.stats.profitFactor.toFixed(2) : "0.0";
     $("stDD").textContent = money(data.stats.maxDrawdown || 0);
-    if (data.stats.winrate >= 50) $("stWinrate").className = "v green";
-    else $("stWinrate").className = "v red";
+    if (data.stats.winrate >= 50) $("stWinrate").className = "v green"; else $("stWinrate").className = "v red";
     
     $("lastActionBox").textContent = data.lastAction || "Ожидание...";
-    
-    // ФИКС: Если scanStatus нет, показываем статус работы
-    $("botPulse").textContent = data.scanStatus || (data.running ? "Запущен. Ожидание данных..." : "Бот остановлен");
+    $("botPulse").textContent = data.scanStatus || (data.running ? "Активен" : "Спит");
     
     const scan = data.scanResults || [];
     $("scanList").innerHTML = scan.length ? scan.map(s => `
       <div class="scan-row" title="${esc(s.explanation||"")}">
         <div class="scan-symbol">${esc(s.symbol)}</div>
-        <div class="scan-signal ${s.signal==="buy_candidate"?"buy":s.signal==="sell_candidate"?"sell":"neutral"}">
-          ${s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"ЖДЁМ"}
-        </div>
+        <div class="scan-signal ${s.signal==="buy_candidate"?"buy":s.signal==="sell_candidate"?"sell":"neutral"}">${s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"ЖДЁМ"}</div>
         <div class="scan-rsi">RSI: ${s.rsi14 ? s.rsi14.toFixed(1) : "—"}</div>
         <div style="font-size:11px;color:var(--muted);width:80px;text-align:right">${s.sampleCount} точек</div>
       </div>
-    `).join("") : `<div style="color:var(--muted);padding:10px">${data.running ? "Сканирую... (загрузка 5м свечей с Bybit)" : "Бот остановлен"}</div>`;
+    `).join("") : `<div style="color:var(--muted);padding:10px">Сканирование...</div>`;
 
     $("botPositions").innerHTML = positions.length ? positions.map(p=>`
       <div style="border-bottom:1px solid #16223a;padding:10px 0">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <b>${esc(p.symbol)}/USDT</b>
-          <span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px">
-          <span>Вход: ${money(p.entryPrice,4)}</span>
-          <span>Тек: ${money(p.currentPrice,4)}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span style="color:var(--green)">TP: ${money(p.tp,4)}</span>
-          <span style="color:var(--red)">SL: ${money(p.sl,4)}</span>
-        </div>
-        <div style="text-align:right;font-weight:700" class="${cls(p.pnl)}">
-          ${p.pnl>=0?"+":""}${money(p.pnl,2)} (${pct(p.pnlPct)})
-        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><b>${esc(p.symbol)}/USDT</b><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px"><span>Вход: ${money(p.entryPrice,4)}</span><span>Тек: ${money(p.currentPrice,4)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--green)">TP: ${money(p.tp,4)}</span><span style="color:var(--red)">SL: ${money(p.sl,4)}</span></div>
+        <div style="text-align:right;font-weight:700" class="${cls(p.pnl)}">${p.pnl>=0?"+":""}${money(p.pnl,2)} (${pct(p.pnlPct)})</div>
       </div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Нет открытых позиций</div>`;
 
     const bySym = data.stats.bySymbol || [];
     $("bySymbolList").innerHTML = bySym.length ? bySym.map(s=>`
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a">
-        <b>${esc(s.symbol)}</b>
-        <span style="font-size:12px;color:var(--muted)">${s.trades} сд.</span>
-        <span class="${s.pnl>=0?"pnl-pos":"pnl-neg"}">${s.pnl>=0?"+":""}${money(s.pnl,2)}</span>
-      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a"><b>${esc(s.symbol)}</b><span style="font-size:12px;color:var(--muted)">${s.trades} сд.</span><span class="${s.pnl>=0?"pnl-pos":"pnl-neg"}">${s.pnl>=0?"+":""}${money(s.pnl,2)}</span></div>
     `).join("") : `<div style="color:var(--muted);padding:10px">Сделок пока нет</div>`;
   }
   renderHistory();
 }
 
 function renderHistory(){
-  const data = S.bot;
-  if(!data) return;
+  const data = S.bot; if(!data) return;
   const trades = data.closedTrades || [];
   $("historyCount").textContent = trades.length + " сделок";
   $("historyRows").innerHTML = trades.length ? trades.map(t=>{
     const dt = t.closedAt ? new Date(t.closedAt) : null;
     const time = dt ? `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}` : "—";
-    return `<tr>
-      <td style="color:var(--muted);font-size:12px">${time}</td>
-      <td class="pair">${esc(t.symbol)}/USDT</td>
-      <td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td>
-      <td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}${money(t.pnl,2)}</td>
-      <td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td>
-    </tr>`;
+    return `<tr><td style="color:var(--muted);font-size:12px">${time}</td><td class="pair">${esc(t.symbol)}/USDT</td><td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td><td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}${money(t.pnl,2)}</td><td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td></tr>`;
   }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
 }
 
 $("btnStart").onclick = async ()=>{
   try{
-    await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
-      profitTarget: Number($("profitTarget").value)||100,
-      maxLoss: Number($("maxLoss").value)||10,
-      tradeSize: Number($("tradeSize").value)||20
-    })});
+    await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({profitTarget: Number($("profitTarget").value)||100,maxLoss: Number($("maxLoss").value)||10,tradeSize: Number($("tradeSize").value)||20})});
     await api("/api/bot/start", {method:"POST"});
     refreshBot();
   }catch(e){ alert("Ошибка: " + e.message); }
 };
-$("btnStop").onclick = async ()=>{
-  try{ await api("/api/bot/stop", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); }
-};
-$("btnEmergency").onclick = async ()=>{
-  if(!confirm("Закрыть все позиции?")) return;
-  try{ await api("/api/bot/emergency", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); }
-};
-$("btnReset").onclick = async ()=>{
-  if(!confirm("Сбросить баланс и историю?")) return;
-  try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); }
-};
+$("btnStop").onclick = async ()=>{ try{ await api("/api/bot/stop", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
+$("btnEmergency").onclick = async ()=>{ if(!confirm("Закрыть все позиции?")) return; try{ await api("/api/bot/emergency", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
+$("btnReset").onclick = async ()=>{ if(!confirm("Сбросить баланс и историю?")) return; try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
 ["profitTarget","maxLoss","tradeSize"].forEach(id=>{
-  $(id).onchange = async ()=>{
-    try{
-      await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
-        profitTarget: Number($("profitTarget").value)||100,
-        maxLoss: Number($("maxLoss").value)||10,
-        tradeSize: Number($("tradeSize").value)||20
-      })});
-    }catch(e){ console.warn(e); }
-  };
+  $(id).onchange = async ()=>{ try{ await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({profitTarget: Number($("profitTarget").value)||100,maxLoss: Number($("maxLoss").value)||10,tradeSize: Number($("tradeSize").value)||20})}); }catch(e){ console.warn(e); } };
 });
 
 async function loadMarkets(){
   try{
     const data = await api("/api/prices");
-    S.coins = data.coins||[];
-    S.rub = data.usdRub;
-    renderMarkets();
-    const sym = $("chartSymbol");
-    const cur = sym.value;
+    S.coins = data.coins||[]; S.rub = data.usdRub; renderMarkets();
+    const sym = $("chartSymbol"); const cur = sym.value;
     sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
     if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
-  }catch(e){
-    $("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
-  }
+  }catch(e){ $("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`; }
 }
 function renderMarkets(){
   const q = ($("mktSearch").value||"").toUpperCase().trim();
   const list = S.coins.filter(c=>(c.symbol+" "+(c.name||"")).toUpperCase().includes(q));
   $("mktCount").textContent = list.length + " активов";
   $("mktRows").innerHTML = list.map(c=>`
-    <tr>
-      <td>
-        <div class="coin-cell">
-          ${coinBadge(c.symbol)}
-          <span class="coin-name">${esc(c.symbol)}</span>
-        </div>
-      </td>
-      <td>$${n(c.priceUsd)}</td>
-      <td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td>
-      <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
-    </tr>
+    <tr><td><div class="coin-cell">${coinBadge(c.symbol)}<span class="coin-name">${esc(c.symbol)}</span></div></td><td>$${n(c.priceUsd)}</td><td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td><td class="${cls(c.change24h)}">${pct(c.change24h)}</td></tr>
   `).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
 }
 $("mktSearch").oninput = renderMarkets;
 
-const canvas = $("chart");
-const ctx = canvas.getContext("2d");
+const canvas = $("chart"); const ctx = canvas.getContext("2d");
 let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
 
 async function loadCandles(symbol, interval){
@@ -572,125 +394,39 @@ async function loadCandles(symbol, interval){
     const data = await r.json();
     if(!r.ok || data.success === false) throw new Error(data.error || "Ошибка");
     chartState.candles = data.candles || [];
-  }catch(e){
-    chartState.error = e.message; chartState.candles = [];
-  }finally{ chartState.loading = false; drawChart(); }
+  }catch(e){ chartState.error = e.message; chartState.candles = []; } finally{ chartState.loading = false; drawChart(); }
 }
 
 function drawChart(){
-  const wrap = canvas.parentElement;
-  const w = wrap.clientWidth, h = wrap.clientHeight;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  canvas.style.width = w+"px"; canvas.style.height = h+"px";
+  const wrap = canvas.parentElement; const w = wrap.clientWidth, h = wrap.clientHeight; const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = w+"px"; canvas.style.height = h+"px";
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
-
-  if(chartState.loading){
-    ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
-    ctx.fillText("Загрузка свечей…", w/2, h/2); return;
-  }
-  if(chartState.error){
-    ctx.fillStyle = "#ff5d73"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
-    ctx.fillText(chartState.error, w/2, h/2); return;
-  }
+  if(chartState.loading){ ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center"; ctx.fillText("Загрузка свечей…", w/2, h/2); return; }
+  if(chartState.error){ ctx.fillStyle = "#ff5d73"; ctx.font = "14px sans-serif"; ctx.textAlign="center"; ctx.fillText(chartState.error, w/2, h/2); return; }
   const candles = chartState.candles;
-  if(!candles.length){
-    ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
-    ctx.fillText("Нет данных", w/2, h/2); return;
-  }
-
-  const pad = {l:10, r:64, t:12, b:26};
-  const cw = w - pad.l - pad.r; const ch = h - pad.t - pad.b;
+  if(!candles.length){ ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center"; ctx.fillText("Нет данных", w/2, h/2); return; }
+  const pad = {l:10, r:64, t:12, b:26}; const cw = w - pad.l - pad.r; const ch = h - pad.t - pad.b;
   let min = Infinity, max = -Infinity;
   for(const c of candles){ if(c.low<min) min=c.low; if(c.high>max) max=c.high; }
-  const range = (max-min)||1;
-  min -= range*0.03; max += range*0.03;
-  const yFor = v => pad.t + ch * (1 - (v-min)/(max-min));
-  const gap = cw / candles.length;
-  const candleWidth = Math.max(2, Math.min(12, gap*0.7));
-
-  ctx.strokeStyle = "#131e33"; ctx.lineWidth = 1;
-  ctx.fillStyle = "#5d6d88"; ctx.font = "11px sans-serif"; ctx.textAlign = "left";
-  for(let i=0;i<=4;i++){
-    const y = pad.t + ch*i/4;
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
-    const val = max - (max-min)*i/4;
-    ctx.fillText(val.toFixed(val>100?0:4), pad.l+cw+8, y+4);
-  }
-
-  ctx.textAlign = "center";
-  const steps = 6;
-  for(let i=0;i<=steps;i++){
-    const idx = Math.floor((candles.length-1) * i / steps);
-    const c = candles[idx]; if(!c) continue;
-    const x = pad.l + gap*idx + gap/2;
-    const d = new Date(c.time);
-    const label = chartState.interval.includes("d") || chartState.interval.includes("w")
-      ? `${d.getDate()}.${d.getMonth()+1}`
-      : `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-    ctx.fillStyle = "#5d6d88"; ctx.fillText(label, x, h-6);
-  }
-
-  candles.forEach((c,i)=>{
-    const x = pad.l + gap*i + gap/2;
-    const isUp = c.close >= c.open;
-    const color = isUp ? "#1fcf8a" : "#ff5d73";
-    ctx.strokeStyle = color; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, yFor(c.high)); ctx.lineTo(x, yFor(c.low)); ctx.stroke();
-    const yO = yFor(c.open), yC = yFor(c.close);
-    const top = Math.min(yO,yC), hh = Math.max(1, Math.abs(yC-yO));
-    ctx.fillStyle = color; ctx.fillRect(x - candleWidth/2, top, candleWidth, hh);
-  });
-
-  const last = candles[candles.length-1];
-  const lastY = yFor(last.close);
-  const lastColor = last.close >= last.open ? "#1fcf8a" : "#ff5d73";
-  ctx.strokeStyle = lastColor; ctx.setLineDash([4,4]);
-  ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(pad.l+cw, lastY); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = lastColor; ctx.fillRect(pad.l+cw+2, lastY-9, pad.r-8, 18);
-  ctx.fillStyle = "#0a1222"; ctx.font = "bold 11px sans-serif"; ctx.textAlign="left";
-  ctx.fillText(last.close.toFixed(last.close>100?2:4), pad.l+cw+6, lastY+4);
+  const range = (max-min)||1; min -= range*0.03; max += range*0.03;
+  const yFor = v => pad.t + ch * (1 - (v-min)/(max-min)); const gap = cw / candles.length; const candleWidth = Math.max(2, Math.min(12, gap*0.7));
+  ctx.strokeStyle = "#131e33"; ctx.lineWidth = 1; ctx.fillStyle = "#5d6d88"; ctx.font = "11px sans-serif"; ctx.textAlign = "left";
+  for(let i=0;i<=4;i++){ const y = pad.t + ch*i/4; ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke(); const val = max - (max-min)*i/4; ctx.fillText(val.toFixed(val>100?0:4), pad.l+cw+8, y+4); }
+  ctx.textAlign = "center"; const steps = 6;
+  for(let i=0;i<=steps;i++){ const idx = Math.floor((candles.length-1) * i / steps); const c = candles[idx]; if(!c) continue; const x = pad.l + gap*idx + gap/2; const d = new Date(c.time); const label = chartState.interval.includes("d") || chartState.interval.includes("w") ? `${d.getDate()}.${d.getMonth()+1}` : `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; ctx.fillStyle = "#5d6d88"; ctx.fillText(label, x, h-6); }
+  candles.forEach((c,i)=>{ const x = pad.l + gap*i + gap/2; const isUp = c.close >= c.open; const color = isUp ? "#1fcf8a" : "#ff5d73"; ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yFor(c.high)); ctx.lineTo(x, yFor(c.low)); ctx.stroke(); const yO = yFor(c.open), yC = yFor(c.close); const top = Math.min(yO,yC), hh = Math.max(1, Math.abs(yC-yO)); ctx.fillStyle = color; ctx.fillRect(x - candleWidth/2, top, candleWidth, hh); });
+  const last = candles[candles.length-1]; const lastY = yFor(last.close); const lastColor = last.close >= last.open ? "#1fcf8a" : "#ff5d73"; ctx.strokeStyle = lastColor; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(pad.l+cw, lastY); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = lastColor; ctx.fillRect(pad.l+cw+2, lastY-9, pad.r-8, 18); ctx.fillStyle = "#0a1222"; ctx.font = "bold 11px sans-serif"; ctx.textAlign="left"; ctx.fillText(last.close.toFixed(last.close>100?2:4), pad.l+cw+6, lastY+4);
 }
 
-$("chartSymbol").onchange = () => {
-  chartState.symbol = $("chartSymbol").value;
-  loadCandles(chartState.symbol, chartState.interval);
-};
+$("chartSymbol").onchange = () => { chartState.symbol = $("chartSymbol").value; loadCandles(chartState.symbol, chartState.interval); };
+document.querySelectorAll(".chart-tf button").forEach(b=>{ b.onclick = ()=>{ document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); chartState.interval = b.dataset.tf; loadCandles(chartState.symbol, chartState.interval); }; });
+window.addEventListener("resize", ()=>{ if(chartState.candles.length) drawChart(); });
 
-document.querySelectorAll(".chart-tf button").forEach(b=>{
-  b.onclick = ()=>{
-    document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active"));
-    b.classList.add("active");
-    chartState.interval = b.dataset.tf;
-    loadCandles(chartState.symbol, chartState.interval);
-  };
-});
+(async ()=>{ await refreshBot(); await loadMarkets(); chartState.symbol = $("chartSymbol").value || "BTCUSDT"; chartState.interval = "5m"; await loadCandles(chartState.symbol, chartState.interval); })();
 
-window.addEventListener("resize", ()=>{
-  if(chartState.candles.length) drawChart();
-});
-
-(async ()=>{
-  await refreshBot();
-  await loadMarkets();
-  chartState.symbol = $("chartSymbol").value || "BTCUSDT";
-  chartState.interval = "5m";
-  await loadCandles(chartState.symbol, chartState.interval);
-})();
-
-setInterval(()=>{
-  if(document.visibilityState==="visible") refreshBot();
-}, 5000);
-
-setInterval(()=>{
-  if(document.visibilityState==="visible") loadMarkets();
-}, 30000);
-
-setInterval(()=>{
-  if(document.visibilityState==="visible" && chartState.candles.length)
-    loadCandles(chartState.symbol, chartState.interval);
-}, 60000);
+setInterval(()=>{ if(document.visibilityState==="visible") refreshBot(); }, 5000);
+setInterval(()=>{ if(document.visibilityState==="visible") loadMarkets(); }, 30000);
+setInterval(()=>{ if(document.visibilityState==="visible" && chartState.candles.length) loadCandles(chartState.symbol, chartState.interval); }, 60000);
 </script>
 </body>
 </html>

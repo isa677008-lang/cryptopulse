@@ -4,417 +4,879 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0a1020">
-<title>CryptoPulse</title>
-
+<title>CryptoPulse — Торговый бот</title>
 <style>
-:root{color-scheme:dark;--bg:#080d19;--panel:#111a2c;--line:#26344d;--text:#edf3ff;--muted:#91a0bb;--blue:#6da8ff;--green:#32d49a;--red:#ff7186;--gold:#f7c96a}
+:root{
+  color-scheme:dark;
+  --bg:#070b14;
+  --panel:#0e1627;
+  --panel2:#131e33;
+  --line:#1f2d45;
+  --line2:#2a3b57;
+  --text:#eaf1ff;
+  --muted:#8394b3;
+  --muted2:#5d6d88;
+  --blue:#4d8dff;
+  --blue-soft:#1d3157;
+  --green:#1fcf8a;
+  --green-soft:#123a2c;
+  --red:#ff5d73;
+  --red-soft:#3a1a22;
+  --gold:#f7c96a;
+  --purple:#8b6bff;
+}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at top,#172945,#080d19 55%);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
-.wrap{max-width:1240px;margin:auto;padding:22px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:20px}
-.brand{display:flex;gap:12px;align-items:center}
-.logo{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,#418cff,#8b6bff);font-size:24px;font-weight:900}
-.brand h1{margin:0;font-size:22px}
-.sub,.muted{color:var(--muted);font-size:12px}
-.status,.nav,.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.pill{padding:7px 10px;border-radius:99px;background:#17253b;border:1px solid var(--line);font-size:12px;color:var(--muted)}
-.pill b{color:var(--green)}
-button,input,select{font:inherit}
-button{cursor:pointer;border:1px solid var(--line);background:#1a2942;color:var(--text);padding:10px 13px;border-radius:11px}
-button:hover{border-color:var(--blue)}
-.nav{margin-bottom:18px}
-.nav button.active{background:#25477a;border-color:#538ce3}
-.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
-.card{background:linear-gradient(160deg,#152035,#0d1525);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0;box-shadow:0 12px 35px #0002}
-.s3{grid-column:span 3}.s5{grid-column:span 5}.s7{grid-column:span 7}.s12{grid-column:span 12}
-.label{color:var(--muted);font-size:12px}
-.metric{font-size:25px;font-weight:750;margin:8px 0;overflow-wrap:anywhere}
-.green,.positive{color:var(--green)}.red,.negative{color:var(--red)}.gold{color:var(--gold)}
-.title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 14px;font-size:17px}
-.title small{font-size:12px;color:var(--muted);font-weight:400}
-.tablewrap{overflow:auto;max-height:610px}
-table{border-collapse:collapse;width:100%;white-space:nowrap}
-th,td{text-align:right;padding:11px 9px;border-bottom:1px solid #243047}
-th{position:sticky;top:0;background:#111b2d;color:var(--muted);font-size:12px}
-th:first-child,td:first-child{text-align:left}
-.coin{display:flex;align-items:center;gap:9px}
-.icon{width:33px;height:33px;border-radius:50%;background:#243b5e;display:grid;place-items:center;font-size:10px;font-weight:800}
-.coin small{display:block;color:var(--muted);font-size:11px}
-.search{flex:1;min-width:180px;background:#0b1323;border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--text)}
-.hidden{display:none!important}
-.notice{border:1px solid #66552b;background:#332a17;color:#f6d990;border-radius:12px;padding:12px 14px;font-size:13px}
-.asset{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #243047}
-.asset:last-child{border:0}
-.error{color:var(--red);font-size:12px;margin-top:8px}
-.signal{display:inline-block;padding:4px 7px;border-radius:7px;background:#1d2b43;font-size:11px}
-.signal.buy_candidate{color:var(--green)}.signal.sell_candidate{color:var(--red)}.signal.neutral{color:var(--gold)}
-.field{display:block;width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#0b1323;color:var(--text);margin:6px 0 13px}
-.result{background:#0b1323;border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:12px}
-.footer{text-align:center;color:var(--muted);font-size:11px;padding:22px}
-.small{font-size:12px;padding:7px 10px}
-@media(max-width:850px){.s3,.s5,.s7{grid-column:span 6}}
-@media(max-width:560px){.wrap{padding:12px}.card{padding:14px}.s3,.s5,.s7,.s12{grid-column:span 12}.metric{font-size:23px}}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  overflow:hidden;
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:inherit;text-decoration:none}
+
+/* LAYOUT */
+.app{display:grid;grid-template-columns:230px 1fr;height:100vh}
+.sidebar{
+  background:linear-gradient(180deg,#0a1222,#070b14);
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;
+  padding:14px 10px;
+  gap:4px;
+  overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
+.brand-logo{
+  width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(135deg,#4d8dff,#8b6bff);
+  display:grid;place-items:center;font-weight:900;font-size:16px;
+}
+.brand-name{font-size:17px;font-weight:800;letter-spacing:.2px}
+.brand-name span{color:var(--blue)}
+
+.nav-item{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 12px;border-radius:9px;
+  color:var(--muted);font-weight:500;
+  transition:.15s;width:100%;text-align:left;
+}
+.nav-item:hover{background:var(--panel);color:var(--text)}
+.nav-item.active{background:var(--blue-soft);color:#bcd4ff;box-shadow:inset 3px 0 0 var(--blue)}
+.nav-item svg{flex:0 0 20px}
+
+.sidebar-footer{
+  margin-top:auto;padding:12px;
+  border:1px solid var(--line);border-radius:10px;
+  background:var(--panel);
+  font-size:12px;
+}
+.sidebar-footer .dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;box-shadow:0 0 8px var(--green)}
+.sidebar-footer .v{color:var(--muted2);margin-top:6px}
+
+/* MAIN */
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 22px;border-bottom:1px solid var(--line);
+  background:#0a1222;
+}
+.topbar-left{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.topbar-left .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.mode-pill{
+  display:flex;align-items:center;gap:8px;
+  background:var(--blue-soft);border:1px solid #2b4a80;
+  padding:7px 14px;border-radius:99px;
+  font-size:12px;font-weight:600;color:#bcd4ff;
+}
+.icon-btn{
+  width:34px;height:34px;border-radius:50%;
+  background:var(--panel);border:1px solid var(--line);
+  display:grid;place-items:center;
+}
+.icon-btn:hover{border-color:var(--blue)}
+
+.content{padding:18px 22px;overflow-y:auto;flex:1}
+.content::-webkit-scrollbar{width:8px}
+.content::-webkit-scrollbar-thumb{background:#1c2a44;border-radius:4px}
+
+.grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:16px;
+}
+.card h2{
+  margin:0 0 14px;font-size:16px;font-weight:700;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.card h2 small{font-size:12px;color:var(--muted);font-weight:500}
+
+/* CONTROL PANEL */
+.controls{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.btn-action{
+  padding:16px 10px;border-radius:11px;font-weight:700;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  border:1px solid transparent;transition:.15s;
+  color:#fff;font-size:13px;
+}
+.btn-action svg{width:22px;height:22px}
+.btn-start{background:var(--green);}
+.btn-start:hover{filter:brightness(1.1)}
+.btn-stop{background:var(--red);}
+.btn-stop:hover{filter:brightness(1.1)}
+.btn-emergency{background:#1a2842;border-color:var(--line2);color:#c9d6ee}
+.btn-emergency:hover{border-color:var(--red);color:var(--red)}
+.btn-action:disabled{opacity:.45;cursor:not-allowed;filter:none}
+
+.status-box{
+  min-width:180px;border-left:1px solid var(--line);
+  padding-left:16px;font-size:13px;
+}
+.status-box .label{color:var(--muted);font-size:12px;margin-bottom:8px}
+.status-box .state{display:flex;align-items:center;gap:8px;font-weight:600}
+.status-box .dot{width:9px;height:9px;border-radius:50%}
+.status-box .dot.stopped{background:var(--muted2)}
+.status-box .dot.running{background:var(--green);box-shadow:0 0 8px var(--green)}
+.status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
+.status-box .reason{margin-top:10px;color:var(--muted);font-size:12px}
+
+/* SETTINGS */
+.settings{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;color:var(--muted)}
+.input-wrap{position:relative}
+.input-wrap input,.input-wrap select{
+  width:100%;padding:11px 12px 11px 30px;
+  background:#0a1322;border:1px solid var(--line);
+  border-radius:9px;color:var(--text);
+  font-weight:600;
+}
+.input-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
+.input-wrap select{padding-left:30px;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%238394b3' fill='none' stroke-width='1.5'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
+.input-wrap select option{background:#0e1627}
+.field.blue input{border-color:#2b4a80}
+
+/* CHART */
+.chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px}
+.chart-symbol{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.chart-symbol select{background:transparent;border:0;color:var(--text);font-weight:700;font-size:15px;cursor:pointer}
+.chart-tf{display:flex;gap:4px;background:#0a1322;padding:4px;border-radius:8px}
+.chart-tf button{padding:5px 10px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:600}
+.chart-tf button.active{background:#1d3157;color:#bcd4ff}
+.chart-source{color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
+.chart-wrap{position:relative;height:300px}
+#chart{width:100%;height:100%;display:block}
+
+/* BALANCE */
+.balance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.balance-head h2{margin:0}
+.refresh-btn{color:var(--blue);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+.balance-list{display:flex;flex-direction:column;gap:14px}
+.balance-item{display:flex;align-items:center;gap:12px}
+.balance-icon{width:38px;height:38px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;flex:0 0 38px}
+.balance-item .meta{flex:1;min-width:0}
+.balance-item .meta .k{font-size:12px;color:var(--muted)}
+.balance-item .meta .v{font-size:16px;font-weight:700;margin-top:2px}
+.balance-item .v.green{color:var(--green)}
+
+/* API STATUS */
+.api-box{border:1px solid var(--line);border-radius:12px;padding:14px}
+.api-box .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
+.api-box .ok{color:var(--green);font-size:12px;display:flex;align-items:center;gap:6px}
+.api-box .ok .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.api-box .desc{font-size:12px;color:var(--muted);margin-bottom:12px}
+.api-box button{width:100%;padding:10px;border-radius:9px;background:#0a1322;border:1px solid var(--line2);color:var(--muted);font-size:13px;font-weight:600}
+.api-box button:hover{border-color:var(--blue);color:#bcd4ff}
+
+/* BOT LOG & POSITIONS */
+.two-col{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+.log-list{display:flex;flex-direction:column;gap:0;max-height:280px;overflow-y:auto}
+.log-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #16223a;font-size:13px}
+.log-row:last-child{border:0}
+.log-time{color:var(--muted2);font-size:12px;min-width:44px;flex:0 0 44px;padding-top:1px}
+.log-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
+.log-text{color:#c5d3ea;font-size:13px}
+.log-dot.green{background:var(--green)}
+.log-dot.blue{background:var(--blue)}
+.log-dot.gold{background:var(--gold)}
+.log-dot.red{background:var(--red)}
+
+.pos-table{width:100%;border-collapse:collapse;font-size:13px}
+.pos-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px 10px;font-size:12px}
+.pos-table td{padding:10px 8px;border-top:1px solid #16223a}
+.pos-table td:last-child,.pos-table th:last-child{text-align:right}
+.pos-table .pair{font-weight:600}
+.tag{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700}
+.tag.long{background:var(--green-soft);color:var(--green)}
+.tag.short{background:var(--red-soft);color:var(--red)}
+.pnl-pos{color:var(--green);font-weight:700}
+.pnl-neg{color:var(--red);font-weight:700}
+
+/* WARNING */
+.warn{display:flex;gap:12px;align-items:flex-start;background:#0e1c33;border:1px solid #1d3357;border-radius:12px;padding:14px;font-size:12px;color:#a8bcdc}
+.warn svg{flex:0 0 18px;color:var(--blue);margin-top:1px}
+
+/* PAGES */
+.page{display:none}
+.page.active{display:block}
+
+/* RESPONSIVE */
+@media(max-width:1100px){
+  .grid{grid-template-columns:1fr}
+  .settings{grid-template-columns:repeat(2,1fr)}
+  .two-col{grid-template-columns:1fr}
+}
+@media(max-width:780px){
+  body{overflow:auto}
+  .app{grid-template-columns:1fr;height:auto}
+  .sidebar{flex-direction:row;overflow-x:auto;padding:8px}
+  .brand{padding:6px 8px}
+  .brand-name{display:none}
+  .nav-item span{display:none}
+  .nav-item{padding:9px}
+  .sidebar-footer{display:none}
+  .actions{grid-template-columns:1fr}
+  .controls{grid-template-columns:1fr}
+  .status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}
+  .settings{grid-template-columns:1fr}
+}
 </style>
 </head>
-
 <body>
-<main class="wrap">
 
-<header class="top">
-  <div class="brand">
-    <div class="logo">₿</div>
-    <div>
-      <h1>CryptoPulse</h1>
-      <div class="sub">Крипторынок • Bybit Spot USDT</div>
-    </div>
-  </div>
-  <div class="status">
-    <span class="pill">Источник: <b id="source">BYBIT</b></span>
-    <span class="pill">Режим: <b>SIMULATION</b></span>
-    <button id="refresh">↻ Обновить</button>
-  </div>
-</header>
-
-<nav class="nav">
-  <button class="active" data-page="dashboard">Обзор</button>
-  <button data-page="market">Рынок</button>
-  <button data-page="signals">Сигналы</button>
-  <button data-page="calculator">Калькулятор</button>
-</nav>
-
-<section id="page-dashboard" class="page">
-  <div class="grid">
-
-    <div class="card s3">
-      <div class="label">Монет в рынке</div>
-      <div class="metric" id="count">—</div>
-      <div class="sub">Активные пары USDT</div>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">₿</div>
+      <div class="brand-name">Crypto<span>Pulse</span></div>
     </div>
 
-    <div class="card s3">
-      <div class="label">Растут за 24 часа</div>
-      <div class="metric green" id="up">—</div>
-      <div class="sub">По данным Bybit</div>
-    </div>
+    <button class="nav-item active" data-page="home">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+      <span>Главная</span>
+    </button>
+    <button class="nav-item" data-page="bot">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg>
+      <span>Торговый бот</span>
+    </button>
+    <button class="nav-item" data-page="markets">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg>
+      <span>Рынки</span>
+    </button>
+    <button class="nav-item" data-page="signals">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      <span>Сигналы</span>
+    </button>
+    <button class="nav-item" data-page="portfolio">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      <span>Портфель</span>
+    </button>
+    <button class="nav-item" data-page="history">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>История сделок</span>
+    </button>
+    <button class="nav-item" data-page="settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>Настройки</span>
+    </button>
 
-    <div class="card s3">
-      <div class="label">USD / RUB</div>
-      <div class="metric" id="rub">—</div>
-      <div class="sub">Справочный курс</div>
+    <div class="sidebar-footer">
+      <div><span class="dot"></span>Сервер работает</div>
+      <div class="v">v1.2.0</div>
     </div>
+  </aside>
 
-    <div class="card s3">
-      <div class="label">Баланс Bybit</div>
-      <div class="metric" id="total">—</div>
-      <div class="sub" id="balanceStatus">Read-only API</div>
-    </div>
-
-    <div class="card s7">
-      <h2 class="title">Рынок <small id="updated">Загрузка…</small></h2>
-      <div class="tablewrap">
-        <table>
-          <thead><tr><th>Актив</th><th>Цена USD</th><th>24 ч</th></tr></thead>
-          <tbody id="top"><tr><td colspan="3">Загружаем…</td></tr></tbody>
-        </table>
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="dot"></span>
+        <span id="apiStatus">Bybit (API подключён)</span>
       </div>
-      <button class="small" data-goto="market" style="margin-top:12px">Весь рынок →</button>
+      <div class="topbar-right">
+        <div class="mode-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Симуляция
+        </div>
+        <button class="icon-btn" title="Уведомления">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+        </button>
+        <button class="icon-btn" title="Профиль">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        </button>
+      </div>
     </div>
 
-    <div class="card s5">
-      <h2 class="title">Активы аккаунта <small>Read-only</small></h2>
-      <div id="assets" class="muted">Загрузка баланса…</div>
-      <div id="balanceError" class="error"></div>
-      <button id="balanceRefresh" class="small" style="margin-top:12px">Обновить баланс</button>
-    </div>
+    <div class="content">
+      <!-- PAGE: HOME / BOT -->
+      <section id="page-home" class="page active">
+        <div class="grid">
+          <div class="col">
 
-    <div class="card s12">
-      <div class="notice">🔒 Только просмотр и симуляция. Реальные ордера не отправляются. Не включай права торговли или вывода средств для API-ключа.</div>
-    </div>
+            <!-- CONTROL -->
+            <div class="card">
+              <h2>Управление ботом</h2>
+              <div class="controls">
+                <div class="actions">
+                  <button class="btn-action btn-start" id="btnStart">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    Запустить бота
+                  </button>
+                  <button class="btn-action btn-stop" id="btnStop">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    Остановить бота
+                  </button>
+                  <button class="btn-action btn-emergency" id="btnEmergency">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2 21h20z"/><path d="M12 10v5"/><circle cx="12" cy="18" r=".5" fill="currentColor"/></svg>
+                    Аварийная остановка
+                  </button>
+                </div>
+                <div class="status-box">
+                  <div class="label">Статус бота</div>
+                  <div class="state"><span class="dot stopped" id="statusDot"></span><span id="statusText">Остановлен</span></div>
+                  <div class="reason">Причина остановки</div>
+                  <div id="statusReason" style="font-size:13px;margin-top:4px">Не запущен</div>
+                </div>
+              </div>
 
+              <div class="settings">
+                <div class="field">
+                  <label>Цель по прибыли</label>
+                  <div class="input-wrap">
+                    <span class="prefix">$</span>
+                    <input type="number" id="profitTarget" value="100" min="0" step="1">
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Максимальный убыток</label>
+                  <div class="input-wrap">
+                    <span class="prefix">$</span>
+                    <input type="number" id="maxLoss" value="10" min="0" step="1">
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Размер одной сделки</label>
+                  <div class="input-wrap">
+                    <span class="prefix">$</span>
+                    <input type="number" id="tradeSize" value="20" min="1" step="1">
+                  </div>
+                </div>
+                <div class="field blue">
+                  <label>Режим</label>
+                  <div class="input-wrap">
+                    <select id="modeSelect">
+                      <option value="simulation" selected>Симуляция</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CHART -->
+            <div class="card">
+              <div class="chart-head">
+                <div class="chart-symbol">
+                  <select id="chartSymbol"><option>BTCUSDT</option></select>
+                  <div class="chart-tf">
+                    <button data-tf="1m">1m</button>
+                    <button class="active" data-tf="5m">5m</button>
+                    <button data-tf="15m">15m</button>
+                    <button data-tf="1h">1h</button>
+                    <button data-tf="4h">4h</button>
+                    <button data-tf="1d">1d</button>
+                  </div>
+                </div>
+                <div class="chart-source">
+                  <span>Bybit Spot</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 15v5h-5M4 4l7 7M20 20l-7-7"/></svg>
+                </div>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="chart"></canvas>
+              </div>
+            </div>
+
+            <!-- BOT LOG + POSITIONS -->
+            <div class="two-col">
+              <div class="card">
+                <h2>Журнал бота</h2>
+                <div class="log-list" id="logList">
+                  <div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Ожидание запуска…</span></div>
+                </div>
+              </div>
+              <div class="card">
+                <h2>Текущие позиции</h2>
+                <table class="pos-table">
+                  <thead><tr><th>Пара</th><th>Тип</th><th>Объём</th><th>P&L</th></tr></thead>
+                  <tbody id="positionsBody">
+                    <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="warn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
+              <div>Важно: лимиты прибыли и убытка учитывают не только закрытые сделки, но и текущий результат открытых позиций, а также комиссии. Остановка не гарантирует точный результат (возможны проскальзывание, задержки API и резкие движения цены).</div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN -->
+          <div class="col">
+            <!-- BALANCE -->
+            <div class="card">
+              <div class="balance-head">
+                <h2>Баланс Bybit</h2>
+                <button class="refresh-btn" id="balanceRefresh">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+                  Обновить
+                </button>
+              </div>
+              <div class="balance-list" id="balanceList">
+                <div class="balance-item">
+                  <div class="balance-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>
+                  </div>
+                  <div class="meta"><div class="k">Общий баланс</div><div class="v" id="balTotal">—</div></div>
+                </div>
+                <div class="balance-item">
+                  <div class="balance-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>
+                  </div>
+                  <div class="meta"><div class="k">Доступные средства</div><div class="v" id="balFree">—</div></div>
+                </div>
+                <div class="balance-item">
+                  <div class="balance-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/></svg>
+                  </div>
+                  <div class="meta"><div class="k">Средства в позициях</div><div class="v" id="balPos">—</div></div>
+                </div>
+                <div class="balance-item">
+                  <div class="balance-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1fcf8a" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg>
+                  </div>
+                  <div class="meta"><div class="k">Текущий результат</div><div class="v green" id="balPnl">+$0.00 (+0.00%)</div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- API -->
+            <div class="api-box">
+              <div class="head">API Bybit <span class="ok" id="apiOk"><span class="dot"></span>Доступен</span></div>
+              <div class="desc">Ключ с правами только на чтение</div>
+              <button id="apiCheck">Проверить доступность</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: MARKETS -->
+      <section id="page-markets" class="page">
+        <div class="card">
+          <h2>Рынки <small id="mktCount">—</small></h2>
+          <input id="mktSearch" placeholder="Поиск: BTC, ETH, SOL…" style="width:100%;padding:11px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);margin-bottom:12px">
+          <div style="overflow:auto;max-height:70vh">
+            <table class="pos-table" style="width:100%">
+              <thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>1ч</th><th>24ч</th></tr></thead>
+              <tbody id="mktRows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Загрузка…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: SIGNALS -->
+      <section id="page-signals" class="page">
+        <div class="card">
+          <h2>Сигналы <small>EMA 9/21 + RSI 14 · симуляция</small></h2>
+          <div style="overflow:auto;max-height:70vh">
+            <table class="pos-table" style="width:100%">
+              <thead><tr><th>Актив</th><th>Сигнал</th><th>Цена</th><th>EMA9</th><th>EMA21</th><th>RSI14</th><th>Наблюдений</th></tr></thead>
+              <tbody id="sigRows"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Загрузка…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: PORTFOLIO -->
+      <section id="page-portfolio" class="page">
+        <div class="card">
+          <h2>Портфель Bybit <small>read-only</small></h2>
+          <div id="portfolioList" style="color:var(--muted)">Загрузка…</div>
+        </div>
+      </section>
+
+      <!-- PAGE: HISTORY -->
+      <section id="page-history" class="page">
+        <div class="card">
+          <h2>История сделок</h2>
+          <div style="color:var(--muted);padding:20px 0">Реальная торговля отключена. История недоступна.</div>
+        </div>
+      </section>
+
+      <!-- PAGE: SETTINGS -->
+      <section id="page-settings" class="page">
+        <div class="card">
+          <h2>Настройки</h2>
+          <div style="color:var(--muted)">Режим симуляции. Реальные ордера отключены на сервере (LIVE_TRADING_ENABLED = False).</div>
+        </div>
+      </section>
+
+    </div>
   </div>
-</section>
-
-<section id="page-market" class="page hidden">
-  <div class="card">
-    <h2 class="title">Спотовый рынок Bybit <small id="marketCount">—</small></h2>
-    <div class="row" style="margin-bottom:12px">
-      <input id="search" class="search" placeholder="Поиск: BTC, ETH, SOL…">
-      <button id="marketRefresh">Обновить</button>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>1 ч</th><th>24 ч</th></tr></thead>
-        <tbody id="marketRows"><tr><td colspan="5">Загружаем…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<section id="page-signals" class="page hidden">
-  <div class="card">
-    <h2 class="title">Экспериментальные сигналы <small>EMA 9/21 + RSI 14</small></h2>
-    <div class="notice" style="margin-bottom:14px">Сигналы основаны на доступных наблюдениях, а не на гарантированно равномерных свечах. Это не инвестиционная рекомендация и не автоматическая торговля.</div>
-    <div class="tablewrap">
-      <table>
-        <thead>
-          <tr><th>Актив</th><th>Сигнал</th><th>Цена</th><th>EMA 9</th><th>EMA 21</th><th>RSI 14</th><th>Наблюдений</th></tr>
-        </thead>
-        <tbody id="signals"><tr><td colspan="7">Загружаем…</td></tr></tbody>
-      </table>
-    </div>
-    <button id="signalsRefresh" style="margin-top:12px">Обновить сигналы</button>
-  </div>
-</section>
-
-<section id="page-calculator" class="page hidden">
-  <div class="grid">
-    <div class="card s5">
-      <h2 class="title">Калькулятор стоимости</h2>
-      <label class="label">Актив</label>
-      <select id="asset" class="field"><option>BTC</option></select>
-      <label class="label">Количество</label>
-      <input id="amount" class="field" type="number" min="0" step="any" value="1">
-      <button id="calc">Рассчитать</button>
-      <div id="calcResult" class="result">Выбери актив и количество.</div>
-    </div>
-    <div class="card s7">
-      <h2 class="title">USD / RUB</h2>
-      <div id="calcRub" class="metric">—</div>
-      <div class="muted">Курс справочный; фактическая цена сделки может отличаться.</div>
-    </div>
-  </div>
-</section>
-
-<div class="footer">CryptoPulse • Bybit public API • Не финансовый совет • Реальная торговля отключена</div>
-</main>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
-const S = {coins: [], rub: null};
-
-function n(v, d=8) {
-  if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
-  return Number(v).toLocaleString("en-US", {
-    maximumFractionDigits: d,
-    minimumFractionDigits: 2
-  });
-}
-
-function pct(v) {
-  return v === null || v === undefined || !Number.isFinite(Number(v))
-    ? "—"
-    : `${Number(v) > 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
-}
-
-function cls(v) {
-  return v == null ? "" : Number(v) > 0 ? "positive" : Number(v) < 0 ? "negative" : "";
-}
-
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[c]));
-}
-
-async function api(url) {
-  const response = await fetch(url, {cache: "no-store"});
-  const data = await response.json();
-  if (!response.ok || data.success === false) {
-    throw Error(data.error || "Запрос не выполнен");
+const S = {
+  coins: [],
+  rub: null,
+  bot: {
+    running: false,
+    emergency: false,
+    reason: "Не запущен",
+    logs: JSON.parse(localStorage.getItem("cp_logs") || "[]"),
+    positions: JSON.parse(localStorage.getItem("cp_positions") || "[]"),
+    settings: JSON.parse(localStorage.getItem("cp_settings") || "null") || {
+      profitTarget: 100,
+      maxLoss: 10,
+      tradeSize: 20
+    }
   }
+};
+
+/* ---------- helpers ---------- */
+function n(v, d=8){
+  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
+  return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:2});
+}
+function money(v, d=2){
+  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
+  return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d});
+}
+function pct(v){
+  if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—";
+  return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%";
+}
+function cls(v){
+  if(v==null) return "";
+  return Number(v)>0?"pnl-pos":Number(v)<0?"pnl-neg":"";
+}
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+async function api(url){
+  const r = await fetch(url,{cache:"no-store"});
+  const data = await r.json();
+  if(!r.ok || data.success===false) throw Error(data.error || "Ошибка запроса");
   return data;
 }
 
-function row(c, full=false) {
-  return `<tr>
-    <td>
-      <div class="coin">
-        <div class="icon">${esc(c.symbol.slice(0, 4))}</div>
-        <div><b>${esc(c.symbol)}</b><small>${esc(c.name || c.symbol)}</small></div>
-      </div>
-    </td>
-    <td>$${n(c.priceUsd)}</td>
-    ${full ? `
-      <td>${c.priceRub == null ? "—" : "₽" + n(c.priceRub, 2)}</td>
-      <td class="${cls(c.change1h)}">${pct(c.change1h)}</td>
-    ` : ""}
-    <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
-  </tr>`;
-}
+/* ---------- NAV ---------- */
+document.querySelectorAll(".nav-item").forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    const target = $("page-" + btn.dataset.page);
+    if(target) target.classList.add("active");
+    if(btn.dataset.page === "markets") loadMarkets();
+    if(btn.dataset.page === "signals") loadSignals();
+    if(btn.dataset.page === "portfolio") loadPortfolio();
+  };
+});
 
-async function loadMarket() {
-  try {
-    const data = await api("/api/prices");
-
-    S.coins = data.coins || [];
-    S.rub = data.usdRub;
-
-    $("source").textContent = (data.source || "bybit").toUpperCase();
-    $("count").textContent = S.coins.length.toLocaleString("ru-RU");
-    $("up").textContent = S.coins.filter(c => Number(c.change24h) > 0).length.toLocaleString("ru-RU");
-    $("rub").textContent = S.rub ? "₽" + n(S.rub, 2) : "—";
-    $("calcRub").textContent = S.rub ? "1 USD ≈ ₽" + n(S.rub, 4) : "Недоступен";
-    $("updated").textContent = data.updatedAt
-      ? new Date(data.updatedAt).toLocaleTimeString("ru-RU")
-      : "Обновлено";
-
-    $("top").innerHTML = S.coins.slice()
-      .sort((a, b) => (b.change24h ?? -Infinity) - (a.change24h ?? -Infinity))
-      .slice(0, 8)
-      .map(c => row(c))
-      .join("") || '<tr><td colspan="3">Нет данных</td></tr>';
-
-    renderMarket();
-
-    const old = $("asset").value;
-    $("asset").innerHTML = S.coins
-      .map(c => `<option value="${esc(c.symbol)}">${esc(c.symbol)}</option>`)
-      .join("");
-
-    if (S.coins.some(c => c.symbol === old)) {
-      $("asset").value = old;
-    }
-
-  } catch (error) {
-    $("top").innerHTML = `<tr><td colspan="3">${esc(error.message)}</td></tr>`;
-    $("marketRows").innerHTML = `<tr><td colspan="5">${esc(error.message)}</td></tr>`;
-  }
-}
-
-function renderMarket() {
-  const query = ($("search").value || "").toUpperCase().trim();
-  const list = S.coins.filter(c =>
-    (c.symbol + " " + c.name).toUpperCase().includes(query)
-  );
-
-  $("marketCount").textContent = list.length.toLocaleString("ru-RU") + " активов";
-
-  $("marketRows").innerHTML = list.map(c => row(c, true)).join("")
-    || '<tr><td colspan="5">Ничего не найдено</td></tr>';
-}
-
-async function loadBalance() {
-  $("assets").textContent = "Загрузка баланса…";
-  $("balanceError").textContent = "";
-
-  try {
+/* ---------- BALANCE ---------- */
+async function loadBalance(){
+  try{
     const data = await api("/api/account/balance");
-
-    $("total").textContent = "$" + n(data.totalUsd, 2);
-    $("balanceStatus").textContent =
-      "Обновлено " + new Date(data.updatedAt).toLocaleTimeString("ru-RU");
-
-    const assets = (data.assets || []).slice(0, 12);
-
-    $("assets").innerHTML = assets.length
-      ? assets.map(x => `
-          <div class="asset">
-            <span>
-              <b>${esc(x.coin)}</b>
-              <div class="sub">${n(x.walletBalance)}</div>
-            </span>
-            <b>$${n(x.usdValue, 2)}</b>
-          </div>
-        `).join("")
-      : '<div class="muted">Нет активов с ненулевым балансом.</div>';
-
-  } catch (error) {
-    $("total").textContent = "—";
-    $("balanceStatus").textContent = "Баланс недоступен";
-    $("assets").textContent = "Баланс не загружен.";
-    $("balanceError").textContent =
-      "Проверь BYBIT_API_KEY, BYBIT_API_SECRET и доступ Read-Only для Unified Account.";
+    $("balTotal").textContent = money(data.totalUsd, 2);
+    const free = (data.assets||[]).reduce((s,a)=>s + Number(a.availableToWithdraw||0) * (Number(a.usdValue)&&Number(a.walletBalance)? Number(a.usdValue)/Number(a.walletBalance) : 0), 0);
+    $("balFree").textContent = money(free, 2);
+    $("balPos").textContent = money(0, 2);
+    $("balPnl").textContent = "+$0.00 (+0.00%)";
+    $("apiOk").innerHTML = '<span class="dot"></span>Доступен';
+  }catch(e){
+    $("balTotal").textContent = "—";
+    $("balFree").textContent = "—";
+    $("balPos").textContent = "—";
+    $("apiOk").innerHTML = '<span class="dot" style="background:var(--red);box-shadow:0 0 8px var(--red)"></span>Недоступен';
   }
 }
+$("balanceRefresh").onclick = loadBalance;
+$("apiCheck").onclick = loadBalance;
 
-async function loadSignals() {
-  try {
+/* ---------- MARKETS ---------- */
+async function loadMarkets(){
+  try{
+    const data = await api("/api/prices");
+    S.coins = data.coins||[];
+    S.rub = data.usdRub;
+    renderMarkets();
+    renderChart();
+    const sym = $("chartSymbol");
+    const cur = sym.value;
+    sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
+    if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
+  }catch(e){
+    $("mktRows").innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
+  }
+}
+function renderMarkets(){
+  const q = ($("mktSearch").value||"").toUpperCase().trim();
+  const list = S.coins.filter(c=>(c.symbol+" "+(c.name||"")).toUpperCase().includes(q));
+  $("mktCount").textContent = list.length + " активов";
+  $("mktRows").innerHTML = list.map(c=>`
+    <tr>
+      <td><b>${esc(c.symbol)}</b></td>
+      <td>$${n(c.priceUsd)}</td>
+      <td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td>
+      <td class="${cls(c.change1h)}">${pct(c.change1h)}</td>
+      <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
+}
+$("mktSearch").oninput = renderMarkets;
+
+/* ---------- SIGNALS ---------- */
+async function loadSignals(){
+  try{
     const data = await api("/api/trading/signals");
-
-    $("signals").innerHTML = (data.signals || []).map(s => `
+    const filtered = (data.signals||[]).filter(s=>s.signal !== "insufficient_history")
+      .sort((a,b)=>{
+        const order = {buy_candidate:0,sell_candidate:1,neutral:2};
+        return (order[a.signal]??9) - (order[b.signal]??9);
+      }).slice(0,80);
+    $("sigRows").innerHTML = filtered.map(s=>`
       <tr>
-        <td>${esc(s.symbol)}</td>
-        <td><span class="signal ${esc(s.signal)}">${
-          ({
-            buy_candidate: "BUY candidate",
-            sell_candidate: "SELL candidate",
-            neutral: "NEUTRAL",
-            insufficient_history: "Мало данных"
-          })[s.signal] || esc(s.signal)
+        <td><b>${esc(s.symbol)}</b></td>
+        <td><span class="tag ${
+          s.signal==="buy_candidate"?"long":s.signal==="sell_candidate"?"short":""
+        }" style="${s.signal==="neutral"?"background:#1d3157;color:#bcd4ff":""}">${
+          s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"NEUTRAL"
         }</span></td>
         <td>$${n(s.price)}</td>
         <td>${n(s.ema9)}</td>
         <td>${n(s.ema21)}</td>
-        <td>${s.rsi14 == null ? "—" : Number(s.rsi14).toFixed(1)}</td>
-        <td>${s.sampleCount || 0}</td>
+        <td>${s.rsi14==null?"—":Number(s.rsi14).toFixed(1)}</td>
+        <td>${s.sampleCount||0}</td>
       </tr>
-    `).join("") || '<tr><td colspan="7">Нет сигналов</td></tr>';
-
-  } catch (error) {
-    $("signals").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
+    `).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Нет сигналов</td></tr>`;
+  }catch(e){
+    $("sigRows").innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
   }
 }
 
-function page(name) {
-  document.querySelectorAll(".page").forEach(section => {
-    section.classList.toggle("hidden", section.id !== "page-" + name);
-  });
-
-  document.querySelectorAll(".nav button").forEach(button => {
-    button.classList.toggle("active", button.dataset.page === name);
-  });
-
-  if (name === "signals") loadSignals();
+/* ---------- PORTFOLIO ---------- */
+async function loadPortfolio(){
+  try{
+    const data = await api("/api/account/balance");
+    const assets = (data.assets||[]).filter(a=>a.usdValue>0);
+    $("portfolioList").innerHTML = assets.length ? assets.map(a=>`
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #16223a">
+        <b>${esc(a.coin)}</b>
+        <span>${n(a.walletBalance)} ≈ ${money(a.usdValue,2)}</span>
+      </div>
+    `).join("") : "Нет активов";
+  }catch(e){ $("portfolioList").textContent = "Недоступно"; }
 }
 
-document.querySelectorAll(".nav button").forEach(button => {
-  button.onclick = () => page(button.dataset.page);
-});
-
-document.querySelectorAll("[data-goto]").forEach(button => {
-  button.onclick = () => page(button.dataset.goto);
-});
-
-$("refresh").onclick = () => {
-  loadMarket();
-  loadBalance();
+/* ---------- BOT SIMULATION ---------- */
+function addLog(text, color="blue"){
+  const t = new Date();
+  const time = String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0");
+  S.bot.logs.unshift({time,text,color});
+  S.bot.logs = S.bot.logs.slice(0,50);
+  localStorage.setItem("cp_logs", JSON.stringify(S.bot.logs));
+  renderLog();
+}
+function renderLog(){
+  $("logList").innerHTML = S.bot.logs.length ? S.bot.logs.map(l=>`
+    <div class="log-row"><span class="log-time">${l.time}</span><span class="log-dot ${l.color}"></span><span class="log-text">${esc(l.text)}</span></div>
+  `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
+}
+function setStatus(state, reason){
+  $("statusText").textContent = state === "running" ? "Работает" : state === "emergency" ? "Аварийная остановка" : "Остановлен";
+  $("statusDot").className = "dot " + (state === "running" ? "running" : state === "emergency" ? "emergency" : "stopped");
+  $("statusReason").textContent = reason;
+  $("btnStart").disabled = state === "running";
+  $("btnStop").disabled = state !== "running";
+}
+$("btnStart").onclick = ()=>{
+  S.bot.running = true;
+  S.bot.emergency = false;
+  setStatus("running", "Бот запущен (симуляция)");
+  addLog("Бот запущен. Режим: Симуляция", "green");
+  saveSettings();
+  simulatePosition();
+};
+$("btnStop").onclick = ()=>{
+  S.bot.running = false;
+  setStatus("stopped", "Остановлен вручную");
+  addLog("Бот остановлен вручную", "red");
+};
+$("btnEmergency").onclick = ()=>{
+  S.bot.running = false;
+  S.bot.emergency = true;
+  setStatus("emergency", "Аварийная остановка");
+  addLog("Аварийная остановка! Все позиции закрыты", "red");
+  S.bot.positions = [];
+  savePositions();
+  renderPositions();
 };
 
-$("marketRefresh").onclick = loadMarket;
-$("search").oninput = renderMarket;
-$("balanceRefresh").onclick = loadBalance;
-$("signalsRefresh").onclick = loadSignals;
+function saveSettings(){
+  S.bot.settings = {
+    profitTarget: Number($("profitTarget").value)||100,
+    maxLoss: Number($("maxLoss").value)||10,
+    tradeSize: Number($("tradeSize").value)||20
+  };
+  localStorage.setItem("cp_settings", JSON.stringify(S.bot.settings));
+  addLog("Настройки сохранены", "blue");
+}
+["profitTarget","maxLoss","tradeSize"].forEach(id=>{
+  $(id).onchange = saveSettings;
+});
 
-$("calc").onclick = () => {
-  const coin = S.coins.find(c => c.symbol === $("asset").value);
-  const amount = Number($("amount").value);
+function savePositions(){
+  localStorage.setItem("cp_positions", JSON.stringify(S.bot.positions));
+}
+function renderPositions(){
+  const pos = S.bot.positions;
+  $("positionsBody").innerHTML = pos.length ? pos.map(p=>`
+    <tr>
+      <td class="pair">${esc(p.pair)}</td>
+      <td><span class="tag ${p.type==="Long"?"long":"short"}">${p.type}</span></td>
+      <td>$${n(p.size,0)}</td>
+      <td class="${p.pnl>=0?"pnl-pos":"pnl-neg"}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
+}
 
-  if (!coin || !Number.isFinite(amount) || amount <= 0) {
-    $("calcResult").textContent = "Введи количество больше нуля.";
+/* Легкая симуляция: иногда открывает позицию и меняет P&L */
+function simulatePosition(){
+  if(!S.bot.running) return;
+  const symbols = ["BTC","ETH","SOL","XRP","ADA","DOGE"];
+  const sym = symbols[Math.floor(Math.random()*symbols.length)];
+  const type = Math.random()>0.5 ? "Long" : "Short";
+  const size = S.bot.settings.tradeSize;
+  const pnl = (Math.random()*30 - 10);
+  const pair = sym + "/USDT";
+  S.bot.positions.push({pair, type, size, pnl});
+  addLog(`Открыта позиция по ${pair}. ${type}, $${size}`, "blue");
+  savePositions();
+  renderPositions();
+
+  // закрыть через 8-15 секунд
+  const t = 8000 + Math.random()*7000;
+  setTimeout(()=>{
+    if(!S.bot.running) return;
+    const idx = S.bot.positions.findIndex(p=>p.pair===pair && p.type===type);
+    if(idx>=0){
+      const p = S.bot.positions[idx];
+      S.bot.positions.splice(idx,1);
+      const finalPnl = p.pnl + (Math.random()*10-3);
+      addLog(`Закрыта позиция по ${p.pair}. Прибыль: ${finalPnl>=0?"+":""}$${finalPnl.toFixed(2)}`, finalPnl>=0?"green":"red");
+      savePositions();
+      renderPositions();
+      if(Math.random()>0.4) simulatePosition();
+    }
+  }, t);
+}
+
+/* ---------- CHART ---------- */
+const canvas = $("chart");
+const ctx = canvas.getContext("2d");
+let chartData = [];
+function renderChart(){
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w+"px"; canvas.style.height = h+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const symSel = $("chartSymbol").value.replace("USDT","");
+  const coin = S.coins.find(c=>c.symbol===symSel);
+  if(!coin){
+    ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("Нет данных для графика", w/2, h/2);
     return;
   }
 
-  const usd = amount * coin.priceUsd;
-  const rub = S.rub == null ? null : usd * S.rub;
+  // Симулируем историю из цены (поскольку OHLC нет)
+  const N = 120;
+  const base = coin.priceUsd;
+  const data = [];
+  let price = base * 0.985;
+  for(let i=0;i<N;i++){
+    price = price * (1 + (Math.random()-0.5)*0.004);
+    data.push(price);
+  }
+  data[N-1] = base;
 
-  $("calcResult").innerHTML = `
-    <b>${amount} ${esc(coin.symbol)}</b><br>
-    Цена: $${n(coin.priceUsd)}<br>
-    Стоимость: $${n(usd, 2)}
-    ${rub == null ? "" : `<br>В рублях: ₽${n(rub, 2)}`}
-    <div class="sub" style="margin-top:8px">
-      Справочный расчёт. Ордера не отправляются.
-    </div>
-  `;
-};
+  const min = Math.min(...data), max = Math.max(...data);
+  const pad = {l:10, r:56, t:10, b:22};
+  const cw = w - pad.l - pad.r, ch = h - pad.t - pad.b;
 
-loadMarket();
+  // сетка
+  ctx.strokeStyle = "#131e33"; ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++){
+    const y = pad.t + ch*i/4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+    ctx.fillStyle = "#5d6d88"; ctx.font = "11px sans-serif"; ctx.textAlign="left";
+    const val = max - (max-min)*i/4;
+    ctx.fillText(val.toFixed(2), pad.l+cw+8, y+4);
+  }
+
+  // линия
+  ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x = pad.l + cw*i/(N-1);
+    const y = pad.t + ch*(1 - (v-min)/(max-min||1));
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle = "#4d8dff"; ctx.lineWidth = 1.8; ctx.stroke();
+
+  // заливка
+  ctx.lineTo(pad.l+cw, pad.t+ch); ctx.lineTo(pad.l, pad.t+ch); ctx.closePath();
+  const grad = ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
+  grad.addColorStop(0, "rgba(77,141,255,0.25)");
+  grad.addColorStop(1, "rgba(77,141,255,0)");
+  ctx.fillStyle = grad; ctx.fill();
+
+  // последняя точка
+  const lx = pad.l+cw, ly = pad.t + ch*(1 - (data[N-1]-min)/(max-min||1));
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI*2);
+  ctx.fillStyle = "#4d8dff"; ctx.fill();
+  ctx.strokeStyle = "#0e1627"; ctx.lineWidth = 2; ctx.stroke();
+}
+window.addEventListener("resize", ()=>{ if(S.coins.length) renderChart(); });
+$("chartSymbol").onchange = renderChart;
+document.querySelectorAll(".chart-tf button").forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    renderChart();
+  };
+});
+
+/* ---------- INIT ---------- */
+renderLog();
+renderPositions();
+setStatus(S.bot.running?"running":"stopped", S.bot.reason);
+loadMarkets();
 loadBalance();
-setInterval(loadMarket, 30000);
+setInterval(()=>{ if(document.visibilityState==="visible"){ loadMarkets(); loadBalance(); } }, 30000);
 </script>
 </body>
 </html>

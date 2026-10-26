@@ -182,7 +182,6 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
       </div>
     </div>
     <div class="content">
-      <!-- ГЛАВНАЯ -->
       <section id="page-home" class="page active">
         <div class="grid">
           <div class="col">
@@ -254,7 +253,6 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         </div>
       </section>
 
-      <!-- ТОРГОВЫЙ БОТ -->
       <section id="page-bot" class="page">
         <div class="stats-grid">
           <div class="stat-card"><div class="k">Всего сделок</div><div class="v" id="stTrades">0</div></div>
@@ -292,7 +290,6 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         </div>
       </section>
 
-      <!-- РЫНКИ (ОБНОВЛЕНО) -->
       <section id="page-markets" class="page">
         <div class="card">
           <h2>Рынки <small id="mktCount">—</small></h2>
@@ -306,7 +303,6 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
         </div>
       </section>
 
-      <!-- ИСТОРИЯ -->
       <section id="page-history" class="page">
         <div class="card">
           <h2>История сделок <small id="historyCount">—</small></h2>
@@ -347,7 +343,6 @@ async function api(url, opts){
   return data;
 }
 
-// ЛОГИКА ИКОНОК
 function colorFromHash(str){
   let h = 0;
   for(let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) & 0xffffff;
@@ -370,7 +365,6 @@ function coinBadge(symbol){
   return `<div class="coin-badge" style="background:${bg}">${esc(label)}</div>`;
 }
 
-// НАВИГАЦИЯ
 document.querySelectorAll(".nav-item").forEach(btn=>{
   btn.onclick = ()=>{
     document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
@@ -383,7 +377,6 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
   };
 });
 
-// ОБНОВЛЕНИЕ БОТА
 async function refreshBot(){
   try{
     const data = await api("/api/bot/state");
@@ -507,7 +500,6 @@ function renderHistory(){
   }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
 }
 
-// КНОПКИ
 $("btnStart").onclick = async ()=>{
   try{
     await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
@@ -542,7 +534,6 @@ $("btnReset").onclick = async ()=>{
   };
 });
 
-// МАРКЕТЫ (С ИКОНКАМИ И РУБЛЯМИ)
 async function loadMarkets(){
   try{
     const data = await api("/api/prices");
@@ -577,7 +568,6 @@ function renderMarkets(){
 }
 $("mktSearch").oninput = renderMarkets;
 
-// ГРАФИК (СВЕЧИ)
 const canvas = $("chart");
 const ctx = canvas.getContext("2d");
 let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
@@ -688,7 +678,6 @@ window.addEventListener("resize", ()=>{
   if(chartState.candles.length) drawChart();
 });
 
-// ИНИЦИАЛИЗАЦИЯ
 (async ()=>{
   await refreshBot();
   await loadMarkets();

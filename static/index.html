@@ -1,1641 +1,420 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#080d19">
-<title>CryptoPulse — Market Terminal</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a1020">
+<title>CryptoPulse</title>
 
 <style>
-:root {
-  --bg: #080d19;
-  --panel: #0e1626;
-  --panel2: #121e31;
-  --border: #223149;
-  --text: #edf4ff;
-  --muted: #8b9bb4;
-  --cyan: #42d9f5;
-  --blue: #4c83ff;
-  --green: #36d399;
-  --red: #fb7185;
-  --yellow: #fbbf24;
-}
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background:
-    radial-gradient(ellipse at 70% 0%, #142642 0%, transparent 42%),
-    var(--bg);
-  color: var(--text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Arial, sans-serif;
-  min-height: 100vh;
-}
-
-button, input, select { font: inherit; }
-button { cursor: pointer; }
-
-button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 2px solid var(--cyan);
-  outline-offset: 3px;
-}
-
-.app {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 238px minmax(0, 1fr);
-}
-
-.sidebar {
-  background: rgba(8, 14, 26, .95);
-  border-right: 1px solid var(--border);
-  padding: 25px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 0 8px;
-}
-
-.brand-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #36d9f5, #4969ff);
-  display: grid;
-  place-items: center;
-  color: #06101d;
-  font-size: 24px;
-  font-weight: 900;
-  box-shadow: 0 0 28px #42d9f522;
-}
-
-.brand-name { font-size: 19px; font-weight: 800; }
-.brand-sub { font-size: 10px; letter-spacing: 2px; color: var(--muted); margin-top: 4px; }
-
-.nav-title {
-  color: #667891;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.8px;
-  padding: 0 12px;
-  margin-bottom: 9px;
-}
-
-.nav {
-  display: grid;
-  gap: 6px;
-}
-
-.nav button {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid transparent;
-  text-align: left;
-  padding: 13px 12px;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: .2s;
-}
-
-.nav button:hover {
-  background: #142136;
-  color: var(--text);
-}
-
-.nav button.active {
-  background: linear-gradient(90deg, #18354a, #13233a);
-  border-color: #26536b;
-  color: var(--cyan);
-}
-
-.nav-icon { width: 23px; text-align: center; font-size: 18px; }
-
-.sidebar-bottom { margin-top: auto; }
-
-.simulation-box {
-  border: 1px solid #3c3522;
-  background: #211d13;
-  border-radius: 12px;
-  padding: 14px;
-}
-
-.simulation-title { color: var(--yellow); font-size: 12px; font-weight: 800; }
-.simulation-text { color: #b8aa89; font-size: 11px; line-height: 1.6; margin-top: 7px; }
-
-.main { min-width: 0; }
-
-.topbar {
-  min-height: 80px;
-  padding: 17px 30px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  background: #0a1220b8;
-}
-
-.page-title { font-size: 22px; font-weight: 800; }
-.page-subtitle { color: var(--muted); font-size: 12px; margin-top: 5px; }
-
-.top-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 9px;
-}
-
-.status-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  padding: 10px 12px;
-  border-radius: 10px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--yellow);
-}
-
-.dot.online { background: var(--green); box-shadow: 0 0 12px #36d39966; }
-.dot.offline { background: var(--red); }
-
-.btn {
-  border: 1px solid var(--border);
-  background: var(--panel2);
-  color: var(--text);
-  padding: 10px 13px;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 12px;
-  transition: .2s;
-}
-
-.btn:hover { filter: brightness(1.2); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-
-.btn-primary {
-  color: #06101b;
-  background: linear-gradient(135deg, #42d9f5, #62a5ff);
-  border-color: transparent;
-}
-
-.btn-stop {
-  color: #ffc0cb;
-  background: #351c2a;
-  border-color: #713349;
-}
-
-.content {
-  padding: 25px 30px 35px;
-  max-width: 1600px;
-  margin: 0 auto;
-}
-
-.notice {
-  display: none;
-  padding: 12px 15px;
-  border: 1px solid #704a26;
-  background: #2a2015;
-  color: #ffd8a8;
-  border-radius: 11px;
-  font-size: 12px;
-  margin-bottom: 18px;
-  line-height: 1.5;
-}
-
-.notice.show { display: block; }
-
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin: 27px 0 15px;
-}
-
-.section-heading h2 {
-  margin: 0;
-  font-size: 17px;
-}
-
-.section-heading p {
-  margin: 5px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.muted { color: var(--muted); }
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.panel, .stat-card {
-  background: linear-gradient(145deg, #111c2e, #0c1423);
-  border: 1px solid var(--border);
-  border-radius: 15px;
-}
-
-.stat-card { padding: 18px; min-width: 0; }
-
-.stat-label {
-  color: var(--muted);
-  font-size: 12px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.stat-value {
-  font-size: 25px;
-  font-weight: 800;
-  margin-top: 15px;
-  letter-spacing: -.5px;
-  overflow-wrap: anywhere;
-}
-
-.stat-foot { color: var(--muted); font-size: 11px; margin-top: 8px; }
-
-.green { color: var(--green) !important; }
-.red { color: var(--red) !important; }
-.cyan { color: var(--cyan) !important; }
-.yellow { color: var(--yellow) !important; }
-
-.market-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.search {
-  width: 205px;
-  max-width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: #0a1220;
-  color: var(--text);
-}
-
-.select {
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #0a1220;
-  color: var(--text);
-}
-
-.coin-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.coin-card {
-  min-width: 0;
-  background: linear-gradient(150deg, #111d30, #0d1524);
-  border: 1px solid var(--border);
-  border-radius: 15px;
-  padding: 17px;
-  transition: transform .2s, border-color .2s;
-}
-
-.coin-card:hover {
-  transform: translateY(-2px);
-  border-color: #3a5876;
-}
-
-.coin-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.coin-logo {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: #1b2a40;
-  color: var(--cyan);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.coin-name { font-weight: 800; font-size: 13px; }
-.coin-symbol { color: var(--muted); font-size: 11px; margin-top: 4px; }
-
-.coin-price {
-  font-size: 22px;
-  font-weight: 800;
-  margin-top: 19px;
-  overflow-wrap: anywhere;
-}
-
-.coin-rub { font-size: 11px; color: var(--muted); margin-top: 5px; }
-
-.coin-changes {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.change-box {
-  background: #0a1220;
-  border-radius: 9px;
-  padding: 9px;
-  min-width: 0;
-}
-
-.change-label { font-size: 10px; color: var(--muted); }
-.change-value { font-size: 12px; font-weight: 800; margin-top: 6px; }
-
-.coin-source { color: #6e819b; font-size: 10px; margin-top: 13px; }
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
-  gap: 15px;
-}
-
-.panel { padding: 19px; min-width: 0; }
-
-.panel-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.panel-heading h3 { margin: 0; font-size: 15px; }
-.panel-heading p { color: var(--muted); margin: 6px 0 0; font-size: 11px; }
-
-.chart-controls { display: flex; gap: 5px; }
-
-.chart-controls button {
-  padding: 7px 9px;
-  font-size: 11px;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  background: #0a1220;
-  border-radius: 7px;
-}
-
-.chart-controls button.active { color: var(--cyan); border-color: #28718b; }
-
-.chart-area { height: 260px; margin-top: 16px; position: relative; }
-#marketChart { width: 100%; height: 100%; display: block; }
-
-.chart-empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-  pointer-events: none;
-}
-
-.chart-legend { color: var(--muted); font-size: 11px; margin-top: 10px; }
-
-.signal-list { display: grid; gap: 10px; margin-top: 16px; }
-
-.signal-item {
-  padding: 12px;
-  background: #0a1220;
-  border: 1px solid #1c2a40;
-  border-radius: 10px;
-}
-
-.signal-top { display: flex; justify-content: space-between; gap: 10px; }
-.signal-symbol { font-weight: 800; font-size: 12px; }
-
-.badge {
-  font-size: 10px;
-  font-weight: 800;
-  border-radius: 6px;
-  padding: 5px 7px;
-  white-space: nowrap;
-  background: #233044;
-  color: #bac9dd;
-}
-
-.badge.buy { background: #10352e; color: var(--green); }
-.badge.sell { background: #3b1e2b; color: var(--red); }
-.badge.neutral { background: #3b3019; color: var(--yellow); }
-
-.signal-description {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-  margin-top: 9px;
-}
-
-.signal-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 10px;
-  color: #c5d3e5;
-  font-size: 10px;
-}
-
-.calculator-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
-  gap: 15px;
-}
-
-.field { display: grid; gap: 8px; margin-top: 15px; }
-.field label { font-size: 12px; color: var(--muted); }
-
-.field input, .field select {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--text);
-  background: #0a1220;
-}
-
-.result-box {
-  margin-top: 15px;
-  border: 1px solid #28516a;
-  background: linear-gradient(135deg, #112b3b, #101c30);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.result-label { color: var(--muted); font-size: 12px; }
-.result-value { font-size: 25px; font-weight: 800; margin-top: 8px; overflow-wrap: anywhere; }
-
-.result-note { color: var(--muted); font-size: 11px; line-height: 1.6; margin-top: 9px; }
-
-.table-wrap { overflow-x: auto; margin-top: 15px; }
-
-table { width: 100%; border-collapse: collapse; min-width: 540px; }
-th, td { padding: 13px 12px; border-bottom: 1px solid #1c2a40; text-align: left; font-size: 12px; }
-th { color: var(--muted); font-weight: 700; }
-td { color: #dce8f8; }
-tbody tr:hover { background: #142136; }
-
-.empty-state {
-  padding: 24px 12px;
-  color: var(--muted);
-  text-align: center;
-  font-size: 12px;
-}
-
-.footer {
-  margin-top: 25px;
-  padding-top: 17px;
-  border-top: 1px solid var(--border);
-  color: #667891;
-  font-size: 11px;
-  line-height: 1.7;
-}
-
-.page { display: none; }
-.page.active { display: block; }
-
-.mobile-brand { display: none; }
-
-@media (max-width: 1250px) {
-  .overview-grid, .coin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; }
-  .sidebar {
-    padding: 12px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-    gap: 12px;
-  }
-  .sidebar .brand { display: none; }
-  .sidebar .nav-title, .sidebar-bottom { display: none; }
-  .nav {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-  .nav button { flex: 0 0 auto; padding: 10px 12px; font-size: 11px; }
-  .nav-icon { width: auto; }
-  .topbar { padding: 15px 18px; }
-  .content { padding: 18px; }
-  .dashboard-grid { grid-template-columns: 1fr; }
-  .calculator-layout { grid-template-columns: 1fr; }
-  .mobile-brand { display: flex; }
-}
-
-@media (max-width: 560px) {
-  .topbar { align-items: flex-start; flex-direction: column; }
-  .top-actions { justify-content: flex-start; width: 100%; }
-  .status-pill { padding: 8px 10px; }
-  .overview-grid { gap: 9px; }
-  .stat-card { padding: 13px; }
-  .stat-value { font-size: 20px; }
-  .coin-grid { grid-template-columns: 1fr; }
-  .market-toolbar { width: 100%; }
-  .search { width: 100%; }
-  .panel { padding: 14px; }
-  .chart-area { height: 220px; }
-  .page-title { font-size: 20px; }
-}
+:root{color-scheme:dark;--bg:#080d19;--panel:#111a2c;--line:#26344d;--text:#edf3ff;--muted:#91a0bb;--blue:#6da8ff;--green:#32d49a;--red:#ff7186;--gold:#f7c96a}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at top,#172945,#080d19 55%);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:1240px;margin:auto;padding:22px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-bottom:20px}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,#418cff,#8b6bff);font-size:24px;font-weight:900}
+.brand h1{margin:0;font-size:22px}
+.sub,.muted{color:var(--muted);font-size:12px}
+.status,.nav,.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill{padding:7px 10px;border-radius:99px;background:#17253b;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.pill b{color:var(--green)}
+button,input,select{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#1a2942;color:var(--text);padding:10px 13px;border-radius:11px}
+button:hover{border-color:var(--blue)}
+.nav{margin-bottom:18px}
+.nav button.active{background:#25477a;border-color:#538ce3}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.card{background:linear-gradient(160deg,#152035,#0d1525);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0;box-shadow:0 12px 35px #0002}
+.s3{grid-column:span 3}.s5{grid-column:span 5}.s7{grid-column:span 7}.s12{grid-column:span 12}
+.label{color:var(--muted);font-size:12px}
+.metric{font-size:25px;font-weight:750;margin:8px 0;overflow-wrap:anywhere}
+.green,.positive{color:var(--green)}.red,.negative{color:var(--red)}.gold{color:var(--gold)}
+.title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 14px;font-size:17px}
+.title small{font-size:12px;color:var(--muted);font-weight:400}
+.tablewrap{overflow:auto;max-height:610px}
+table{border-collapse:collapse;width:100%;white-space:nowrap}
+th,td{text-align:right;padding:11px 9px;border-bottom:1px solid #243047}
+th{position:sticky;top:0;background:#111b2d;color:var(--muted);font-size:12px}
+th:first-child,td:first-child{text-align:left}
+.coin{display:flex;align-items:center;gap:9px}
+.icon{width:33px;height:33px;border-radius:50%;background:#243b5e;display:grid;place-items:center;font-size:10px;font-weight:800}
+.coin small{display:block;color:var(--muted);font-size:11px}
+.search{flex:1;min-width:180px;background:#0b1323;border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--text)}
+.hidden{display:none!important}
+.notice{border:1px solid #66552b;background:#332a17;color:#f6d990;border-radius:12px;padding:12px 14px;font-size:13px}
+.asset{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #243047}
+.asset:last-child{border:0}
+.error{color:var(--red);font-size:12px;margin-top:8px}
+.signal{display:inline-block;padding:4px 7px;border-radius:7px;background:#1d2b43;font-size:11px}
+.signal.buy_candidate{color:var(--green)}.signal.sell_candidate{color:var(--red)}.signal.neutral{color:var(--gold)}
+.field{display:block;width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#0b1323;color:var(--text);margin:6px 0 13px}
+.result{background:#0b1323;border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:12px}
+.footer{text-align:center;color:var(--muted);font-size:11px;padding:22px}
+.small{font-size:12px;padding:7px 10px}
+@media(max-width:850px){.s3,.s5,.s7{grid-column:span 6}}
+@media(max-width:560px){.wrap{padding:12px}.card{padding:14px}.s3,.s5,.s7,.s12{grid-column:span 12}.metric{font-size:23px}}
 </style>
 </head>
 
 <body>
-<div class="app">
+<main class="wrap">
 
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-icon">₿</div>
-      <div>
-        <div class="brand-name">CryptoPulse</div>
-        <div class="brand-sub">MARKET TERMINAL</div>
-      </div>
-    </div>
-
+<header class="top">
+  <div class="brand">
+    <div class="logo">₿</div>
     <div>
-      <div class="nav-title">РАБОЧЕЕ ПРОСТРАНСТВО</div>
-      <nav class="nav">
-        <button class="active" data-page="dashboard">
-          <span class="nav-icon">▦</span> Обзор рынка
-        </button>
-        <button data-page="market">
-          <span class="nav-icon">◈</span> Криптовалюты
-        </button>
-        <button data-page="signals">
-          <span class="nav-icon">⌁</span> Торговые сигналы
-        </button>
-        <button data-page="calculator">
-          <span class="nav-icon">⊞</span> Калькулятор
-        </button>
-        <button data-page="history">
-          <span class="nav-icon">▤</span> Таблица рынка
-        </button>
-      </nav>
+      <h1>CryptoPulse</h1>
+      <div class="sub">Крипторынок • Bybit Spot USDT</div>
+    </div>
+  </div>
+  <div class="status">
+    <span class="pill">Источник: <b id="source">BYBIT</b></span>
+    <span class="pill">Режим: <b>SIMULATION</b></span>
+    <button id="refresh">↻ Обновить</button>
+  </div>
+</header>
+
+<nav class="nav">
+  <button class="active" data-page="dashboard">Обзор</button>
+  <button data-page="market">Рынок</button>
+  <button data-page="signals">Сигналы</button>
+  <button data-page="calculator">Калькулятор</button>
+</nav>
+
+<section id="page-dashboard" class="page">
+  <div class="grid">
+
+    <div class="card s3">
+      <div class="label">Монет в рынке</div>
+      <div class="metric" id="count">—</div>
+      <div class="sub">Активные пары USDT</div>
     </div>
 
-    <div class="sidebar-bottom">
-      <div class="simulation-box">
-        <div class="simulation-title">⚠ SIMULATION MODE</div>
-        <div class="simulation-text">
-          Торговля реальными средствами отключена.
-          Сигналы носят информационный характер.
-        </div>
-      </div>
+    <div class="card s3">
+      <div class="label">Растут за 24 часа</div>
+      <div class="metric green" id="up">—</div>
+      <div class="sub">По данным Bybit</div>
     </div>
-  </aside>
 
-  <main class="main">
-    <header class="topbar">
-      <div>
-        <div class="mobile-brand brand">
-          <div class="brand-icon">₿</div>
-          <div>
-            <div class="brand-name">CryptoPulse</div>
-            <div class="brand-sub">MARKET TERMINAL</div>
-          </div>
-        </div>
-        <div class="page-title" id="pageTitle">Обзор рынка</div>
-        <div class="page-subtitle">Мониторинг криптовалют в реальном времени</div>
-      </div>
-
-      <div class="top-actions">
-        <div class="status-pill">
-          <span class="dot" id="statusDot"></span>
-          <span id="statusText">Подключение...</span>
-        </div>
-        <button class="btn btn-primary" id="startButton">▶ Запустить</button>
-        <button class="btn btn-stop" id="stopButton" disabled>■ Остановить</button>
-        <button class="btn" id="refreshButton">↻ Обновить</button>
-      </div>
-    </header>
-
-    <div class="content">
-      <div class="notice" id="notice"></div>
-
-      <!-- DASHBOARD -->
-      <section class="page active" id="page-dashboard">
-        <div class="overview-grid">
-          <article class="stat-card">
-            <div class="stat-label">Отслеживаемые активы <span>◈</span></div>
-            <div class="stat-value" id="assetCount">—</div>
-            <div class="stat-foot">Монеты с доступными ценами</div>
-          </article>
-
-          <article class="stat-card">
-            <div class="stat-label">Курс USD / RUB <span>⇄</span></div>
-            <div class="stat-value" id="usdRub">—</div>
-            <div class="stat-foot">Справочный валютный курс</div>
-          </article>
-
-          <article class="stat-card">
-            <div class="stat-label">Положительное изменение <span>↗</span></div>
-            <div class="stat-value green" id="positiveCount">—</div>
-            <div class="stat-foot">За 24 часа, если данные доступны</div>
-          </article>
-
-          <article class="stat-card">
-            <div class="stat-label">Источник данных <span>⌁</span></div>
-            <div class="stat-value" style="font-size:20px" id="sourceValue">—</div>
-            <div class="stat-foot" id="updatedValue">Ожидание обновления</div>
-          </article>
-        </div>
-
-        <div class="section-heading">
-          <div>
-            <h2>Рынок криптовалют</h2>
-            <p>Цены и динамика отслеживаемых активов</p>
-          </div>
-          <button class="btn" data-goto="market">Все активы →</button>
-        </div>
-
-        <div class="coin-grid" id="featuredCoins"></div>
-
-        <div class="section-heading">
-          <div>
-            <h2>Аналитика рынка</h2>
-            <p>Изменение цены выбранной монеты по сохранённым наблюдениям</p>
-          </div>
-        </div>
-
-        <div class="dashboard-grid">
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <h3>График цены</h3>
-                <p id="chartSubtitle">Выбери монету для просмотра</p>
-              </div>
-              <div class="market-toolbar">
-                <select class="select" id="chartCoin"></select>
-              </div>
-            </div>
-            <div class="chart-area">
-              <canvas id="marketChart"></canvas>
-              <div class="chart-empty" id="chartEmpty">
-                Исторические данные появятся по мере накопления наблюдений
-              </div>
-            </div>
-            <div class="chart-legend" id="chartLegend">
-              График строится по доступной истории цен.
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <h3>Последние сигналы</h3>
-                <p>Экспериментальная стратегия EMA / RSI</p>
-              </div>
-              <button class="btn" data-goto="signals">Все →</button>
-            </div>
-            <div class="signal-list" id="dashboardSignals">
-              <div class="empty-state">Загрузка сигналов...</div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- MARKET -->
-      <section class="page" id="page-market">
-        <div class="section-heading" style="margin-top:0">
-          <div>
-            <h2>Все криптовалюты</h2>
-            <p>Актуальные цены из подключённого источника</p>
-          </div>
-          <div class="market-toolbar">
-            <input class="search" id="coinSearch" placeholder="Поиск монеты...">
-          </div>
-        </div>
-        <div class="coin-grid" id="allCoins"></div>
-      </section>
-
-      <!-- SIGNALS -->
-      <section class="page" id="page-signals">
-        <div class="section-heading" style="margin-top:0">
-          <div>
-            <h2>Торговые сигналы</h2>
-            <p>EMA 9 / EMA 21 + RSI 14 · режим симуляции</p>
-          </div>
-          <button class="btn" id="refreshSignals">↻ Обновить сигналы</button>
-        </div>
-
-        <div class="notice show">
-          Сигналы основаны на доступных ценовых наблюдениях, а не на гарантированном прогнозе.
-          Пока истории недостаточно, сигнал не формируется.
-        </div>
-
-        <div class="panel">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Актив</th>
-                  <th>Сигнал</th>
-                  <th>Цена USD</th>
-                  <th>EMA 9</th>
-                  <th>EMA 21</th>
-                  <th>RSI 14</th>
-                  <th>Наблюдения</th>
-                </tr>
-              </thead>
-              <tbody id="signalsTable">
-                <tr><td colspan="7" class="empty-state">Загрузка...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- CALCULATOR -->
-      <section class="page" id="page-calculator">
-        <div class="section-heading" style="margin-top:0">
-          <div>
-            <h2>Калькулятор криптовалют</h2>
-            <p>Ориентировочная стоимость по доступным ценам</p>
-          </div>
-        </div>
-
-        <div class="calculator-layout">
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <h3>Расчёт стоимости</h3>
-                <p>Выбери актив и введи количество</p>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="calcCoin">Актив</label>
-              <select class="select" id="calcCoin">
-                <option value="BTC">BTC — Bitcoin</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="calcAmount">Количество</label>
-              <input id="calcAmount" type="number" min="0" step="any" value="1" placeholder="Например, 0.5">
-            </div>
-
-            <div class="field">
-              <label for="calcCurrency">Валюта результата</label>
-              <select class="select" id="calcCurrency">
-                <option value="USD">USD — доллар</option>
-                <option value="RUB">RUB — рубль</option>
-              </select>
-            </div>
-
-            <button class="btn btn-primary" id="calculateButton" style="margin-top:18px;width:100%">
-              Рассчитать стоимость
-            </button>
-
-            <div class="result-box">
-              <div class="result-label">Ориентировочная стоимость</div>
-              <div class="result-value" id="calcResult">—</div>
-              <div class="result-note" id="calcNote">
-                Результат появится после расчёта.
-              </div>
-            </div>
-          </article>
-
-          <article class="panel">
-            <h3 style="margin:0">Валютный курс</h3>
-            <p class="muted" style="font-size:12px;line-height:1.7">
-              Справочный курс USD/RUB используется для приблизительной конвертации.
-              Он может отличаться от курса конкретной биржи или обменника.
-            </p>
-
-            <div class="result-box">
-              <div class="result-label">1 USD в рублях</div>
-              <div class="result-value" id="calcUsdRub">—</div>
-            </div>
-
-            <div class="result-box">
-              <div class="result-label">1 USDT в рублях</div>
-              <div class="result-value" id="calcUsdtRub">—</div>
-              <div class="result-note">Для оценки USDT принимается примерно равным 1 USD.</div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- TABLE -->
-      <section class="page" id="page-history">
-        <div class="section-heading" style="margin-top:0">
-          <div>
-            <h2>Таблица рынка</h2>
-            <p>Сводка по доступным ценам и изменениям</p>
-          </div>
-          <button class="btn" id="downloadCsv">↓ Экспорт CSV</button>
-        </div>
-
-        <div class="panel">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Актив</th>
-                  <th>Цена USD</th>
-                  <th>Цена RUB</th>
-                  <th>Изменение 1ч</th>
-                  <th>Изменение 24ч</th>
-                  <th>Источник</th>
-                </tr>
-              </thead>
-              <tbody id="marketTable">
-                <tr><td colspan="6" class="empty-state">Загрузка...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <footer class="footer">
-        <div>CryptoPulse Market Terminal</div>
-        <div>Данные предоставляются внешними API и могут задерживаться или быть недоступны.</div>
-        <div>Сигналы экспериментальные. Реальная торговля отключена. Не является финансовой рекомендацией.</div>
-      </footer>
+    <div class="card s3">
+      <div class="label">USD / RUB</div>
+      <div class="metric" id="rub">—</div>
+      <div class="sub">Справочный курс</div>
     </div>
-  </main>
-</div>
+
+    <div class="card s3">
+      <div class="label">Баланс Bybit</div>
+      <div class="metric" id="total">—</div>
+      <div class="sub" id="balanceStatus">Read-only API</div>
+    </div>
+
+    <div class="card s7">
+      <h2 class="title">Рынок <small id="updated">Загрузка…</small></h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Актив</th><th>Цена USD</th><th>24 ч</th></tr></thead>
+          <tbody id="top"><tr><td colspan="3">Загружаем…</td></tr></tbody>
+        </table>
+      </div>
+      <button class="small" data-goto="market" style="margin-top:12px">Весь рынок →</button>
+    </div>
+
+    <div class="card s5">
+      <h2 class="title">Активы аккаунта <small>Read-only</small></h2>
+      <div id="assets" class="muted">Загрузка баланса…</div>
+      <div id="balanceError" class="error"></div>
+      <button id="balanceRefresh" class="small" style="margin-top:12px">Обновить баланс</button>
+    </div>
+
+    <div class="card s12">
+      <div class="notice">🔒 Только просмотр и симуляция. Реальные ордера не отправляются. Не включай права торговли или вывода средств для API-ключа.</div>
+    </div>
+
+  </div>
+</section>
+
+<section id="page-market" class="page hidden">
+  <div class="card">
+    <h2 class="title">Спотовый рынок Bybit <small id="marketCount">—</small></h2>
+    <div class="row" style="margin-bottom:12px">
+      <input id="search" class="search" placeholder="Поиск: BTC, ETH, SOL…">
+      <button id="marketRefresh">Обновить</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>1 ч</th><th>24 ч</th></tr></thead>
+        <tbody id="marketRows"><tr><td colspan="5">Загружаем…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="page-signals" class="page hidden">
+  <div class="card">
+    <h2 class="title">Экспериментальные сигналы <small>EMA 9/21 + RSI 14</small></h2>
+    <div class="notice" style="margin-bottom:14px">Сигналы основаны на доступных наблюдениях, а не на гарантированно равномерных свечах. Это не инвестиционная рекомендация и не автоматическая торговля.</div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Актив</th><th>Сигнал</th><th>Цена</th><th>EMA 9</th><th>EMA 21</th><th>RSI 14</th><th>Наблюдений</th></tr>
+        </thead>
+        <tbody id="signals"><tr><td colspan="7">Загружаем…</td></tr></tbody>
+      </table>
+    </div>
+    <button id="signalsRefresh" style="margin-top:12px">Обновить сигналы</button>
+  </div>
+</section>
+
+<section id="page-calculator" class="page hidden">
+  <div class="grid">
+    <div class="card s5">
+      <h2 class="title">Калькулятор стоимости</h2>
+      <label class="label">Актив</label>
+      <select id="asset" class="field"><option>BTC</option></select>
+      <label class="label">Количество</label>
+      <input id="amount" class="field" type="number" min="0" step="any" value="1">
+      <button id="calc">Рассчитать</button>
+      <div id="calcResult" class="result">Выбери актив и количество.</div>
+    </div>
+    <div class="card s7">
+      <h2 class="title">USD / RUB</h2>
+      <div id="calcRub" class="metric">—</div>
+      <div class="muted">Курс справочный; фактическая цена сделки может отличаться.</div>
+    </div>
+  </div>
+</section>
+
+<div class="footer">CryptoPulse • Bybit public API • Не финансовый совет • Реальная торговля отключена</div>
+</main>
 
 <script>
-"use strict";
-
-const REFRESH_INTERVAL = 30000;
-
-const COIN_NAMES = {
-  BTC: "Bitcoin",
-  ETH: "Ethereum",
-  BNB: "BNB",
-  XRP: "XRP",
-  SOL: "Solana",
-  DOGE: "Dogecoin",
-  ADA: "Cardano",
-  TRX: "TRON",
-  AVAX: "Avalanche",
-  LINK: "Chainlink",
-  DOT: "Polkadot",
-  LTC: "Litecoin",
-  BCH: "Bitcoin Cash",
-  SHIB: "Shiba Inu",
-  TON: "Toncoin",
-  USDT: "Tether"
-};
-
-const COIN_ICONS = {
-  BTC: "₿",
-  ETH: "Ξ",
-  BNB: "BNB",
-  XRP: "X",
-  SOL: "◎",
-  DOGE: "Ð",
-  ADA: "A",
-  TRX: "T",
-  AVAX: "A",
-  LINK: "L",
-  DOT: "●",
-  LTC: "Ł",
-  BCH: "B",
-  SHIB: "S",
-  TON: "T",
-  USDT: "$"
-};
-
-const state = {
-  running: false,
-  timer: null,
-  coins: [],
-  source: null,
-  usdRub: null,
-  updatedAt: null,
-  signals: [],
-  selectedCoin: "BTC",
-  lastError: null,
-  busy: false
-};
-
 const $ = id => document.getElementById(id);
+const S = {coins: [], rub: null};
 
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+function n(v, d=8) {
+  if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
+  return Number(v).toLocaleString("en-US", {
+    maximumFractionDigits: d,
+    minimumFractionDigits: 2
+  });
+}
+
+function pct(v) {
+  return v === null || v === undefined || !Number.isFinite(Number(v))
+    ? "—"
+    : `${Number(v) > 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
+}
+
+function cls(v) {
+  return v == null ? "" : Number(v) > 0 ? "positive" : Number(v) < 0 ? "negative" : "";
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;"
-  })[ch]);
+  }[c]));
 }
 
-function numberOrNull(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function formatPrice(value) {
-  const n = numberOrNull(value);
-  if (n === null || n <= 0) return "Нет данных";
-
-  let digits;
-  if (n >= 1000) digits = 2;
-  else if (n >= 1) digits = 4;
-  else if (n >= 0.01) digits = 6;
-  else digits = 8;
-
-  return "$" + new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: digits
-  }).format(n);
-}
-
-function formatRub(value) {
-  const n = numberOrNull(value);
-  if (n === null || n <= 0) return "Нет данных";
-
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 2
-  }).format(n);
-}
-
-function formatNumber(value, digits = 2) {
-  const n = numberOrNull(value);
-  if (n === null) return "—";
-
-  return new Intl.NumberFormat("ru-RU", {
-    maximumFractionDigits: digits
-  }).format(n);
-}
-
-function formatChange(value) {
-  const n = numberOrNull(value);
-  if (n === null) return "—";
-  return (n > 0 ? "+" : "") + n.toFixed(2) + "%";
-}
-
-function changeClass(value) {
-  const n = numberOrNull(value);
-  if (n === null || Math.abs(n) < 0.000001) return "";
-  return n > 0 ? "green" : "red";
-}
-
-function formatTimestamp(value) {
-  if (!value) return new Date().toLocaleTimeString("ru-RU");
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  return date.toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-}
-
-function showNotice(message, show = true) {
-  const element = $("notice");
-  element.textContent = message || "";
-  element.classList.toggle("show", Boolean(show && message));
-}
-
-function setConnection(status, label) {
-  $("statusDot").className = "dot" +
-    (status === "online" ? " online" : status === "offline" ? " offline" : "");
-
-  $("statusText").textContent = label;
-}
-
-function setRunning(running) {
-  state.running = running;
-
-  if (state.timer) {
-    clearInterval(state.timer);
-    state.timer = null;
-  }
-
-  if (running) {
-    state.timer = setInterval(() => {
-      loadMarket({ quiet: true });
-    }, REFRESH_INTERVAL);
-  }
-
-  $("startButton").disabled = running;
-  $("stopButton").disabled = !running;
-
-  if (running) {
-    setConnection("online", "Автообновление включено");
-  } else if (state.coins.length) {
-    setConnection("offline", "Автообновление остановлено");
-  } else {
-    setConnection("", "Ожидание запуска");
-  }
-}
-
-function updateSource(source, updatedAt) {
-  state.source = source || "unknown";
-  state.updatedAt = updatedAt || new Date().toISOString();
-
-  $("sourceValue").textContent = state.source.toUpperCase();
-  $("updatedValue").textContent =
-    "Обновлено: " + formatTimestamp(state.updatedAt);
-}
-
-function normalizeMarket(data) {
-  /*
-    Совместимость с bot.py:
-    /api/prices возвращает { coins, usdRub, source, updatedAt }.
-    Поддерживается и прежний формат { prices, changes24h }.
-  */
-
-  if (Array.isArray(data.coins)) {
-    return data.coins.map(coin => ({
-      symbol: String(coin.symbol || "").toUpperCase(),
-      name: coin.name || COIN_NAMES[coin.symbol] || coin.symbol,
-      priceUsd: numberOrNull(coin.priceUsd),
-      priceRub: numberOrNull(coin.priceRub),
-      change1h: numberOrNull(coin.change1h),
-      change24h: numberOrNull(coin.change24h),
-      source: coin.source || data.source || "unknown"
-    })).filter(coin => coin.symbol && coin.priceUsd !== null);
-  }
-
-  if (data.prices && typeof data.prices === "object") {
-    return Object.entries(data.prices).map(([symbol, price]) => ({
-      symbol: symbol.toUpperCase(),
-      name: COIN_NAMES[symbol.toUpperCase()] || symbol.toUpperCase(),
-      priceUsd: numberOrNull(price),
-      priceRub: null,
-      change1h: null,
-      change24h: numberOrNull(data.changes24h?.[symbol]),
-      source: data.source || "unknown"
-    })).filter(coin => coin.priceUsd !== null);
-  }
-
-  throw new Error("Сервер вернул неизвестный формат цен");
-}
-
-async function apiGet(path) {
-  const response = await fetch(path, {
-    method: "GET",
-    headers: { "Accept": "application/json" },
-    cache: "no-store"
-  });
-
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error("Сервер вернул не JSON");
-  }
-
+async function api(url) {
+  const response = await fetch(url, {cache: "no-store"});
+  const data = await response.json();
   if (!response.ok || data.success === false) {
-    throw new Error(data.error || "Ошибка HTTP " + response.status);
+    throw Error(data.error || "Запрос не выполнен");
   }
-
   return data;
 }
 
-async function loadMarket(options = {}) {
-  if (state.busy) return;
-  state.busy = true;
+function row(c, full=false) {
+  return `<tr>
+    <td>
+      <div class="coin">
+        <div class="icon">${esc(c.symbol.slice(0, 4))}</div>
+        <div><b>${esc(c.symbol)}</b><small>${esc(c.name || c.symbol)}</small></div>
+      </div>
+    </td>
+    <td>$${n(c.priceUsd)}</td>
+    ${full ? `
+      <td>${c.priceRub == null ? "—" : "₽" + n(c.priceRub, 2)}</td>
+      <td class="${cls(c.change1h)}">${pct(c.change1h)}</td>
+    ` : ""}
+    <td class="${cls(c.change24h)}">${pct(c.change24h)}</td>
+  </tr>`;
+}
 
-  if (!options.quiet) {
-    $("refreshButton").disabled = true;
-    $("refreshButton").textContent = "Загрузка...";
+async function loadMarket() {
+  try {
+    const data = await api("/api/prices");
+
+    S.coins = data.coins || [];
+    S.rub = data.usdRub;
+
+    $("source").textContent = (data.source || "bybit").toUpperCase();
+    $("count").textContent = S.coins.length.toLocaleString("ru-RU");
+    $("up").textContent = S.coins.filter(c => Number(c.change24h) > 0).length.toLocaleString("ru-RU");
+    $("rub").textContent = S.rub ? "₽" + n(S.rub, 2) : "—";
+    $("calcRub").textContent = S.rub ? "1 USD ≈ ₽" + n(S.rub, 4) : "Недоступен";
+    $("updated").textContent = data.updatedAt
+      ? new Date(data.updatedAt).toLocaleTimeString("ru-RU")
+      : "Обновлено";
+
+    $("top").innerHTML = S.coins.slice()
+      .sort((a, b) => (b.change24h ?? -Infinity) - (a.change24h ?? -Infinity))
+      .slice(0, 8)
+      .map(c => row(c))
+      .join("") || '<tr><td colspan="3">Нет данных</td></tr>';
+
+    renderMarket();
+
+    const old = $("asset").value;
+    $("asset").innerHTML = S.coins
+      .map(c => `<option value="${esc(c.symbol)}">${esc(c.symbol)}</option>`)
+      .join("");
+
+    if (S.coins.some(c => c.symbol === old)) {
+      $("asset").value = old;
+    }
+
+  } catch (error) {
+    $("top").innerHTML = `<tr><td colspan="3">${esc(error.message)}</td></tr>`;
+    $("marketRows").innerHTML = `<tr><td colspan="5">${esc(error.message)}</td></tr>`;
   }
+}
+
+function renderMarket() {
+  const query = ($("search").value || "").toUpperCase().trim();
+  const list = S.coins.filter(c =>
+    (c.symbol + " " + c.name).toUpperCase().includes(query)
+  );
+
+  $("marketCount").textContent = list.length.toLocaleString("ru-RU") + " активов";
+
+  $("marketRows").innerHTML = list.map(c => row(c, true)).join("")
+    || '<tr><td colspan="5">Ничего не найдено</td></tr>';
+}
+
+async function loadBalance() {
+  $("assets").textContent = "Загрузка баланса…";
+  $("balanceError").textContent = "";
 
   try {
-    const data = await apiGet("/api/prices");
+    const data = await api("/api/account/balance");
 
-    state.coins = normalizeMarket(data);
-    state.usdRub = numberOrNull(data.usdRub);
-    state.lastError = null;
+    $("total").textContent = "$" + n(data.totalUsd, 2);
+    $("balanceStatus").textContent =
+      "Обновлено " + new Date(data.updatedAt).toLocaleTimeString("ru-RU");
 
-    updateSource(data.source, data.updatedAt);
+    const assets = (data.assets || []).slice(0, 12);
 
-    if (state.usdRub !== null) {
-      $("usdRub").textContent = formatRub(state.usdRub);
-      $("calcUsdRub").textContent = formatRub(state.usdRub);
-      $("calcUsdtRub").textContent = formatRub(state.usdRub);
-    } else {
-      $("usdRub").textContent = "Нет данных";
-      $("calcUsdRub").textContent = "Нет данных";
-      $("calcUsdtRub").textContent = "Нет данных";
-    }
+    $("assets").innerHTML = assets.length
+      ? assets.map(x => `
+          <div class="asset">
+            <span>
+              <b>${esc(x.coin)}</b>
+              <div class="sub">${n(x.walletBalance)}</div>
+            </span>
+            <b>$${n(x.usdValue, 2)}</b>
+          </div>
+        `).join("")
+      : '<div class="muted">Нет активов с ненулевым балансом.</div>';
 
-    $("assetCount").textContent = state.coins.length;
-
-    const positive = state.coins.filter(
-      coin => coin.change24h !== null && coin.change24h > 0
-    ).length;
-
-    $("positiveCount").textContent = positive;
-
-    renderCoins();
-    renderMarketTable();
-    updateChartCoinOptions();
-    drawChart();
-    updateCalculatorOptions();
-
-    if (state.running) {
-      setConnection("online", "Рынок подключён");
-    }
-
-    if (data.warning) {
-      showNotice("Предупреждение источника данных: " + data.warning);
-    } else if (data.usdRubError) {
-      showNotice("Цены доступны, но курс USD/RUB временно недоступен.");
-    } else {
-      showNotice("", false);
-    }
-
-    return true;
   } catch (error) {
-    state.lastError = error.message;
-
-    setConnection("offline", "Ошибка получения данных");
-
-    showNotice(
-      "Не удалось получить рыночные данные. " +
-      "Проверь доступность сервера и API. " + error.message
-    );
-
-    if (!options.quiet && !state.coins.length) {
-      $("featuredCoins").innerHTML =
-        '<div class="empty-state">Цены пока недоступны. Нажми «Обновить» или проверь сервер.</div>';
-      $("allCoins").innerHTML =
-        '<div class="empty-state">Нет данных для отображения.</div>';
-    }
-
-    return false;
-  } finally {
-    state.busy = false;
-    $("refreshButton").disabled = false;
-    $("refreshButton").textContent = "↻ Обновить";
+    $("total").textContent = "—";
+    $("balanceStatus").textContent = "Баланс недоступен";
+    $("assets").textContent = "Баланс не загружен.";
+    $("balanceError").textContent =
+      "Проверь BYBIT_API_KEY, BYBIT_API_SECRET и доступ Read-Only для Unified Account.";
   }
-}
-
-function coinCard(coin) {
-  const symbol = escapeHtml(coin.symbol);
-  const name = escapeHtml(coin.name);
-  const icon = escapeHtml(COIN_ICONS[coin.symbol] || coin.symbol.slice(0, 2));
-  const price = formatPrice(coin.priceUsd);
-
-  const rub = coin.priceRub !== null
-    ? formatRub(coin.priceRub)
-    : state.usdRub !== null
-      ? formatRub(coin.priceUsd * state.usdRub)
-      : "Нет данных";
-
-  return `
-    <article class="coin-card">
-      <div class="coin-head">
-        <div class="coin-logo">${icon}</div>
-        <div>
-          <div class="coin-name">${name}</div>
-          <div class="coin-symbol">${symbol}</div>
-        </div>
-      </div>
-
-      <div class="coin-price">${price}</div>
-      <div class="coin-rub">${rub}</div>
-
-      <div class="coin-changes">
-        <div class="change-box">
-          <div class="change-label">За 1 час</div>
-          <div class="change-value ${changeClass(coin.change1h)}">
-            ${formatChange(coin.change1h)}
-          </div>
-        </div>
-
-        <div class="change-box">
-          <div class="change-label">За 24 часа</div>
-          <div class="change-value ${changeClass(coin.change24h)}">
-            ${formatChange(coin.change24h)}
-          </div>
-        </div>
-      </div>
-
-      <div class="coin-source">
-        Источник: ${escapeHtml(coin.source || "unknown")}
-      </div>
-    </article>
-  `;
-}
-
-function renderCoins() {
-  const featuredSymbols = ["BTC", "ETH", "BNB", "SOL", "XRP", "TON", "DOGE", "USDT"];
-
-  const featured = featuredSymbols
-    .map(symbol => state.coins.find(coin => coin.symbol === symbol))
-    .filter(Boolean);
-
-  $("featuredCoins").innerHTML = featured.length
-    ? featured.map(coinCard).join("")
-    : '<div class="empty-state">Ожидание рыночных данных...</div>';
-
-  renderAllCoins();
-}
-
-function renderAllCoins() {
-  const query = $("coinSearch").value.trim().toLowerCase();
-
-  const filtered = state.coins.filter(coin =>
-    coin.symbol.toLowerCase().includes(query) ||
-    coin.name.toLowerCase().includes(query)
-  );
-
-  $("allCoins").innerHTML = filtered.length
-    ? filtered.map(coinCard).join("")
-    : '<div class="empty-state">По запросу ничего не найдено.</div>';
-}
-
-function renderMarketTable() {
-  $("marketTable").innerHTML = state.coins.length
-    ? state.coins.map(coin => {
-        const rub = coin.priceRub !== null
-          ? coin.priceRub
-          : state.usdRub !== null
-            ? coin.priceUsd * state.usdRub
-            : null;
-
-        return `
-          <tr>
-            <td><strong>${escapeHtml(coin.symbol)}</strong> <span class="muted">${escapeHtml(coin.name)}</span></td>
-            <td>${formatPrice(coin.priceUsd)}</td>
-            <td>${rub === null ? "—" : formatRub(rub)}</td>
-            <td class="${changeClass(coin.change1h)}">${formatChange(coin.change1h)}</td>
-            <td class="${changeClass(coin.change24h)}">${formatChange(coin.change24h)}</td>
-            <td>${escapeHtml(coin.source || "unknown")}</td>
-          </tr>
-        `;
-      }).join("")
-    : '<tr><td colspan="6" class="empty-state">Нет доступных данных.</td></tr>';
-}
-
-function updateChartCoinOptions() {
-  const select = $("chartCoin");
-  const oldValue = state.selectedCoin;
-
-  select.innerHTML = state.coins.map(coin =>
-    `<option value="${escapeHtml(coin.symbol)}">${escapeHtml(coin.symbol)} — ${escapeHtml(coin.name)}</option>`
-  ).join("");
-
-  if (state.coins.some(coin => coin.symbol === oldValue)) {
-    select.value = oldValue;
-  } else if (state.coins.length) {
-    select.value = state.coins[0].symbol;
-    state.selectedCoin = select.value;
-  }
-}
-
-function drawChart() {
-  const canvas = $("marketChart");
-  const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
-
-  if (!rect.width || !rect.height) return;
-
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.round(rect.width * dpr);
-  canvas.height = Math.round(rect.height * dpr);
-
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  const width = rect.width;
-  const height = rect.height;
-
-  ctx.clearRect(0, 0, width, height);
-
-  const coin = state.coins.find(
-    item => item.symbol === $("chartCoin").value
-  );
-
-  if (!coin) {
-    $("chartEmpty").style.display = "grid";
-    $("chartSubtitle").textContent = "Нет выбранного актива";
-    return;
-  }
-
-  $("chartSubtitle").textContent =
-    coin.symbol + " · текущая цена " + formatPrice(coin.priceUsd);
-
-  /*
-    Сервер сейчас не предоставляет отдельный endpoint истории.
-    Поэтому не выдумываем прошлые цены: показываем доступную текущую
-    цену и объясняем, что для исторического графика нужна серия наблюдений.
-  */
-
-  $("chartEmpty").style.display = "grid";
-  $("chartEmpty").textContent =
-    "Текущая цена: " + formatPrice(coin.priceUsd) +
-    "\nИсторическая серия пока не подключена";
-
-  const pad = { left: 12, right: 12, top: 15, bottom: 20 };
-
-  ctx.strokeStyle = "#203049";
-  ctx.lineWidth = 1;
-
-  for (let i = 0; i < 4; i++) {
-    const y = pad.top + (height - pad.top - pad.bottom) * i / 3;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, y);
-    ctx.lineTo(width - pad.right, y);
-    ctx.stroke();
-  }
-
-  const y = height / 2;
-
-  ctx.fillStyle = "#42d9f5";
-  ctx.beginPath();
-  ctx.arc(width / 2, y, 4, 0, Math.PI * 2);
-  ctx.fill();
-
-  $("chartLegend").textContent =
-    "Доступна текущая цена. Исторический график требует сохранённой временной серии.";
 }
 
 async function loadSignals() {
-  $("dashboardSignals").innerHTML =
-    '<div class="empty-state">Получение сигналов...</div>';
-
   try {
-    const data = await apiGet("/api/trading/signals");
-    state.signals = Array.isArray(data.signals) ? data.signals : [];
+    const data = await api("/api/trading/signals");
 
-    renderSignals();
+    $("signals").innerHTML = (data.signals || []).map(s => `
+      <tr>
+        <td>${esc(s.symbol)}</td>
+        <td><span class="signal ${esc(s.signal)}">${
+          ({
+            buy_candidate: "BUY candidate",
+            sell_candidate: "SELL candidate",
+            neutral: "NEUTRAL",
+            insufficient_history: "Мало данных"
+          })[s.signal] || esc(s.signal)
+        }</span></td>
+        <td>$${n(s.price)}</td>
+        <td>${n(s.ema9)}</td>
+        <td>${n(s.ema21)}</td>
+        <td>${s.rsi14 == null ? "—" : Number(s.rsi14).toFixed(1)}</td>
+        <td>${s.sampleCount || 0}</td>
+      </tr>
+    `).join("") || '<tr><td colspan="7">Нет сигналов</td></tr>';
 
   } catch (error) {
-    $("dashboardSignals").innerHTML =
-      '<div class="empty-state">Сигналы временно недоступны.</div>';
-
-    $("signalsTable").innerHTML =
-      '<tr><td colspan="7" class="empty-state">Не удалось получить сигналы.</td></tr>';
+    $("signals").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
   }
 }
 
-function signalInfo(signal) {
-  switch (signal) {
-    case "buy_candidate":
-      return { label: "Кандидат BUY", className: "buy" };
-    case "sell_candidate":
-      return { label: "Кандидат SELL", className: "sell" };
-    case "neutral":
-      return { label: "Нейтральный", className: "neutral" };
-    default:
-      return { label: "Мало данных", className: "" };
-  }
-}
-
-function renderSignals() {
-  const signals = state.signals;
-
-  $("dashboardSignals").innerHTML = signals.length
-    ? signals.slice(0, 5).map(signal => {
-        const info = signalInfo(signal.signal);
-
-        return `
-          <div class="signal-item">
-            <div class="signal-top">
-              <span class="signal-symbol">${escapeHtml(signal.symbol)}</span>
-              <span class="badge ${info.className}">${info.label}</span>
-            </div>
-            <div class="signal-description">${escapeHtml(signal.explanation || "Нет описания")}</div>
-            <div class="signal-metrics">
-              <span>RSI: ${formatNumber(signal.rsi14, 1)}</span>
-              <span>EMA 9: ${formatPrice(signal.ema9)}</span>
-            </div>
-          </div>
-        `;
-      }).join("")
-    : '<div class="empty-state">Сигналов пока нет.</div>';
-
-  $("signalsTable").innerHTML = signals.length
-    ? signals.map(signal => {
-        const info = signalInfo(signal.signal);
-
-        return `
-          <tr>
-            <td><strong>${escapeHtml(signal.symbol)}</strong></td>
-            <td><span class="badge ${info.className}">${info.label}</span></td>
-            <td>${formatPrice(signal.price)}</td>
-            <td>${formatPrice(signal.ema9)}</td>
-            <td>${formatPrice(signal.ema21)}</td>
-            <td>${formatNumber(signal.rsi14, 2)}</td>
-            <td>${formatNumber(signal.sampleCount, 0)}</td>
-          </tr>
-        `;
-      }).join("")
-    : '<tr><td colspan="7" class="empty-state">Нет сигналов.</td></tr>';
-}
-
-function updateCalculatorOptions() {
-  const select = $("calcCoin");
-  const previous = select.value;
-
-  const options = state.coins.filter(coin => coin.symbol !== "USDT");
-
-  select.innerHTML = options.map(coin =>
-    `<option value="${escapeHtml(coin.symbol)}">${escapeHtml(coin.symbol)} — ${escapeHtml(coin.name)}</option>`
-  ).join("");
-
-  if (options.some(coin => coin.symbol === previous)) {
-    select.value = previous;
-  }
-}
-
-function calculate() {
-  const symbol = $("calcCoin").value;
-  const amount = Number($("calcAmount").value);
-  const currency = $("calcCurrency").value;
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    $("calcResult").textContent = "Проверь количество";
-    $("calcNote").textContent = "Количество должно быть больше нуля.";
-    return;
-  }
-
-  const coin = state.coins.find(item => item.symbol === symbol);
-
-  if (!coin) {
-    $("calcResult").textContent = "Нет данных";
-    $("calcNote").textContent = "Цена выбранной монеты недоступна.";
-    return;
-  }
-
-  let total = amount * coin.priceUsd;
-
-  if (currency === "RUB") {
-    if (state.usdRub === null) {
-      $("calcResult").textContent = "Нет курса";
-      $("calcNote").textContent = "Курс USD/RUB сейчас недоступен.";
-      return;
-    }
-    total *= state.usdRub;
-  }
-
-  $("calcResult").textContent = currency === "RUB"
-    ? formatRub(total)
-    : formatPrice(total);
-
-  $("calcNote").textContent =
-    `${formatNumber(amount, 8)} ${symbol} × ${formatPrice(coin.priceUsd)}` +
-    (currency === "RUB"
-      ? ` × ${formatNumber(state.usdRub, 4)} RUB/USD`
-      : "") +
-    ". Справочный расчёт без торговой комиссии.";
-}
-
-function exportCsv() {
-  if (!state.coins.length) {
-    showNotice("Нет данных для экспорта.");
-    return;
-  }
-
-  const rows = [
-    ["Symbol", "Name", "Price USD", "Price RUB", "Change 1h %", "Change 24h %", "Source"],
-    ...state.coins.map(coin => [
-      coin.symbol,
-      coin.name,
-      coin.priceUsd,
-      coin.priceRub ?? (state.usdRub !== null ? coin.priceUsd * state.usdRub : ""),
-      coin.change1h ?? "",
-      coin.change24h ?? "",
-      coin.source || ""
-    ])
-  ];
-
-  const csv = "\uFEFF" + rows.map(row =>
-    row.map(value => {
-      const str = String(value ?? "");
-      return '"' + str.replace(/"/g, '""') + '"';
-    }).join(";")
-  ).join("\r\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = "cryptopulse-market.csv";
-  link.click();
-
-  URL.revokeObjectURL(url);
-}
-
-function switchPage(page) {
-  document.querySelectorAll(".page").forEach(element => {
-    element.classList.toggle("active", element.id === "page-" + page);
+function page(name) {
+  document.querySelectorAll(".page").forEach(section => {
+    section.classList.toggle("hidden", section.id !== "page-" + name);
   });
 
   document.querySelectorAll(".nav button").forEach(button => {
-    button.classList.toggle("active", button.dataset.page === page);
+    button.classList.toggle("active", button.dataset.page === name);
   });
 
-  const titles = {
-    dashboard: "Обзор рынка",
-    market: "Криптовалюты",
-    signals: "Торговые сигналы",
-    calculator: "Калькулятор",
-    history: "Таблица рынка"
-  };
-
-  $("pageTitle").textContent = titles[page] || "CryptoPulse";
-
-  if (page === "signals") loadSignals();
-  if (page === "dashboard") drawChart();
-
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (name === "signals") loadSignals();
 }
 
 document.querySelectorAll(".nav button").forEach(button => {
-  button.addEventListener("click", () => switchPage(button.dataset.page));
+  button.onclick = () => page(button.dataset.page);
 });
 
 document.querySelectorAll("[data-goto]").forEach(button => {
-  button.addEventListener("click", () => switchPage(button.dataset.goto));
+  button.onclick = () => page(button.dataset.goto);
 });
 
-$("startButton").addEventListener("click", async () => {
-  setRunning(true);
-  const success = await loadMarket();
-  if (success) loadSignals();
-});
+$("refresh").onclick = () => {
+  loadMarket();
+  loadBalance();
+};
 
-$("stopButton").addEventListener("click", () => {
-  setRunning(false);
-});
+$("marketRefresh").onclick = loadMarket;
+$("search").oninput = renderMarket;
+$("balanceRefresh").onclick = loadBalance;
+$("signalsRefresh").onclick = loadSignals;
 
-$("refreshButton").addEventListener("click", async () => {
-  await loadMarket();
-  await loadSignals();
-});
+$("calc").onclick = () => {
+  const coin = S.coins.find(c => c.symbol === $("asset").value);
+  const amount = Number($("amount").value);
 
-$("refreshSignals").addEventListener("click", loadSignals);
-$("coinSearch").addEventListener("input", renderAllCoins);
-$("chartCoin").addEventListener("change", event => {
-  state.selectedCoin = event.target.value;
-  drawChart();
-});
-$("calculateButton").addEventListener("click", calculate);
-$("calcCoin").addEventListener("change", calculate);
-$("calcCurrency").addEventListener("change", calculate);
-$("calcAmount").addEventListener("input", calculate);
-$("downloadCsv").addEventListener("click", exportCsv);
+  if (!coin || !Number.isFinite(amount) || amount <= 0) {
+    $("calcResult").textContent = "Введи количество больше нуля.";
+    return;
+  }
 
-window.addEventListener("resize", () => {
-  if ($("page-dashboard").classList.contains("active")) drawChart();
-});
+  const usd = amount * coin.priceUsd;
+  const rub = S.rub == null ? null : usd * S.rub;
 
-async function initialize() {
-  setRunning(false);
-  setConnection("", "Подключение к серверу");
+  $("calcResult").innerHTML = `
+    <b>${amount} ${esc(coin.symbol)}</b><br>
+    Цена: $${n(coin.priceUsd)}<br>
+    Стоимость: $${n(usd, 2)}
+    ${rub == null ? "" : `<br>В рублях: ₽${n(rub, 2)}`}
+    <div class="sub" style="margin-top:8px">
+      Справочный расчёт. Ордера не отправляются.
+    </div>
+  `;
+};
 
-  await loadMarket();
-  await loadSignals();
-
-  /*
-    Автообновление не запускается скрытно:
-    пользователь нажимает «Запустить».
-  */
-  setConnection("", "Готов к запуску");
-}
-
-initialize();
+loadMarket();
+loadBalance();
+setInterval(loadMarket, 30000);
 </script>
 </body>
 </html>

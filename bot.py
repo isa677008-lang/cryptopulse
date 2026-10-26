@@ -88,7 +88,6 @@ SCAN_CANDLE_INTERVAL = "5"
 SCAN_CANDLE_LIMIT = 200
 SCAN_HISTORY_REFRESH_SECONDS = 60
 
-# Флаг, чтобы не блокировать поток
 history_loading_flag = threading.Event()
 
 def now_iso():
@@ -243,35 +242,38 @@ def rsi(values, period=14):
     return 100 - 100 / (1 + gains / losses)
 
 def fetch_strategy_candles(symbol):
-    try:
-        response = requests.get(
-            BASE + "/v5/market/kline",
-            params={
-                "category":"spot",
-                "symbol":symbol+"USDT",
-                "interval":SCAN_CANDLE_INTERVAL,
-                "limit":SCAN_CANDLE_LIMIT
-            },
-            headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
-            timeout=10
-        )
-        response.raise_for_status()
-        data = response.json()
-        if data.get("retCode") != 0:
-            raise RuntimeError(data.get("retMsg","Bybit kline error"))
-        raw = (data.get("result") or {}).get("list", [])
-        points = []
-        for item in reversed(raw):
-            try:
-                timestamp = int(item[0]) / 1000
-                price = float(item[4])
-            except (TypeError, ValueError, IndexError):
-                continue
-            if math.isfinite(price) and price > 0:
-                points.append({"timestamp":timestamp,"price":price})
-        return symbol, points
-    except Exception as e:
-        return symbol, []
+    for attempt in range(3):
+        try:
+            response = requests.get(
+                BASE + "/v5/market/kline",
+                params={
+                    "category":"spot",
+                    "symbol":symbol+"USDT",
+                    "interval":SCAN_CANDLE_INTERVAL,
+                    "limit":SCAN_CANDLE_LIMIT
+                },
+                headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+            if data.get("retCode") == 0:
+                raw = (data.get("result") or {}).get("list", [])
+                points = []
+                for item in reversed(raw):
+                    try:
+                        timestamp = int(item[0]) / 1000
+                        price = float(item[4])
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                    if math.isfinite(price) and price > 0:
+                        points.append({"timestamp":timestamp,"price":price})
+                return symbol, points
+            else:
+                time.sleep(2)
+        except Exception:
+            time.sleep(2)
+    return symbol, []
 
 def refresh_strategy_history_background(symbols):
     global strategy_history_updated
@@ -284,7 +286,7 @@ def refresh_strategy_history_background(symbols):
         
         completed = 0
         successful = 0
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=1) as pool:
             futures = {pool.submit(fetch_strategy_candles, symbol): symbol for symbol in symbols}
             for future in as_completed(futures):
                 symbol = futures[future]
@@ -1272,4 +1274,3 @@ threading.Thread(target=bot_worker,daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
-    

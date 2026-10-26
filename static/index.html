@@ -131,18 +131,9 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 .scan-signal.sell{background:var(--red-soft);color:var(--red)}
 .scan-signal.neutral{background:var(--panel2);color:var(--muted)}
 .scan-rsi{width:50px;text-align:right;font-family:monospace}
-
-/* ИКОНКИ МОНЕТ */
-.coin-badge{
-  width:32px;height:32px;border-radius:50%;
-  display:grid;place-items:center;
-  font-weight:800;font-size:11px;color:#fff;
-  flex:0 0 32px;box-shadow:0 2px 8px #0006;
-  text-transform:uppercase;
-}
+.coin-badge{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;flex:0 0 32px;box-shadow:0 2px 8px #0006;text-transform:uppercase;}
 .coin-cell { display: flex; align-items: center; gap: 10px; }
 .coin-name { font-weight: 700; }
-
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
 @media(max-width:780px){
   body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}
@@ -436,7 +427,9 @@ function renderBot(data){
     else $("stWinrate").className = "v red";
     
     $("lastActionBox").textContent = data.lastAction || "Ожидание...";
-    $("botPulse").textContent = data.scanStatus || (data.running ? "Активен" : "Спит");
+    
+    // ФИКС: Если scanStatus нет, показываем статус работы
+    $("botPulse").textContent = data.scanStatus || (data.running ? "Запущен. Ожидание данных..." : "Бот остановлен");
     
     const scan = data.scanResults || [];
     $("scanList").innerHTML = scan.length ? scan.map(s => `
@@ -448,7 +441,7 @@ function renderBot(data){
         <div class="scan-rsi">RSI: ${s.rsi14 ? s.rsi14.toFixed(1) : "—"}</div>
         <div style="font-size:11px;color:var(--muted);width:80px;text-align:right">${s.sampleCount} точек</div>
       </div>
-    `).join("") : `<div style="color:var(--muted);padding:10px">Сканирование...</div>`;
+    `).join("") : `<div style="color:var(--muted);padding:10px">${data.running ? "Сканирую... (загрузка 5м свечей с Bybit)" : "Бот остановлен"}</div>`;
 
     $("botPositions").innerHTML = positions.length ? positions.map(p=>`
       <div style="border-bottom:1px solid #16223a;padding:10px 0">

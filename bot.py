@@ -45,13 +45,14 @@ BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
 BOT_TICK_SECONDS = 15
 BOT_START_BALANCE = 100.0
 
+# ТУТ ТЕ САМЫЕ 15 МОНЕТ
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
     "rsiBuyMin": 50, "rsiBuyMax": 68,
     "rsiSellMin": 32, "rsiSellMax": 50,
     "tpPercent": 2.0, "slPercent": 1.5,
     "maxPositions": 3,
-    "topCoins": ["BTC","ETH","SOL","XRP","ADA","DOGE","BNB","TON","AVAX","LINK"]
+    "topCoins": ["BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
 session = requests.Session()

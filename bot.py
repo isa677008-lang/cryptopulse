@@ -1,449 +1,956 @@
-<!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#070b14">
-<title>CryptoPulse — Бот</title>
-<style>
-:root{color-scheme:dark;--bg:#070b14;--panel:#0e1627;--panel2:#131e33;--line:#1f2d45;--line2:#2a3b57;--text:#eaf1ff;--muted:#8394b3;--muted2:#5d6d88;--blue:#4d8dff;--blue-soft:#1d3157;--green:#1fcf8a;--green-soft:#123a2c;--red:#ff5d73;--red-soft:#3a1a22;--gold:#f7c96a;}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}button,input,select{font:inherit;color:inherit}button{cursor:pointer;border:0;background:none}
-.app{display:grid;grid-template-columns:230px 1fr;height:100vh}
-.sidebar{background:linear-gradient(180deg,#0a1222,#070b14);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;gap:4px;overflow-y:auto}
-.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
-.brand-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#4d8dff,#8b6bff);display:grid;place-items:center;font-weight:900;font-size:16px}
-.brand-name{font-size:17px;font-weight:800}.brand-name span{color:var(--blue)}
-.nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;color:var(--muted);font-weight:500;transition:.15s;width:100%;text-align:left}
-.nav-item:hover{background:var(--panel);color:var(--text)}.nav-item.active{background:var(--blue-soft);color:#bcd4ff;box-shadow:inset 3px 0 0 var(--blue)}.nav-item svg{flex:0 0 20px}
-.sidebar-footer{margin-top:auto;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12px}
-.sidebar-footer .dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;box-shadow:0 0 8px var(--green)}
-.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--line);background:#0a1222}
-.topbar-left{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
-.topbar-left .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
-.topbar-right{display:flex;align-items:center;gap:10px}
-.mode-pill{display:flex;align-items:center;gap:8px;background:var(--blue-soft);border:1px solid #2b4a80;padding:7px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#bcd4ff}
-.content{padding:18px 22px;overflow-y:auto;flex:1}
-.content::-webkit-scrollbar{width:8px}.content::-webkit-scrollbar-thumb{background:#1c2a44;border-radius:4px}
-.grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
-.col{display:flex;flex-direction:column;gap:16px;min-width:0}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
-.card h2{margin:0 0 14px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
-.card h2 small{font-size:12px;color:var(--muted);font-weight:500}
-.controls{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
-.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.btn-action{padding:16px 10px;border-radius:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid transparent;transition:.15s;color:#fff;font-size:13px}
-.btn-action svg{width:22px;height:22px}
-.btn-start{background:var(--green)}.btn-start:hover{filter:brightness(1.1)}
-.btn-stop{background:var(--red)}.btn-stop:hover{filter:brightness(1.1)}
-.btn-emergency{background:#1a2842;border-color:var(--line2);color:#c9d6ee}.btn-emergency:hover{border-color:var(--red);color:var(--red)}
-.btn-action:disabled{opacity:.45;cursor:not-allowed;filter:none}
-.status-box{min-width:180px;border-left:1px solid var(--line);padding-left:16px;font-size:13px}
-.status-box .label{color:var(--muted);font-size:12px;margin-bottom:8px}
-.status-box .state{display:flex;align-items:center;gap:8px;font-weight:600}
-.status-box .dot{width:9px;height:9px;border-radius:50%}
-.status-box .dot.stopped{background:var(--muted2)}.status-box .dot.running{background:var(--green);box-shadow:0 0 8px var(--green)}.status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
-.status-box .reason{margin-top:10px;color:var(--muted);font-size:12px}
-.settings{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
-.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:var(--muted)}
-.input-wrap{position:relative}
-.input-wrap input,.input-wrap select{width:100%;padding:11px 12px 11px 30px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);font-weight:600}
-.input-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
-select,select option,select optgroup{background-color:#0e1627 !important;color:#eaf1ff !important;color-scheme:dark !important}
-select option:checked,select option:hover{background-color:#1d3157 !important;color:#fff !important}
-.chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px}
-.chart-symbol{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
-.chart-symbol select{background:transparent;border:0;color:var(--text);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0}
-.chart-tf{display:flex;gap:4px;background:#0a1322;padding:4px;border-radius:8px}
-.chart-tf button{padding:5px 10px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:600}
-.chart-tf button.active{background:#1d3157;color:#bcd4ff}
-.chart-wrap{position:relative;height:300px}#chart{width:100%;height:100%;display:block}
-.balance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.balance-head h2{margin:0}
-.refresh-btn{color:var(--blue);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
-.balance-list{display:flex;flex-direction:column;gap:14px}
-.balance-item{display:flex;align-items:center;gap:12px}
-.balance-icon{width:38px;height:38px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;flex:0 0 38px}
-.balance-item .meta{flex:1;min-width:0}.balance-item .meta .k{font-size:12px;color:var(--muted)}.balance-item .meta .v{font-size:16px;font-weight:700;margin-top:2px}
-.balance-item .v.green{color:var(--green)}.balance-item .v.red{color:var(--red)}
-.api-box{border:1px solid var(--line);border-radius:12px;padding:14px}
-.api-box .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
-.api-box .ok{color:var(--green);font-size:12px;display:flex;align-items:center;gap:6px}
-.api-box .ok .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
-.api-box .desc{font-size:12px;color:var(--muted);margin-bottom:12px}
-.api-box button{width:100%;padding:10px;border-radius:9px;background:#0a1322;border:1px solid var(--line2);color:var(--muted);font-size:13px;font-weight:600}
-.api-box button:hover{border-color:var(--blue);color:#bcd4ff}
-.two-col{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
-.log-list{display:flex;flex-direction:column;gap:0;max-height:280px;overflow-y:auto}
-.log-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #16223a;font-size:13px}.log-row:last-child{border:0}
-.log-time{color:var(--muted2);font-size:12px;min-width:48px;flex:0 0 48px;padding-top:1px}
-.log-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;margin-top:6px}
-.log-text{color:#c5d3ea;font-size:13px}
-.log-dot.green{background:var(--green)}.log-dot.blue{background:var(--blue)}.log-dot.gold{background:var(--gold)}.log-dot.red{background:var(--red)}
-.pos-table{width:100%;border-collapse:collapse;font-size:13px}
-.pos-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px 10px;font-size:12px}
-.pos-table td{padding:10px 8px;border-top:1px solid #16223a}
-.pos-table td:last-child,.pos-table th:last-child{text-align:right}.pos-table .pair{font-weight:600}
-.tag{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700}
-.tag.long{background:var(--green-soft);color:var(--green)}.tag.short{background:var(--red-soft);color:var(--red)}
-.pnl-pos{color:var(--green);font-weight:700}.pnl-neg{color:var(--red);font-weight:700}
-.warn{display:flex;gap:12px;align-items:flex-start;background:#0e1c33;border:1px solid #1d3357;border-radius:12px;padding:14px;font-size:12px;color:#a8bcdc}
-.warn svg{flex:0 0 18px;color:var(--blue);margin-top:1px}
-.page{display:none}.page.active{display:block}
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-.stat-card{background:#0a1322;border:1px solid var(--line);border-radius:10px;padding:12px}
-.stat-card .k{font-size:11px;color:var(--muted);margin-bottom:4px}.stat-card .v{font-size:18px;font-weight:700}
-.stat-card .v.green{color:var(--green)}.stat-card .v.red{color:var(--red)}
-.scan-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a;font-size:13px}.scan-row:last-child{border:0}
-.scan-symbol{font-weight:600;width:60px}
-.scan-signal{font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700}
-.scan-signal.buy{background:var(--green-soft);color:var(--green)}.scan-signal.sell{background:var(--red-soft);color:var(--red)}.scan-signal.neutral{background:var(--panel2);color:var(--muted)}
-.scan-rsi{width:50px;text-align:right;font-family:monospace}
-.coin-badge{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;flex:0 0 32px;box-shadow:0 2px 8px #0006;text-transform:uppercase}
-.coin-cell{display:flex;align-items:center;gap:10px}.coin-name{font-weight:700}
-@media(max-width:1100px){.grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
-@media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}}
-#globalError{display:none; position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#ff5d73; color:white; padding:12px 20px; z-index:9999; border-radius:8px; font-weight:bold; font-size:14px; box-shadow:0 4px 12px rgba(0,0,0,0.5); text-align:center; max-width:90vw;}
-</style>
-</head>
-<body>
-<div id="globalError"></div>
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand"><div class="brand-logo">₿</div><div class="brand-name">Crypto<span>Pulse</span></div></div>
-    <button class="nav-item active" data-page="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg><span>Главная</span></button>
-    <button class="nav-item" data-page="bot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg><span>Торговый бот</span></button>
-    <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
-    <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
-    <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span></button>
-    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.1 beta</div></div>
-  </aside>
-  <div class="main">
-    <div class="topbar">
-      <div class="topbar-left"><span class="dot"></span><span id="apiStatus">Bybit API работает</span></div>
-      <div class="topbar-right"><div class="mode-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Симуляция</div></div>
-    </div>
-    <div class="content">
-      <section id="page-home" class="page active">
-        <div class="grid">
-          <div class="col">
-            <div class="card">
-              <h2>Управление ботом</h2>
-              <div class="controls">
-                <div class="actions">
-                  <button class="btn-action btn-start" id="btnStart"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Запустить</button>
-                  <button class="btn-action btn-stop" id="btnStop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Остановить</button>
-                  <button class="btn-action btn-emergency" id="btnEmergency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2 21h20z"/><path d="M12 10v5"/><circle cx="12" cy="18" r=".5" fill="currentColor"/></svg>Аварийная</button>
-                </div>
-                <div class="status-box">
-                  <div class="label">Статус бота</div>
-                  <div class="state"><span class="dot stopped" id="statusDot"></span><span id="statusText">Остановлен</span></div>
-                  <div class="reason">Действие:</div>
-                  <div id="statusReason" style="font-size:13px;margin-top:4px;font-weight:600">Не запущен</div>
-                </div>
-              </div>
-              <div class="settings">
-                <div class="field"><label>Цель по прибыли</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="100" min="0"></div></div>
-                <div class="field"><label>Макс. убыток</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="10" min="0"></div></div>
-                <div class="field"><label>Размер сделки</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="20" min="1"></div></div>
-                <div class="field"><label>Режим</label><div class="input-wrap"><select id="modeSelect" style="padding-left:12px"><option>Симуляция</option></select></div></div>
-              </div>
-            </div>
-            <div class="card">
-              <div class="chart-head">
-                <div class="chart-symbol"><select id="chartSymbol"><option>BTCUSDT</option></select><div class="chart-tf"><button data-tf="1m">1m</button><button class="active" data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button><button data-tf="1d">1d</button></div></div>
-                <div class="chart-source" style="font-size:12px;color:var(--muted)">Bybit Spot</div>
-              </div>
-              <div class="chart-wrap"><canvas id="chart"></canvas></div>
-            </div>
-            <div class="two-col">
-              <div class="card"><h2>Журнал бота</h2><div class="log-list" id="logList"><div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Ожидание…</span></div></div></div>
-              <div class="card"><h2>Текущие позиции</h2><table class="pos-table"><thead><tr><th>Пара</th><th>Тип</th><th>Объём</th><th>P&L</th></tr></thead><tbody id="positionsBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет позиций</td></tr></tbody></table></div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="card">
-              <div class="balance-head"><h2>Баланс (симуляция)</h2><button class="refresh-btn" id="balanceRefresh">Обновить</button></div>
-              <div class="balance-list">
-                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></div><div class="meta"><div class="k">Общий баланс</div><div class="v" id="balTotal">$100.00</div></div></div>
-                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg></div><div class="meta"><div class="k">Свободно</div><div class="v" id="balFree">$100.00</div></div></div>
-                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/></svg></div><div class="meta"><div class="k">В позициях</div><div class="v" id="balPos">$0.00</div></div></div>
-                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1fcf8a" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg></div><div class="meta"><div class="k">Общий P&L</div><div class="v green" id="balPnl">+$0.00 (0.00%)</div></div></div>
-              </div>
-            </div>
-            <div class="api-box">
-              <div class="head">API Bybit <span class="ok"><span class="dot"></span>Онлайн</span></div>
-              <div class="desc">Ключ с правами только на чтение</div>
-              <button id="btnReset" style="color:var(--red);border-color:var(--red-soft);margin-top:8px">Сбросить бота</button>
-              <button onclick="window.open('/api/bot/export.csv')" style="margin-top:8px">Скачать CSV</button>
-            </div>
-          </div>
-        </div>
-      </section>
+import os, time, hmac, math, logging, threading, json, csv, io
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
+from urllib.parse import urlencode
+import requests
 
-      <section id="page-bot" class="page">
-        <div class="stats-grid">
-          <div class="stat-card"><div class="k">Всего сделок</div><div class="v" id="stTrades">0</div></div>
-          <div class="stat-card"><div class="k">Процент побед</div><div class="v" id="stWinrate">0%</div></div>
-          <div class="stat-card"><div class="k">Фактор прибыли</div><div class="v" id="stPF">0.0</div></div>
-          <div class="stat-card"><div class="k">Макс. просадка</div><div class="v red" id="stDD">$0.00</div></div>
-        </div>
-        <div class="grid">
-          <div class="col">
-            <div class="card"><h2>Пульс бота <small id="botPulse">—</small></h2><div id="lastActionBox" style="font-size:15px;font-weight:600;color:var(--blue);padding:10px;background:#0a1322;border-radius:8px;border:1px solid var(--line)">Бот остановлен</div></div>
-            <div class="card"><h2>Сканер рынка (топ-15) <small>EMA/RSI · свечи 5m</small></h2><div id="scanList" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Ожидание данных...</div></div></div>
-          </div>
-          <div class="col">
-            <div class="card"><h2>Открытые позиции</h2><div id="botPositions" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Нет открытых позиций</div></div></div>
-            <div class="card"><h2>Разбивка по монетам</h2><div id="bySymbolList" style="max-height:300px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Сделок пока нет</div></div></div>
-          </div>
-        </div>
-      </section>
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 
-      <section id="page-markets" class="page">
-        <div class="card">
-          <h2>Рынки <small id="mktCount">—</small></h2>
-          <input id="mktSearch" placeholder="Поиск: BTC, ETH, SOL…" style="width:100%;padding:11px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);margin-bottom:12px">
-          <div style="overflow:auto;max-height:70vh"><table class="pos-table" style="width:100%"><thead><tr><th>Актив</th><th>USD</th><th>RUB</th><th>24ч</th></tr></thead><tbody id="mktRows"></tbody></table></div>
-        </div>
-      </section>
+from flask import Flask, jsonify, send_from_directory, request, Response
 
-      <section id="page-history" class="page">
-        <div class="card">
-          <h2>История сделок <small id="historyCount">—</small></h2>
-          <div style="overflow:auto;max-height:70vh"><table class="pos-table" style="width:100%"><thead><tr><th>Время</th><th>Пара</th><th>Тип</th><th>P&L</th><th>Причина</th></tr></thead><tbody id="historyRows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Нет сделок</td></tr></tbody></table></div>
-        </div>
-      </section>
-    </div>
-  </div>
-</div>
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 
-<script>
-window.onerror = function(msg, url, line) {
-    const el = document.getElementById('globalError');
-    if(el) { el.style.display = 'block'; el.textContent = "Ошибка JS: " + msg + " (строка " + line + ")"; }
-    return false;
-};
+app = Flask(__name__, static_folder="static")
+logging.basicConfig(level=os.getenv("LOG_LEVEL","INFO"), format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("cryptopulse")
 
-const $ = id => document.getElementById(id);
-const S = { coins: [], rub: null, bot: null };
+BASE = os.getenv("BYBIT_BASE_URL","https://api.bybit.com").rstrip("/")
+PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL","https://cryptopulse-1-chtf.onrender.com").rstrip("/")
+WEBAPP_URL = os.getenv("TELEGRAM_WEBAPP_URL", PUBLIC_APP_URL + "/")
+WEBHOOK_URL = os.getenv("TELEGRAM_WEBHOOK_URL", PUBLIC_APP_URL + "/telegram-webhook")
 
-function n(v, d=8){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:Math.min(2,d)}); }
-function money(v, d=2){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:Math.min(2,d)}); }
-function pct(v){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%"; }
-function cls(v){ if(v==null) return ""; return Number(v)>0?"pnl-pos":Number(v)<0?"pnl-neg":""; }
-function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-async function api(url, opts){
-  const r = await fetch(url, {cache:"no-store", ...opts});
-  const data = await r.json();
-  if(!r.ok || data.success===false) throw Error(data.error || "Ошибка");
-  return data;
+TG_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or "").strip()
+TG_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET","").strip()
+TG_AUTO = os.getenv("TELEGRAM_AUTO_CONFIGURE","true").lower() in ("1","true","yes","on")
+BG_WORKER = os.getenv("ENABLE_BACKGROUND_WORKER","true").lower() in ("1","true","yes","on")
+
+API_KEY = os.getenv("BYBIT_API_KEY","").strip()
+API_SECRET = os.getenv("BYBIT_API_SECRET","").strip()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY","").strip()
+
+DATABASE_URL = os.getenv("DATABASE_URL","").strip()
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://","postgresql://",1)
+
+TRADING_MODE = "simulation"
+LIVE_TRADING_ENABLED = False
+
+TIMEOUT = 12
+CACHE_SECONDS = 30
+HISTORY_HOURS = 72
+REFRESH_SECONDS = 60
+
+BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
+BOT_TICK_SECONDS = 10
+BOT_START_BALANCE = 100.0
+
+FEE_RATE = 0.001
+TP_PERCENT = 1.5
+SL_PERCENT = 1.0
+
+DEFAULT_STRATEGY = {
+    "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
+    "rsiBuyMin": 50, "rsiBuyMax": 68,
+    "rsiSellMin": 32, "rsiSellMax": 50,
+    "topCoins": ["ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
-function colorFromHash(str){ let h = 0; for(let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) & 0xffffff; return `hsl(${h % 360}, 60%, 42%)`; }
-const COIN_STYLE = {
-  BTC:{bg:"#f7931a",label:"₿"}, ETH:{bg:"#5c6f8a",label:"Ξ"}, USDT:{bg:"#26a17b",label:"₮"},
-  USDC:{bg:"#2775ca",label:"$"}, BUSD:{bg:"#f0b90b",label:"B"}, DAI:{bg:"#f5ac37",label:"◈"},
-  SOL:{bg:"linear-gradient(135deg,#9945ff,#14f195)",label:"◎"}, BNB:{bg:"#f3ba2f",label:"B"},
-  XRP:{bg:"#23292f",label:"X"}, ADA:{bg:"#0033ad",label:"A"}, DOGE:{bg:"#c2a633",label:"Ð"},
-  TRX:{bg:"#eb0029",label:"T"}, TON:{bg:"#0098ea",label:"T"}, LTC:{bg:"#a6a9aa",label:"Ł"},
-  DOT:{bg:"#e6007a",label:"●"}, AVAX:{bg:"#e84142",label:"A"}, LINK:{bg:"#2a5ada",label:"L"},
-  NEAR:{bg:"#00c08b",label:"N"}, SUI:{bg:"#4da2ff",label:"S"}, PEPE:{bg:"#3f9f3f",label:"P"}
-};
-function coinBadge(symbol){
-  const s = (symbol||"").toUpperCase(); const style = COIN_STYLE[s];
-  const bg = style ? style.bg : colorFromHash(s); const label = style ? style.label : s.slice(0,2);
-  return `<div class="coin-badge" style="background:${bg}">${esc(label)}</div>`;
+session = requests.Session()
+session.headers.update({"User-Agent":"CryptoPulse/3.0","Accept":"application/json"})
+
+lock = threading.RLock()
+refresh_lock = threading.Lock()
+db_lock = threading.Lock()
+
+cache = {"updated":0,"prices":{},"changes":{},"source":"bybit","error":None}
+history = {}
+usd_rub_cache = {"updated":0,"rate":None}
+bybit_status = {"available":False,"lastError":None,"lastCheck":None}
+db_status = {"configured":bool(DATABASE_URL),"available":False,"lastError":None}
+wallet_cache = {"updated":0,"data":None}
+
+bot_state = {
+    "running":False,"emergency":False,"reason":"Не запущен",
+    "settings":{"profitTarget":2.0,"maxLoss":10.0,"tradeSize":10.0,"startBalance":BOT_START_BALANCE},
+    "strategy":dict(DEFAULT_STRATEGY),
+    "balance":BOT_START_BALANCE,"equityCurve":[],
+    "positions":[],"closedTrades":[],"logs":[],
+    "startedAt":None,"stoppedAt":None,
+    "lastAction":None,"lastSignalScan":None,"scanResults":[],
+    "scanStatus":"Ожидание запуска"
 }
+bot_state_lock = threading.RLock()
 
-document.querySelectorAll(".nav-item").forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
-    btn.classList.add("active");
-    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-    const target = $("page-" + btn.dataset.page); if(target) target.classList.add("active");
-    if(btn.dataset.page === "bot") refreshBot();
-    if(btn.dataset.page === "markets") loadMarkets();
-    if(btn.dataset.page === "history") renderHistory();
-  };
-});
+strategy_history = {}
+strategy_history_updated = 0.0
+strategy_history_lock = threading.Lock()
+SCAN_CANDLE_INTERVAL = "5"
+SCAN_CANDLE_LIMIT = 200
+SCAN_HISTORY_REFRESH_SECONDS = 60
 
-async function refreshBot(){
-  try{
-    const data = await api("/api/bot/state");
-    S.bot = data;
-    renderBot(data);
-  }catch(e){
-    console.warn("bot state error", e);
-    const el = document.getElementById('globalError');
-    if(el) { el.style.display = 'block'; el.textContent = "Ошибка API: " + e.message; }
-  }
-}
+history_loading_flag = threading.Event()
 
-function renderBot(data){
-  let state = "stopped", text = "Остановлен";
-  if(data.running) { state = "running"; text = "Работает"; }
-  else if(data.emergency) { state = "emergency"; text = "Аварийная остановка"; }
-  $("statusText").textContent = text;
-  $("statusDot").className = "dot " + state;
-  $("statusReason").textContent = data.lastAction || "Не запущен";
-  $("btnStart").disabled = data.running;
-  $("btnStop").disabled = !data.running;
+groq_client = None
+if Groq and GROQ_API_KEY:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        log.error("Groq init failed: %s", e)
 
-  if(data.settings){
-    if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
-    if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
-    if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
-  }
+def ask_ai_comment(symbol, price, signal, rsi_val):
+    if not groq_client:
+        return "ИИ выключен"
+    try:
+        prompt = f"Оцени сигнал {signal} по {symbol} (RSI: {rsi_val:.1f}, Цена: ${price:.4f}). Ответь кратко: Согласен или Против."
+        completion = groq_client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1, max_tokens=10
+        )
+        return f"ИИ: {completion.choices[0].message.content.strip()[:20]}"
+    except Exception:
+        return "Ошибка ИИ"
 
-  const total = Number(data.balance) || 0;
-  const pnl = Number(data.totalPnl) || 0;
-  const pnlPct = Number(data.totalPnlPct) || 0;
-  const posUsd = (data.positions||[]).reduce((s,p)=>s + Number(p.sizeUsd||0), 0);
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
 
-  $("balTotal").textContent = money(total, 2);
-  $("balFree").textContent = money(total - posUsd, 2);
-  $("balPos").textContent = money(posUsd, 2);
-  $("balPnl").textContent = (pnl>=0?"+":"") + money(pnl, 2) + " (" + (pnlPct>=0?"+":"") + pnlPct.toFixed(2) + "%)";
-  $("balPnl").className = "v " + (pnl>=0?"green":"red");
+def get_json(url, params=None, headers=None):
+    r = session.get(url, params=params, headers=headers, timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json()
 
-  const logs = data.logs || [];
-  $("logList").innerHTML = logs.length ? logs.map(l=>`
-    <div class="log-row"><span class="log-time">${esc(l.time)}</span><span class="log-dot ${esc(l.color||"blue")}"></span><span class="log-text">${esc(l.text)}</span></div>
-  `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
+def bot_save():
+    try:
+        with bot_state_lock:
+            data = {k: bot_state[k] for k in (
+                "running","emergency","reason","settings","strategy",
+                "balance","positions","closedTrades","logs","startedAt",
+                "stoppedAt","lastAction","lastSignalScan","scanResults"
+            )}
+            data["equityCurve"] = bot_state["equityCurve"][-2000:]
+            data["closedTrades"] = bot_state["closedTrades"][-1000:]
+            data["logs"] = bot_state["logs"][-500:]
+        with open(BOT_STATE_FILE,"w",encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as exc:
+        log.warning("save fail: %s", exc)
 
-  const positions = data.positions || [];
-  if (positions.length > 0) {
-    $("positionsBody").innerHTML = positions.map(p=>`
-      <tr><td class="pair">${esc(p.symbol)}/USDT</td><td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td><td>$${n(p.sizeUsd,0)}</td><td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td></tr>
-    `).join("");
-  } else {
-    $("positionsBody").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
-  }
+def bot_load():
+    try:
+        if not os.path.exists(BOT_STATE_FILE):
+            return
+        with open(BOT_STATE_FILE,"r",encoding="utf-8") as f:
+            data = json.load(f)
+        with bot_state_lock:
+            for k in data:
+                if k in bot_state:
+                    bot_state[k] = data[k]
+            merged = dict(DEFAULT_STRATEGY)
+            if bot_state.get("strategy"):
+                merged.update(bot_state["strategy"])
+            bot_state["strategy"] = merged
+    except Exception as exc:
+        log.warning("load fail: %s", exc)
 
-  if (data.stats) {
-    $("stTrades").textContent = data.stats.trades || 0;
-    $("stWinrate").textContent = (data.stats.winrate || 0).toFixed(1) + "%";
-    $("stPF").textContent = data.stats.profitFactor ? data.stats.profitFactor.toFixed(2) : "0.0";
-    $("stDD").textContent = money(data.stats.maxDrawdown || 0);
-    if (data.stats.winrate >= 50) $("stWinrate").className = "v green"; else $("stWinrate").className = "v red";
+def bot_log(text, color="blue"):
+    entry = {
+        "time":datetime.now().strftime("%H:%M:%S"),
+        "text":text,
+        "color":color,
+        "ts":time.time()
+    }
+    with bot_state_lock:
+        bot_state["logs"].insert(0, entry)
+        bot_state["logs"] = bot_state["logs"][:500]
+    bot_save()
+
+def push_equity_point():
+    with bot_state_lock:
+        free = bot_state["balance"]
+        pos_size = sum(p["sizeUsd"] for p in bot_state["positions"])
+        bot_state["equityCurve"].append({"ts":time.time(), "balance": free + pos_size})
+        bot_state["equityCurve"] = bot_state["equityCurve"][-2000:]
+
+def db_connect():
+    if not DATABASE_URL: raise RuntimeError("no db")
+    if psycopg is None: raise RuntimeError("no psycopg")
+    return psycopg.connect(DATABASE_URL, connect_timeout=8, row_factory=dict_row)
+
+def init_db():
+    if not DATABASE_URL: return
+    try:
+        with db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""CREATE TABLE IF NOT EXISTS price_history (
+                    id BIGSERIAL PRIMARY KEY, source TEXT NOT NULL, symbol TEXT NOT NULL,
+                    price DOUBLE PRECISION NOT NULL CHECK(price > 0),
+                    observed_at TIMESTAMPTZ NOT NULL, UNIQUE(source, symbol, observed_at))""")
+                cur.execute("""CREATE INDEX IF NOT EXISTS idx_price_history_symbol_time
+                    ON price_history(symbol, observed_at DESC)""")
+                conn.commit()
+        db_status.update(available=True, lastError=None)
+    except Exception as exc:
+        db_status.update(available=False, lastError=str(exc))
+
+def remember(prices, source="bybit"):
+    timestamp = time.time()
+    cutoff = timestamp - HISTORY_HOURS * 3600
+    valid = {}
+    with lock:
+        for symbol, value in prices.items():
+            try: value = float(value)
+            except Exception: continue
+            if not math.isfinite(value) or value <= 0: continue
+            valid[symbol] = value
+            pts = history.setdefault((source, symbol), [])
+            pts.append({"timestamp":timestamp,"price":value})
+            history[(source, symbol)] = [p for p in pts if p["timestamp"] >= cutoff]
+    if not DATABASE_URL or not valid: return
+    try:
+        with db_lock:
+            with db_connect() as conn:
+                with conn.cursor() as cur:
+                    cur.executemany("""INSERT INTO price_history (source,symbol,price,observed_at)
+                        VALUES (%s,%s,%s,to_timestamp(%s))
+                        ON CONFLICT (source,symbol,observed_at) DO NOTHING""",
+                        [(source,s,p,timestamp) for s,p in valid.items()])
+                    cur.execute("""DELETE FROM price_history WHERE observed_at < NOW() - (%s * INTERVAL '1 hour')""", (HISTORY_HOURS,))
+                    conn.commit()
+    except Exception as exc:
+        db_status.update(available=False, lastError=str(exc))
+
+def get_points(symbol):
+    with lock: pts = list(history.get(("bybit",symbol), []))
+    cutoff = time.time() - HISTORY_HOURS * 3600
+    return [p for p in pts if p["timestamp"] >= cutoff]
+
+def ema(values, period):
+    values = [float(v) for v in values if v and float(v) > 0]
+    if len(values) < period: return None
+    result = sum(values[:period]) / period
+    multiplier = 2 / (period + 1)
+    for value in values[period:]: result = (value - result) * multiplier + result
+    return result
+
+def rsi(values, period=14):
+    values = [float(v) for v in values if v and float(v) > 0]
+    if len(values) < period + 1: return None
+    changes = [values[i] - values[i-1] for i in range(1,len(values))][-period:]
+    gains = sum(max(v,0) for v in changes) / period
+    losses = sum(max(-v,0) for v in changes) / period
+    if losses == 0: return 100.0 if gains else 50.0
+    return 100 - 100 / (1 + gains / losses)
+
+def fetch_strategy_data(symbol):
+    for attempt in range(3):
+        try:
+            response = requests.get(
+                BASE + "/v5/market/kline",
+                params={"category":"spot","symbol":symbol+"USDT","interval":SCAN_CANDLE_INTERVAL,"limit":SCAN_CANDLE_LIMIT},
+                headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+            if data.get("retCode") == 0:
+                raw = (data.get("result") or {}).get("list", [])
+                points = []
+                for item in reversed(raw):
+                    try:
+                        timestamp = int(item[0]) / 1000
+                        price = float(item[4])
+                        volume = float(item[5])
+                        points.append({"timestamp":timestamp,"price":price,"volume":volume})
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                return symbol, points
+            else: time.sleep(1)
+        except Exception: time.sleep(1)
+    return symbol, []
+
+def refresh_strategy_history_background(symbols):
+    global strategy_history_updated
+    if history_loading_flag.is_set(): return
+    history_loading_flag.set()
+    try:
+        with bot_state_lock: bot_state["scanStatus"] = f"Загружаю 5m-свечи: 0/{len(symbols)}"
+        completed = 0; successful = 0
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {pool.submit(fetch_strategy_data, symbol): symbol for symbol in symbols}
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    _, points = future.result()
+                    if len(points) >= 30:
+                        with strategy_history_lock: strategy_history[symbol] = points
+                        successful += 1
+                except Exception: pass
+                completed += 1
+                with bot_state_lock: bot_state["scanStatus"] = f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
+                time.sleep(0.2)
+        with strategy_history_lock: strategy_history_updated = time.time()
+        with bot_state_lock: bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)}"
+    except Exception as e:
+        with bot_state_lock: bot_state["scanStatus"] = f"Ошибка: {e}"
+    finally: history_loading_flag.clear()
+
+def analyze(symbol, price, strategy=None):
+    st = strategy or bot_state["strategy"]
+    with strategy_history_lock: pts = list(strategy_history.get(symbol, []))
+    if not pts: pts = sorted(get_points(symbol), key=lambda p: p["timestamp"])
     
-    $("lastActionBox").textContent = data.lastAction || "Ожидание...";
-    $("botPulse").textContent = data.scanStatus || (data.running ? "Активен" : "Спит");
+    values = [p["price"] for p in pts]
+    volumes = [p.get("volume", 0) for p in pts]
     
-    const scan = data.scanResults || [];
-    $("scanList").innerHTML = scan.length ? scan.map(s => `
-      <div class="scan-row" title="${esc(s.explanation||"")}">
-        <div class="scan-symbol">${esc(s.symbol)}</div>
-        <div class="scan-signal ${s.signal==="buy_candidate"?"buy":s.signal==="sell_candidate"?"sell":"neutral"}">${s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"ЖДЁМ"}</div>
-        <div class="scan-rsi">RSI: ${s.rsi14 ? s.rsi14.toFixed(1) : "—"}</div>
-        <div style="font-size:11px;color:var(--muted);width:80px;text-align:right">${s.sampleCount} точек</div>
-      </div>
-    `).join("") : `<div style="color:var(--muted);padding:10px">Сканирование...</div>`;
+    if not values or values[-1] != price: values.append(price)
+    
+    ema_fast = ema(values, int(st["emaFast"]))
+    ema_slow = ema(values, int(st["emaSlow"]))
+    rsi_value = rsi(values, int(st["rsiPeriod"]))
+    
+    signal = "insufficient_history"
+    explanation = "Мало данных."
+    has_volume = False
+    
+    if len(values) >= 30 and ema_fast is not None and ema_slow is not None and rsi_value is not None:
+        if len(volumes) >= 10:
+            avg_vol = sum(volumes[-10:-1]) / 9
+            if volumes[-1] > avg_vol * 1.1:
+                has_volume = True
 
-    $("botPositions").innerHTML = positions.length ? positions.map(p=>`
-      <div style="border-bottom:1px solid #16223a;padding:10px 0">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><b>${esc(p.symbol)}/USDT</b><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px"><span>Вход: ${money(p.entryPrice,4)}</span><span>Тек: ${money(p.currentPrice,4)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--green)">TP: ${money(p.tp,4)}</span><span style="color:var(--red)">SL: ${money(p.sl,4)}</span></div>
-        <div style="text-align:right;font-weight:700" class="${cls(p.pnl)}">${p.pnl>=0?"+":""}${money(p.pnl,2)} (${pct(p.pnlPct)})</div>
-      </div>
-    `).join("") : `<div style="color:var(--muted);padding:10px">Нет открытых позиций</div>`;
+        if price > ema_fast > ema_slow and st["rsiBuyMin"] <= rsi_value < st["rsiBuyMax"]:
+            if has_volume:
+                signal = "buy_candidate"
+                explanation = "Бычий сигнал + Объем."
+            else:
+                explanation = "Бычий сигнал, но мало объема."
+        elif price < ema_fast < ema_slow and st["rsiSellMin"] < rsi_value <= st["rsiSellMax"]:
+            if has_volume:
+                signal = "sell_candidate"
+                explanation = "Медвежий сигнал + Объем."
+            else:
+                explanation = "Медвежий сигнал, но мало объема."
+        else:
+            signal = "neutral"
+            explanation = "Условия не совпали."
+            
+    return {
+        "symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,
+        "sampleCount":len(values),"signal":signal,"explanation":explanation,"mode":"simulation"
+    }
 
-    const bySym = data.stats.bySymbol || [];
-    $("bySymbolList").innerHTML = bySym.length ? bySym.map(s=>`
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #16223a"><b>${esc(s.symbol)}</b><span style="font-size:12px;color:var(--muted)">${s.trades} сд.</span><span class="${s.pnl>=0?"pnl-pos":"pnl-neg"}">${s.pnl>=0?"+":""}${money(s.pnl,2)}</span></div>
-    `).join("") : `<div style="color:var(--muted);padding:10px">Сделок пока нет</div>`;
-  }
-  renderHistory();
-}
+def fetch_prices():
+    data = get_json(BASE + "/v5/market/tickers", {"category":"spot"})
+    if data.get("retCode") != 0: raise RuntimeError(data.get("retMsg","err"))
+    prices, changes = {}, {}
+    for item in (data.get("result") or {}).get("list", []):
+        pair = str(item.get("symbol","")).upper()
+        if not pair.endswith("USDT"): continue
+        symbol = pair[:-4]
+        try: value = float(item.get("lastPrice"))
+        except Exception: continue
+        if not math.isfinite(value) or value <= 0: continue
+        prices[symbol] = value
+        try: changes[symbol] = float(item.get("price24hPcnt")) * 100
+        except Exception: changes[symbol] = None
+    if not prices: raise RuntimeError("no prices")
+    bybit_status.update(available=True,lastError=None,lastCheck=now_iso())
+    return prices, changes
 
-function renderHistory(){
-  const data = S.bot; if(!data) return;
-  const trades = data.closedTrades || [];
-  $("historyCount").textContent = trades.length + " сделок";
-  $("historyRows").innerHTML = trades.length ? trades.map(t=>{
-    const dt = t.closedAt ? new Date(t.closedAt) : null;
-    const time = dt ? `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}` : "—";
-    return `<tr><td style="color:var(--muted);font-size:12px">${time}</td><td class="pair">${esc(t.symbol)}/USDT</td><td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td><td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}${money(t.pnl,2)}</td><td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td></tr>`;
-  }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
-}
+def refresh(force=False):
+    if cache["prices"] and time.time() - cache["updated"] < CACHE_SECONDS and not force:
+        return dict(cache["prices"]),dict(cache["changes"]),cache["error"]
+    with refresh_lock:
+        if cache["prices"] and time.time() - cache["updated"] < CACHE_SECONDS and not force:
+            return dict(cache["prices"]),dict(cache["changes"]),cache["error"]
+        try:
+            prices,changes = fetch_prices()
+            remember(prices)
+            cache.update(updated=time.time(), prices=prices, changes=changes, error=None)
+            return dict(prices),dict(changes),None
+        except Exception as exc:
+            bybit_status.update(available=False, lastError=str(exc), lastCheck=now_iso())
+            cache["error"] = str(exc)
+            if cache["prices"]: return dict(cache["prices"]),dict(cache["changes"]),str(exc)
+            raise
 
-$("btnStart").onclick = async ()=>{
-  try{
-    await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({profitTarget: Number($("profitTarget").value)||100,maxLoss: Number($("maxLoss").value)||10,tradeSize: Number($("tradeSize").value)||20})});
-    await api("/api/bot/start", {method:"POST"});
-    refreshBot();
-  }catch(e){ alert("Ошибка: " + e.message); }
-};
-$("btnStop").onclick = async ()=>{ try{ await api("/api/bot/stop", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
-$("btnEmergency").onclick = async ()=>{ if(!confirm("Закрыть все позиции?")) return; try{ await api("/api/bot/emergency", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
-$("btnReset").onclick = async ()=>{ if(!confirm("Сбросить баланс и историю?")) return; try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
-["profitTarget","maxLoss","tradeSize"].forEach(id=>{
-  $(id).onchange = async ()=>{ try{ await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({profitTarget: Number($("profitTarget").value)||100,maxLoss: Number($("maxLoss").value)||10,tradeSize: Number($("tradeSize").value)||20})}); }catch(e){ console.warn(e); } };
-});
+def usd_rub():
+    if usd_rub_cache["rate"] and time.time() - usd_rub_cache["updated"] < 900:
+        return usd_rub_cache["rate"]
+    data = get_json("https://open.er-api.com/v6/latest/USD")
+    rate = float(data["rates"]["RUB"])
+    if not math.isfinite(rate) or rate <= 0: raise RuntimeError("bad rate")
+    usd_rub_cache.update(updated=time.time(),rate=rate)
+    return rate
 
-async function loadMarkets(){
-  try{
-    const data = await api("/api/prices");
-    S.coins = data.coins||[]; S.rub = data.usdRub; renderMarkets();
-    const sym = $("chartSymbol"); const cur = sym.value;
-    sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
-    if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
-  }catch(e){ $("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`; }
-}
-function renderMarkets(){
-  const q = ($("mktSearch").value||"").toUpperCase().trim();
-  const list = S.coins.filter(c=>(c.symbol+" "+(c.name||"")).toUpperCase().includes(q));
-  $("mktCount").textContent = list.length + " активов";
-  $("mktRows").innerHTML = list.map(c=>`
-    <tr><td><div class="coin-cell">${coinBadge(c.symbol)}<span class="coin-name">${esc(c.symbol)}</span></div></td><td>$${n(c.priceUsd)}</td><td>${c.priceRub==null?"—":"₽"+n(c.priceRub,2)}</td><td class="${cls(c.change24h)}">${pct(c.change24h)}</td></tr>
-  `).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Ничего не найдено</td></tr>`;
-}
-$("mktSearch").oninput = renderMarkets;
+def market_payload(force=False):
+    prices,changes,warning = refresh(force)
+    try: rate = usd_rub(); rate_err = None
+    except Exception as exc: rate = None; rate_err = str(exc)
+    coins = []
+    for symbol,price in prices.items():
+        pts = [p for p in get_points(symbol) if 2700 <= time.time() - p["timestamp"] <= 4500]
+        change_1h = None
+        if pts:
+            ref = min(pts, key=lambda p:abs(time.time() - p["timestamp"] - 3600))["price"]
+            change_1h = (price / ref - 1) * 100
+        coins.append({
+            "symbol":symbol,"name":symbol,"priceUsd":price,
+            "priceRub":price * rate if rate else None,
+            "change1h":change_1h,"change24h":changes.get(symbol),"source":"bybit"
+        })
+    coins.sort(key=lambda c:c["symbol"])
+    return {
+        "success":True,"updatedAt":now_iso(),"source":"bybit","coins":coins,
+        "usdRub":rate,"usdRubError":rate_err,"databaseAvailable":db_status["available"],"warning":warning
+    }
 
-const canvas = $("chart"); const ctx = canvas.getContext("2d");
-let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
+def signed_get(path,params):
+    if not API_KEY or not API_SECRET: raise RuntimeError("no key")
+    ts = str(int(time.time() * 1000)); recv_window = "5000"
+    query = urlencode(sorted((k,str(v)) for k,v in params.items()))
+    signature = hmac.new(API_SECRET.encode(), (ts + API_KEY + recv_window + query).encode(), "sha256").hexdigest()
+    headers = {
+        "X-BAPI-API-KEY":API_KEY,"X-BAPI-TIMESTAMP":ts,"X-BAPI-RECV-WINDOW":recv_window,
+        "X-BAPI-SIGN":signature,"X-BAPI-SIGN-TYPE":"2"
+    }
+    data = get_json(BASE + path,params=params,headers=headers)
+    if data.get("retCode") != 0: raise RuntimeError(f"err {data.get('retCode')}: {data.get('retMsg')}")
+    return data.get("result") or {}
 
-async function loadCandles(symbol, interval){
-  chartState.loading = true; chartState.error = null; drawChart();
-  try{
-    const r = await fetch(`/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=200`, {cache:"no-store"});
-    const data = await r.json();
-    if(!r.ok || data.success === false) throw new Error(data.error || "Ошибка");
-    chartState.candles = data.candles || [];
-  }catch(e){ chartState.error = e.message; chartState.candles = []; } finally{ chartState.loading = false; drawChart(); }
-}
+def wallet_balance(force=False):
+    if wallet_cache["data"] and time.time() - wallet_cache["updated"] < 60 and not force:
+        return wallet_cache["data"]
+    result = signed_get("/v5/account/wallet-balance", {"accountType":"UNIFIED"})
+    assets = []
+    total = 0.0
+    for account in result.get("list", []):
+        for coin in account.get("coin", []):
+            try:
+                balance = float(coin.get("walletBalance") or 0)
+                usd_value = float(coin.get("usdValue") or 0)
+            except Exception: continue
+            if balance == 0 and usd_value == 0: continue
+            assets.append({"coin":coin.get("coin",""),"walletBalance":balance,"usdValue":usd_value,"availableToWithdraw":coin.get("availableToWithdraw")})
+            total += usd_value
+    assets.sort(key=lambda a:a["usdValue"],reverse=True)
+    data = {"success":True,"available":True,"accountType":"UNIFIED","totalUsd":total,"assets":assets,"updatedAt":now_iso()}
+    wallet_cache.update(updated=time.time(),data=data)
+    return data
 
-function drawChart(){
-  const wrap = canvas.parentElement; const w = wrap.clientWidth, h = wrap.clientHeight; const dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = w+"px"; canvas.style.height = h+"px";
-  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
-  if(chartState.loading){ ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center"; ctx.fillText("Загрузка свечей…", w/2, h/2); return; }
-  if(chartState.error){ ctx.fillStyle = "#ff5d73"; ctx.font = "14px sans-serif"; ctx.textAlign="center"; ctx.fillText(chartState.error, w/2, h/2); return; }
-  const candles = chartState.candles;
-  if(!candles.length){ ctx.fillStyle = "#5d6d88"; ctx.font = "14px sans-serif"; ctx.textAlign="center"; ctx.fillText("Нет данных", w/2, h/2); return; }
-  const pad = {l:10, r:64, t:12, b:26}; const cw = w - pad.l - pad.r; const ch = h - pad.t - pad.b;
-  let min = Infinity, max = -Infinity;
-  for(const c of candles){ if(c.low<min) min=c.low; if(c.high>max) max=c.high; }
-  const range = (max-min)||1; min -= range*0.03; max += range*0.03;
-  const yFor = v => pad.t + ch * (1 - (v-min)/(max-min)); const gap = cw / candles.length; const candleWidth = Math.max(2, Math.min(12, gap*0.7));
-  ctx.strokeStyle = "#131e33"; ctx.lineWidth = 1; ctx.fillStyle = "#5d6d88"; ctx.font = "11px sans-serif"; ctx.textAlign = "left";
-  for(let i=0;i<=4;i++){ const y = pad.t + ch*i/4; ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke(); const val = max - (max-min)*i/4; ctx.fillText(val.toFixed(val>100?0:4), pad.l+cw+8, y+4); }
-  ctx.textAlign = "center"; const steps = 6;
-  for(let i=0;i<=steps;i++){ const idx = Math.floor((candles.length-1) * i / steps); const c = candles[idx]; if(!c) continue; const x = pad.l + gap*idx + gap/2; const d = new Date(c.time); const label = chartState.interval.includes("d") || chartState.interval.includes("w") ? `${d.getDate()}.${d.getMonth()+1}` : `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; ctx.fillStyle = "#5d6d88"; ctx.fillText(label, x, h-6); }
-  candles.forEach((c,i)=>{ const x = pad.l + gap*i + gap/2; const isUp = c.close >= c.open; const color = isUp ? "#1fcf8a" : "#ff5d73"; ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yFor(c.high)); ctx.lineTo(x, yFor(c.low)); ctx.stroke(); const yO = yFor(c.open), yC = yFor(c.close); const top = Math.min(yO,yC), hh = Math.max(1, Math.abs(yC-yO)); ctx.fillStyle = color; ctx.fillRect(x - candleWidth/2, top, candleWidth, hh); });
-  const last = candles[candles.length-1]; const lastY = yFor(last.close); const lastColor = last.close >= last.open ? "#1fcf8a" : "#ff5d73"; ctx.strokeStyle = lastColor; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(pad.l+cw, lastY); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = lastColor; ctx.fillRect(pad.l+cw+2, lastY-9, pad.r-8, 18); ctx.fillStyle = "#0a1222"; ctx.font = "bold 11px sans-serif"; ctx.textAlign="left"; ctx.fillText(last.close.toFixed(last.close>100?2:4), pad.l+cw+6, lastY+4);
-}
+def bot_open_position(symbol,price,side,reason=""):
+    with bot_state_lock:
+        settings = bot_state["settings"]
+        size = float(settings["tradeSize"])
+        
+        fee = size * FEE_RATE
+        if bot_state["balance"] < (size + fee): return None
+        
+        for position in bot_state["positions"]:
+            if position["symbol"] == symbol: return None
+            
+        qty = size / price
+        tp_pct = TP_PERCENT / 100
+        sl_pct = SL_PERCENT / 100
+        
+        if side == "Long":
+            tp = price * (1 + tp_pct)
+            sl = price * (1 - sl_pct)
+        else:
+            tp = price * (1 - tp_pct)
+            sl = price * (1 + sl_pct)
+            
+        position = {
+            "id":int(time.time() * 1000) + len(bot_state["positions"]),
+            "symbol":symbol,"side":side,"sizeUsd":size,"entryPrice":price,"qty":qty,
+            "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason
+        }
+        bot_state["positions"].append(position)
+        bot_state["balance"] -= (size + fee)
+        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f}"
+    bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f}", "blue")
+    bot_save()
+    return position
 
-$("chartSymbol").onchange = () => { chartState.symbol = $("chartSymbol").value; loadCandles(chartState.symbol, chartState.interval); };
-document.querySelectorAll(".chart-tf button").forEach(b=>{ b.onclick = ()=>{ document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); chartState.interval = b.dataset.tf; loadCandles(chartState.symbol, chartState.interval); }; });
-window.addEventListener("resize", ()=>{ if(chartState.candles.length) drawChart(); });
+def bot_close_position(position,price,reason="manual"):
+    with bot_state_lock:
+        if position not in bot_state["positions"]: return None
+        bot_state["positions"].remove(position)
+        
+        if position["side"] == "Long": pnl = (price - position["entryPrice"]) * position["qty"]
+        else: pnl = (position["entryPrice"] - price) * position["qty"]
+        
+        close_fee = position["sizeUsd"] * FEE_RATE
+        net_pnl = pnl - close_fee
+        pnl_pct = (net_pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
+        
+        bot_state["balance"] += (position["sizeUsd"] + net_pnl)
+        
+        trade = {
+            "symbol":position["symbol"],"side":position["side"],"sizeUsd":position["sizeUsd"],
+            "entryPrice":position["entryPrice"],"exitPrice":price,"pnl":net_pnl,"pnlPct":pnl_pct,
+            "reason":reason,"openedAt":position["openedAt"],"closedAt":now_iso(),"closedTs":time.time()
+        }
+        bot_state["closedTrades"].insert(0,trade)
+        bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
+        bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
+    push_equity_point()
+    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if net_pnl >= 0 else "red")
+    bot_save()
+    return trade
 
-(async ()=>{ await refreshBot(); await loadMarkets(); chartState.symbol = $("chartSymbol").value || "BTCUSDT"; chartState.interval = "5m"; await loadCandles(chartState.symbol, chartState.interval); })();
+def bot_check_limits():
+    with bot_state_lock:
+        settings = bot_state["settings"]
+        start = float(settings["startBalance"])
+        free_balance = float(bot_state["balance"])
+        positions_value = sum(p["sizeUsd"] for p in bot_state["positions"])
+        open_pnl = 0.0
+        try:
+            prices, _, _ = refresh()
+            for p in bot_state["positions"]:
+                current = prices.get(p["symbol"], p["entryPrice"])
+                if p["side"] == "Long": open_pnl += (current - p["entryPrice"]) * p["qty"]
+                else: open_pnl += (p["entryPrice"] - current) * p["qty"]
+        except Exception: pass
+        total_equity = free_balance + positions_value + open_pnl
+        diff = total_equity - start
+        profit_target = float(settings["profitTarget"])
+        max_loss = float(settings["maxLoss"])
+        if diff >= profit_target: return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
+        if diff <= -max_loss: return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
+    return None, None
 
-setInterval(()=>{ if(document.visibilityState==="visible") refreshBot(); }, 5000);
-setInterval(()=>{ if(document.visibilityState==="visible") loadMarkets(); }, 30000);
-setInterval(()=>{ if(document.visibilityState==="visible" && chartState.candles.length) loadCandles(chartState.symbol, chartState.interval); }, 60000);
-</script>
-</body>
-</html>
+def bot_close_all(reason="manual"):
+    try: prices,_,_ = refresh()
+    except Exception: prices = {}
+    with bot_state_lock: positions = list(bot_state["positions"])
+    for position in positions:
+        bot_close_position(position, prices.get(position["symbol"],position["entryPrice"]), reason)
+
+def bot_tick():
+    with bot_state_lock:
+        if not bot_state["running"]: return
+    try:
+        prices,_,_ = refresh(force=True)
+    except Exception as exc:
+        with bot_state_lock: bot_state["scanStatus"] = f"Ошибка получения цен: {exc}"
+        bot_log(f"Цены: {exc}","red")
+        return
+
+    btc_price = prices.get("BTC")
+    btc_trend = "neutral"
+    if btc_price:
+        btc_analysis = analyze("BTC", btc_price, bot_state["strategy"])
+        if btc_analysis["signal"] == "sell_candidate":
+            btc_trend = "down"
+        elif btc_analysis["signal"] == "buy_candidate":
+            btc_trend = "up"
+
+    with bot_state_lock:
+        positions = list(bot_state["positions"])
+        
+    for position in positions:
+        price = prices.get(position["symbol"])
+        if price is None: continue
+        
+        if position["side"] == "Long":
+            if price >= position["tp"]:
+                bot_close_position(position,price,"TP"); continue
+            if price <= position["sl"]:
+                bot_close_position(position,price,"SL"); continue
+        else:
+            if price <= position["tp"]:
+                bot_close_position(position,price,"TP"); continue
+            if price >= position["sl"]:
+                bot_close_position(position,price,"SL"); continue
+
+    kind,message = bot_check_limits()
+    if kind:
+        bot_log(message + ". Останавливаем.", "gold" if kind == "profit" else "red")
+        bot_close_all("limits")
+        with bot_state_lock:
+            bot_state["running"] = False; bot_state["reason"] = message
+            bot_state["stoppedAt"] = now_iso(); bot_state["lastAction"] = message
+            bot_state["scanStatus"] = f"Остановлено: {message}"
+        bot_save(); return
+
+    st = bot_state["strategy"]
+    top = st.get("topCoins",DEFAULT_STRATEGY["topCoins"])
+    
+    if not history_loading_flag.is_set() and time.time() - strategy_history_updated > SCAN_HISTORY_REFRESH_SECONDS:
+        threading.Thread(target=refresh_strategy_history_background, args=(top,), daemon=True).start()
+
+    scan = []
+    for symbol in top:
+        price = prices.get(symbol)
+        if price is None: continue
+        result = analyze(symbol,price,st)
+        scan.append({
+            "symbol":symbol,"price":price,"rsi14":result["rsi14"],"ema9":result["ema9"],
+            "ema21":result["ema21"],"signal":result["signal"],"explanation":result["explanation"],
+            "sampleCount":result["sampleCount"]
+        })
+    with bot_state_lock:
+        bot_state["scanResults"] = scan
+        bot_state["lastSignalScan"] = now_iso()
+        signal_count = sum(1 for item in scan if item["signal"] in ("buy_candidate","sell_candidate"))
+        insufficient = sum(1 for item in scan if item["signal"] == "insufficient_history")
+        bot_state["scanStatus"] = f"Проверено {len(scan)}/{len(top)} монет; сигналов: {signal_count}"
+        if insufficient: bot_state["scanStatus"] += f"; мало истории: {insufficient}"
+    bot_save()
+
+    with bot_state_lock:
+        current = {p["symbol"] for p in bot_state["positions"]}
+        
+    opened = 0
+    for item in scan:
+        if item["symbol"] in current: continue
+        
+        with bot_state_lock:
+            fee = float(bot_state["settings"]["tradeSize"]) * FEE_RATE
+            if bot_state["balance"] < (float(bot_state["settings"]["tradeSize"]) + fee):
+                break
+        
+        if item["signal"] in ("buy_candidate", "sell_candidate"):
+            if item["signal"] == "buy_candidate" and btc_trend == "down":
+                bot_log(f"{item['symbol']}: Пропуск (BTC падает)", "gold")
+                continue
+                
+            ai_comment = ask_ai_comment(item["symbol"], item["price"], item["signal"], item["rsi14"] or 50)
+            bot_log(f"ИИ по {item['symbol']}: {ai_comment}", "blue")
+            
+            if item["signal"] == "buy_candidate":
+                if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI"): opened += 1
+            elif item["signal"] == "sell_candidate":
+                if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI"): opened += 1
+        
+    with bot_state_lock:
+        if not bot_state["positions"]: bot_state["lastAction"] = "Сканирует — сигналов нет."
+        else: bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
+
+def bot_worker():
+    while True:
+        try: bot_tick()
+        except Exception: log.exception("tick fail")
+        time.sleep(BOT_TICK_SECONDS)
+
+def compute_stats():
+    with bot_state_lock:
+        trades = list(bot_state["closedTrades"])
+        positions = list(bot_state["positions"])
+        balance = float(bot_state["balance"])
+        start = float(bot_state["settings"]["startBalance"])
+        equity = list(bot_state["equityCurve"])
+        
+    wins = [t for t in trades if t["pnl"] > 0]
+    losses = [t for t in trades if t["pnl"] < 0]
+    total = len(trades)
+    winrate = len(wins) / total * 100 if total else 0
+    sum_profit = sum(t["pnl"] for t in wins) if wins else 0
+    sum_loss = abs(sum(t["pnl"] for t in losses)) if losses else 0
+    profit_factor = (sum_profit / sum_loss) if sum_loss > 0 else (float("inf") if sum_profit > 0 else 0)
+    avg_win = sum_profit / len(wins) if wins else 0
+    avg_loss = -sum_loss / len(losses) if losses else 0
+    best = max((t["pnl"] for t in trades),default=0)
+    worst = min((t["pnl"] for t in trades),default=0)
+    
+    max_drawdown = 0.0
+    peak = -1e18
+    for point in equity:
+        peak = max(peak,point["balance"])
+        drawdown = peak - point["balance"]
+        if drawdown > max_drawdown: max_drawdown = drawdown
+            
+    by_symbol = {}
+    for trade in trades:
+        symbol = trade["symbol"]
+        by_symbol.setdefault(symbol,{"symbol":symbol,"trades":0,"pnl":0.0,"wins":0,"losses":0})
+        by_symbol[symbol]["trades"] += 1
+        by_symbol[symbol]["pnl"] += trade["pnl"]
+        if trade["pnl"] > 0: by_symbol[symbol]["wins"] += 1
+        elif trade["pnl"] < 0: by_symbol[symbol]["losses"] += 1
+            
+    try: prices,_,_ = refresh()
+    except Exception: prices = {}
+        
+    positions_live = []
+    open_pnl = 0.0
+    for position in positions:
+        current = prices.get(position["symbol"],position["entryPrice"])
+        if position["side"] == "Long": pnl = (current - position["entryPrice"]) * position["qty"]
+        else: pnl = (position["entryPrice"] - current) * position["qty"]
+        open_pnl += pnl
+        positions_live.append({
+            **position, "currentPrice":current, "pnl":pnl,
+            "pnlPct":(pnl / position["sizeUsd"] * 100 if position["sizeUsd"] else 0)
+        })
+        
+    positions_size = sum(p["sizeUsd"] for p in positions)
+    total_equity = balance + positions_size + open_pnl 
+    total_pnl = total_equity - start
+
+    return {
+        "trades":total,"wins":len(wins),"losses":len(losses),"winrate":winrate,
+        "sumProfit":sum_profit,"sumLoss":sum_loss,"profitFactor":profit_factor,
+        "avgWin":avg_win,"avgLoss":avg_loss,"best":best,"worst":worst,
+        "maxDrawdown":max_drawdown,
+        "bySymbol":sorted(by_symbol.values(), key=lambda item:item["pnl"], reverse=True),
+        "balance":total_equity,"startBalance":start,"totalPnl":total_pnl,
+        "openPnl":open_pnl,"closedPnl":balance - start,
+        "openPositions":len(positions_live),"positionsLive":positions_live,"equityCurve":equity
+    }
+
+@app.after_request
+def headers(response):
+    response.headers.setdefault("X-Content-Type-Options","nosniff")
+    response.headers.setdefault("X-Frame-Options","SAMEORIGIN")
+    return response
+
+@app.route("/")
+def index(): return send_from_directory(app.static_folder,"index.html")
+
+@app.route("/health")
+def health(): return jsonify({"status":"ok","service":"CryptoPulse","timestamp":now_iso()})
+
+@app.route("/api/config")
+def config():
+    return jsonify({"success":True,"tradingMode":"simulation","liveTradingEnabled":False,
+                    "databaseConfigured":bool(DATABASE_URL),"databaseAvailable":db_status["available"]})
+
+@app.route("/api/prices")
+@app.route("/api/market-prices")
+def prices_api():
+    try: return jsonify(market_payload())
+    except Exception: return jsonify({"success":False,"error":"Рынок недоступен","coins":[]}), 503
+
+@app.route("/api/usd-rub")
+def rub_api():
+    try: return jsonify({"success":True,"rate":usd_rub(),"base":"USD","currency":"RUB"})
+    except Exception: return jsonify({"success":False,"error":"Курс недоступен"}), 503
+
+@app.route("/api/account/balance")
+@app.route("/api/bybit/balance")
+def balance_api():
+    try: return jsonify(wallet_balance())
+    except Exception as exc:
+        log.warning("bal: %s",exc)
+        return jsonify({"success":False,"available":False,"error":"Баланс недоступен"}), 503
+
+@app.route("/api/trading/signals")
+def signals_api():
+    try:
+        payload = market_payload()
+        st = bot_state["strategy"]
+        out = []
+        for coin in payload["coins"]:
+            item = analyze(coin["symbol"],coin["priceUsd"],st)
+            item["change1h"] = coin["change1h"]
+            item["change24h"] = coin["change24h"]
+            out.append(item)
+        return jsonify({"success":True,"signals":out})
+    except Exception: return jsonify({"success":False,"signals":[]}), 503
+
+@app.route("/api/klines")
+def klines_api():
+    sym = (request.args.get("symbol") or "BTCUSDT").upper().strip()
+    iv = (request.args.get("interval") or "5m").strip()
+    bi = {"1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","1h":"60","2h":"120","4h":"240","6h":"360","12h":"720","1d":"D","1w":"W"}.get(iv,iv)
+    try: lim = max(1,min(int(request.args.get("limit","200")),1000))
+    except Exception: lim = 200
+    try:
+        data = get_json(BASE + "/v5/market/kline", {"category":"spot","symbol":sym,"interval":bi,"limit":lim})
+        if data.get("retCode") != 0: raise RuntimeError(data.get("retMsg"))
+        raw = (data.get("result") or {}).get("list", [])
+        candles = []
+        for item in reversed(raw):
+            try: candles.append({"time":int(item[0]),"open":float(item[1]),"high":float(item[2]),"low":float(item[3]),"close":float(item[4]),"volume":float(item[5]) if len(item) > 5 else 0})
+            except Exception: continue
+        return jsonify({"success":True,"symbol":sym,"interval":iv,"candles":candles})
+    except Exception as exc: return jsonify({"success":False,"error":"Свечи недоступны","details":str(exc)}), 503
+
+@app.route("/api/bot/state")
+def bot_state_api():
+    stats = compute_stats()
+    with bot_state_lock:
+        return jsonify({
+            "success":True,"running":bot_state["running"],"emergency":bot_state["emergency"],
+            "reason":bot_state["reason"],"settings":bot_state["settings"],"strategy":bot_state["strategy"],
+            "balance":stats["balance"],"startBalance":stats["startBalance"],
+            "totalPnl":stats["totalPnl"],"totalPnlPct":(stats["totalPnl"] / stats["startBalance"] * 100 if stats["startBalance"] else 0),
+            "positions":stats["positionsLive"],"closedTrades":bot_state["closedTrades"][:100],
+            "logs":bot_state["logs"][:100],"startedAt":bot_state["startedAt"],"stoppedAt":bot_state["stoppedAt"],
+            "lastAction":bot_state["lastAction"],"lastSignalScan":bot_state["lastSignalScan"],
+            "scanStatus":bot_state["scanStatus"],"scanResults":bot_state["scanResults"],
+            "stats":{"trades":stats["trades"],"wins":stats["wins"],"losses":stats["losses"],
+                     "winrate":stats["winrate"],"profitFactor":(stats["profitFactor"] if math.isfinite(stats["profitFactor"]) else None),
+                     "avgWin":stats["avgWin"],"avgLoss":stats["avgLoss"],"best":stats["best"],"worst":stats["worst"],
+                     "maxDrawdown":stats["maxDrawdown"],"bySymbol":stats["bySymbol"],"equityCurve":stats["equityCurve"][-500:]}
+        })
+
+@app.route("/api/bot/start", methods=["POST"])
+def bot_start_api():
+    data = request.get_json(silent=True) or {}
+    with bot_state_lock:
+        if "settings" in data and isinstance(data["settings"],dict):
+            for key in ("profitTarget","maxLoss","tradeSize"):
+                if key in data["settings"]:
+                    try: bot_state["settings"][key] = float(data["settings"][key])
+                    except Exception: pass
+        free = float(bot_state["balance"]); pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
+        bot_state["settings"]["startBalance"] = free + pos_value
+        bot_state["running"] = True; bot_state["emergency"] = False
+        bot_state["reason"] = "Бот запущен"; bot_state["startedAt"] = now_iso()
+        bot_state["stoppedAt"] = None; bot_state["lastAction"] = "Запущен. Сканирует…"
+        bot_state["scanStatus"] = "Подготовка сканера…"
+    push_equity_point(); bot_log("Бот запущен.","green")
+    return jsonify({"success":True})
+
+@app.route("/api/bot/stop", methods=["POST"])
+def bot_stop_api():
+    with bot_state_lock:
+        bot_state["running"] = False; bot_state["reason"] = "Остановлен вручную"
+        bot_state["stoppedAt"] = now_iso(); bot_state["lastAction"] = "Остановлен вручную"
+        bot_state["scanStatus"] = "Сканер остановлен"
+    bot_log("Бот остановлен.","red"); return jsonify({"success":True})
+
+@app.route("/api/bot/emergency", methods=["POST"])
+def bot_emergency_api():
+    bot_close_all("emergency")
+    with bot_state_lock:
+        bot_state["running"] = False; bot_state["emergency"] = True
+        bot_state["reason"] = "Аварийная остановка"; bot_state["stoppedAt"] = now_iso()
+        bot_state["lastAction"] = "Аварийная остановка"; bot_state["scanStatus"] = "Аварийная остановка"
+    bot_log("АВАРИЙНАЯ ОСТАНОВКА.","red"); return jsonify({"success":True})
+
+@app.route("/api/bot/settings", methods=["POST"])
+def bot_settings_api():
+    data = request.get_json(silent=True) or {}
+    with bot_state_lock:
+        for key in ("profitTarget","maxLoss","tradeSize"):
+            if key in data:
+                try: bot_state["settings"][key] = float(data[key])
+                except Exception: pass
+    bot_log("Настройки сохранены.","blue")
+    return jsonify({"success":True,"settings":bot_state["settings"]})
+
+@app.route("/api/bot/strategy", methods=["POST"])
+def bot_strategy_api():
+    data = request.get_json(silent=True) or {}
+    with bot_state_lock:
+        for key in ("emaFast","emaSlow","rsiPeriod","rsiBuyMin","rsiBuyMax","rsiSellMin","rsiSellMax"):
+            if key in data:
+                try: bot_state["strategy"][key] = int(data[key])
+                except Exception: pass
+    bot_log("Стратегия обновлена.","blue")
+    return jsonify({"success":True,"strategy":bot_state["strategy"]})
+
+@app.route("/api/bot/reset", methods=["POST"])
+def bot_reset_api():
+    with bot_state_lock:
+        bot_state.update({
+            "running":False,"emergency":False,"reason":"Сброшено",
+            "balance":float(bot_state["settings"].get("startBalance",100.0)),
+            "positions":[],"closedTrades":[],"logs":[],"equityCurve":[],
+            "startedAt":None,"stoppedAt":None,"lastAction":"Сброшено",
+            "scanResults":[],"scanStatus":"Сброшено; ожидание запуска"
+        })
+    bot_log("Бот сброшен.","gold"); return jsonify({"success":True})
+
+@app.route("/api/bot/export.csv")
+def bot_export_csv():
+    with bot_state_lock: trades = list(bot_state["closedTrades"])
+    out = io.StringIO(); writer = csv.writer(out)
+    writer.writerow(["Time","Symbol","Side","SizeUSD","EntryPrice","ExitPrice","PnL","PnL%","Reason"])
+    for trade in trades:
+        writer.writerow([trade.get("closedAt",""),trade.get("symbol",""),trade.get("side",""),
+                         f"{trade.get('sizeUsd',0):.2f}",f"{trade.get('entryPrice',0):.8f}",
+                         f"{trade.get('exitPrice',0):.8f}",f"{trade.get('pnl',0):.4f}",
+                         f"{trade.get('pnlPct',0):.4f}",trade.get("reason","")])
+    return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=cryptopulse_trades.csv"})
+
+def tg(method,payload):
+    if not TG_TOKEN: raise RuntimeError("no token")
+    r = session.post(f"https://api.telegram.org/bot{TG_TOKEN}/{method}", json=payload, timeout=TIMEOUT)
+    r.raise_for_status(); return r.json()
+
+def tg_send(chat,text,markup=None):
+    payload = {"chat_id":chat,"text":text}
+    if markup: payload["reply_markup"] = markup
+    return tg("sendMessage",payload)
+
+def keyboard():
+    return {"inline_keyboard":[[{"text":"🌐 CryptoPulse","web_app":{"url":WEBAPP_URL}},{"text":"📊 Цены","callback_data":"prices"}],[{"text":"💱 USD/RUB","callback_data":"usdrub"},{"text":"🧮 Калькулятор","web_app":{"url":WEBAPP_URL+"?page=calculator"}}]]}
+
+def telegram_prices():
+    payload = market_payload()
+    lines = ["CryptoPulse — Bybit Spot",""]
+    for coin in payload["coins"][:40]:
+        change = "—" if coin["change24h"] is None else f'{coin["change24h"]:+.2f}%'
+        lines.append(f'{coin["symbol"]}: ${coin["priceUsd"]:,.8f} | 24ч {change}')
+    return "\n".join(lines)
+
+@app.route("/telegram-webhook", methods=["POST"])
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    if TG_SECRET:
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token","")
+        if not hmac.compare_digest(secret,TG_SECRET): return jsonify({"ok":False}),401
+    if not TG_TOKEN: return jsonify({"ok":False}),503
+    update = request.get_json(silent=True) or {}
+    callback = update.get("callback_query")
+    if callback:
+        chat = ((callback.get("message") or {}).get("chat") or {}).get("id")
+        try: tg("answerCallbackQuery",{"callback_query_id":callback.get("id")})
+        except Exception: pass
+        if chat:
+            data = callback.get("data")
+            try:
+                if data == "prices": tg_send(chat,telegram_prices(),keyboard())
+                elif data == "usdrub":
+                    rate = usd_rub()
+                    tg_send(chat,f"💱 USD/RUB\n\n1 USD = ₽{rate:.2f}\n\nИсточник: open.er-api.com",keyboard())
+            except Exception: tg_send(chat,"Недоступно.",keyboard())
+        return jsonify({"ok":True})
+    message = update.get("message") or {}
+    chat = (message.get("chat") or {}).get("id"); text = (message.get("text") or "").strip()
+    if chat and text.startswith(("/start","/help")):
+        tg_send(chat,"CryptoPulse\nЦены, сигналы, курс USD/RUB.\nРеальная торговля отключена.",keyboard())
+    elif chat and text.startswith("/prices"):
+        try: tg_send(chat,telegram_prices(),keyboard())
+        except Exception: tg_send(chat,"Недоступно.",keyboard())
+    return jsonify({"ok":True})
+
+def configure_telegram():
+    if not TG_TOKEN: return
+    try:
+        tg("setChatMenuButton",{"menu_button":{"type":"web_app","text":"Открыть CryptoPulse","web_app":{"url":WEBAPP_URL}}})
+        payload = {"url":WEBHOOK_URL}
+        if TG_SECRET: payload["secret_token"] = TG_SECRET
+        tg("setWebhook",payload)
+    except Exception: log.exception("tg setup fail")
+
+def worker():
+    while True:
+        try: refresh(force=True)
+        except Exception: log.exception("bg fail")
+        time.sleep(REFRESH_SECONDS)
+
+init_db()
+bot_load()
+
+if TG_AUTO: configure_telegram()
+if BG_WORKER: threading.Thread(target=worker,daemon=True).start()
+threading.Thread(target=bot_worker,daemon=True).start()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
+  

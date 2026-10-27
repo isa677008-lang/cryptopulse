@@ -46,12 +46,12 @@ BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
 BOT_TICK_SECONDS = 15
 BOT_START_BALANCE = 100.0
 
+# Убрали maxPositions, теперь ограничение только по балансу
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
     "rsiBuyMin": 50, "rsiBuyMax": 68,
     "rsiSellMin": 32, "rsiSellMax": 50,
     "tpPercent": 2.0, "slPercent": 1.5,
-    "maxPositions": 3,
     "topCoins": ["BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
@@ -520,13 +520,16 @@ def bot_open_position(symbol,price,side,reason=""):
         st = bot_state["strategy"]
         settings = bot_state["settings"]
         size = float(settings["tradeSize"])
+        
+        # Проверяем, хватает ли денег на новую сделку
         if bot_state["balance"] < size:
             return None
+            
+        # Проверяем, нет ли уже открытой позиции по этой монете
         for position in bot_state["positions"]:
             if position["symbol"] == symbol:
                 return None
-        if len(bot_state["positions"]) >= int(st["maxPositions"]):
-            return None
+                
         qty = size / price
         tp_pct = float(st["tpPercent"]) / 100
         sl_pct = float(st["slPercent"]) / 100
@@ -550,6 +553,7 @@ def bot_open_position(symbol,price,side,reason=""):
             "reason":reason
         }
         bot_state["positions"].append(position)
+        bot_state["balance"] -= size  # <--- ВАЖНО: сразу списываем деньги
         bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f}"
     bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f}", "blue")
     bot_save()
@@ -565,7 +569,7 @@ def bot_close_position(position,price,reason="manual"):
         else:
             pnl = (position["entryPrice"] - price) * position["qty"]
         pnl_pct = (pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
-        bot_state["balance"] += pnl
+        bot_state["balance"] += (position["sizeUsd"] + pnl)  # <--- ВАЖНО: возвращаем деньги + профит
         trade = {
             "symbol":position["symbol"],
             "side":position["side"],
@@ -709,15 +713,12 @@ def bot_tick():
             )
     bot_save()
 
+    # Теперь бот открывает столько позиций, на сколько хватает денег
     with bot_state_lock:
-        if len(bot_state["positions"]) >= int(st["maxPositions"]):
-            return
         current = {p["symbol"] for p in bot_state["positions"]}
-        max_new = int(st["maxPositions"]) - len(bot_state["positions"])
+        
     opened = 0
     for item in scan:
-        if opened >= max_new:
-            break
         if item["symbol"] in current:
             continue
         if item["signal"] == "buy_candidate":
@@ -726,6 +727,7 @@ def bot_tick():
         elif item["signal"] == "sell_candidate":
             if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI"):
                 opened += 1
+                
     with bot_state_lock:
         if not bot_state["positions"]:
             bot_state["lastAction"] = "Сканирует — сигналов нет."
@@ -1071,7 +1073,7 @@ def bot_strategy_api():
     with bot_state_lock:
         for key in (
             "emaFast","emaSlow","rsiPeriod","rsiBuyMin","rsiBuyMax",
-            "rsiSellMin","rsiSellMax","maxPositions"
+            "rsiSellMin","rsiSellMax"
         ):
             if key in data:
                 try:

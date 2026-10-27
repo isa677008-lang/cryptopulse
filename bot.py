@@ -95,7 +95,6 @@ SCAN_HISTORY_REFRESH_SECONDS = 60
 
 history_loading_flag = threading.Event()
 
-# --- ИИ ПОМОЩНИК ---
 groq_client = None
 if Groq and GROQ_API_KEY:
     try:
@@ -104,9 +103,8 @@ if Groq and GROQ_API_KEY:
         log.error("Groq init failed: %s", e)
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
-    """Спрашиваем у ИИ, стоит ли открывать сделку."""
     if not groq_client:
-        return True, "ИИ не настроен (пропускаем проверку)"
+        return True, "ИИ не настроен"
     
     try:
         prompt = (
@@ -116,12 +114,11 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
             f"RSI(14): {rsi_val:.1f}\n"
             f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
             f"Сигнал стратегии: {signal}\n"
-            f"Ответь строго одним словом: BUY (если уверен, что цена пойдет вверх/сигнал верный), "
-            f"SELL (если уверен в падении) или SKIP (если рискованно и лучше пропустить)."
+            f"Ответь строго одним словом: BUY, SELL или SKIP."
         )
         
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=10
@@ -129,17 +126,15 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
         answer = completion.choices[0].message.content.strip().upper()
         
         if "BUY" in answer:
-            return True, "ИИ подтвердил покупку (BUY)"
+            return True, "ИИ: BUY"
         elif "SELL" in answer:
-            return True, "ИИ подтвердил продажу (SELL)"
+            return True, "ИИ: SELL"
         else:
-            return False, "ИИ сказал пропустить (SKIP)"
+            return False, "ИИ: SKIP"
             
     except Exception as e:
-        log.warning("Groq request failed: %s", e)
-        return True, "Ошибка ИИ (торгуем без него)"
-
-# -------------------
+        log.warning("Groq error: %s", e)
+        return True, f"Ошибка ИИ: {str(e)[:40]}"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -257,11 +252,7 @@ def remember(prices, source="bybit"):
                         VALUES (%s,%s,%s,to_timestamp(%s))
                         ON CONFLICT (source,symbol,observed_at) DO NOTHING""",
                         [(source,s,p,timestamp) for s,p in valid.items()])
-                    cur.execute(
-                        """DELETE FROM price_history
-                           WHERE observed_at < NOW() - (%s * INTERVAL '1 hour')""",
-                        (HISTORY_HOURS,)
-                    )
+                    cur.execute("""DELETE FROM price_history WHERE observed_at < NOW() - (%s * INTERVAL '1 hour')""", (HISTORY_HOURS,))
                     conn.commit()
         db_status.update(available=True, lastError=None)
     except Exception as exc:
@@ -299,12 +290,7 @@ def fetch_strategy_candles(symbol):
         try:
             response = requests.get(
                 BASE + "/v5/market/kline",
-                params={
-                    "category":"spot",
-                    "symbol":symbol+"USDT",
-                    "interval":SCAN_CANDLE_INTERVAL,
-                    "limit":SCAN_CANDLE_LIMIT
-                },
+                params={"category":"spot","symbol":symbol+"USDT","interval":SCAN_CANDLE_INTERVAL,"limit":SCAN_CANDLE_LIMIT},
                 headers={"User-Agent":"CryptoPulse/3.0","Accept":"application/json"},
                 timeout=10
             )
@@ -359,10 +345,10 @@ def refresh_strategy_history_background(symbols):
         with strategy_history_lock:
             strategy_history_updated = time.time()
         with bot_state_lock:
-            bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)} монет загружено"
+            bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)}"
     except Exception as e:
         with bot_state_lock:
-            bot_state["scanStatus"] = f"Ошибка загрузки: {e}"
+            bot_state["scanStatus"] = f"Ошибка: {e}"
     finally:
         history_loading_flag.clear()
 
@@ -391,15 +377,8 @@ def analyze(symbol, price, strategy=None):
             signal = "neutral"
             explanation = "Условия не совпали."
     return {
-        "symbol":symbol,
-        "price":price,
-        "ema9":ema_fast,
-        "ema21":ema_slow,
-        "rsi14":rsi_value,
-        "sampleCount":len(values),
-        "signal":signal,
-        "explanation":explanation,
-        "mode":"simulation"
+        "symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,
+        "sampleCount":len(values),"signal":signal,"explanation":explanation,"mode":"simulation"
     }
 
 def fetch_prices():
@@ -438,19 +417,10 @@ def refresh(force=False):
         try:
             prices,changes = fetch_prices()
             remember(prices)
-            cache.update(
-                updated=time.time(),
-                prices=prices,
-                changes=changes,
-                error=None
-            )
+            cache.update(updated=time.time(), prices=prices, changes=changes, error=None)
             return dict(prices),dict(changes),None
         except Exception as exc:
-            bybit_status.update(
-                available=False,
-                lastError=str(exc),
-                lastCheck=now_iso()
-            )
+            bybit_status.update(available=False, lastError=str(exc), lastCheck=now_iso())
             cache["error"] = str(exc)
             if cache["prices"]:
                 return dict(cache["prices"]),dict(cache["changes"]),str(exc)
@@ -476,36 +446,20 @@ def market_payload(force=False):
         rate_err = str(exc)
     coins = []
     for symbol,price in prices.items():
-        pts = [
-            p for p in get_points(symbol)
-            if 2700 <= time.time() - p["timestamp"] <= 4500
-        ]
+        pts = [p for p in get_points(symbol) if 2700 <= time.time() - p["timestamp"] <= 4500]
         change_1h = None
         if pts:
-            ref = min(
-                pts,
-                key=lambda p:abs(time.time() - p["timestamp"] - 3600)
-            )["price"]
+            ref = min(pts, key=lambda p:abs(time.time() - p["timestamp"] - 3600))["price"]
             change_1h = (price / ref - 1) * 100
         coins.append({
-            "symbol":symbol,
-            "name":symbol,
-            "priceUsd":price,
+            "symbol":symbol,"name":symbol,"priceUsd":price,
             "priceRub":price * rate if rate else None,
-            "change1h":change_1h,
-            "change24h":changes.get(symbol),
-            "source":"bybit"
+            "change1h":change_1h,"change24h":changes.get(symbol),"source":"bybit"
         })
     coins.sort(key=lambda c:c["symbol"])
     return {
-        "success":True,
-        "updatedAt":now_iso(),
-        "source":"bybit",
-        "coins":coins,
-        "usdRub":rate,
-        "usdRubError":rate_err,
-        "databaseAvailable":db_status["available"],
-        "warning":warning
+        "success":True,"updatedAt":now_iso(),"source":"bybit","coins":coins,
+        "usdRub":rate,"usdRubError":rate_err,"databaseAvailable":db_status["available"],"warning":warning
     }
 
 def signed_get(path,params):
@@ -514,17 +468,10 @@ def signed_get(path,params):
     ts = str(int(time.time() * 1000))
     recv_window = "5000"
     query = urlencode(sorted((k,str(v)) for k,v in params.items()))
-    signature = hmac.new(
-        API_SECRET.encode(),
-        (ts + API_KEY + recv_window + query).encode(),
-        "sha256"
-    ).hexdigest()
+    signature = hmac.new(API_SECRET.encode(), (ts + API_KEY + recv_window + query).encode(), "sha256").hexdigest()
     headers = {
-        "X-BAPI-API-KEY":API_KEY,
-        "X-BAPI-TIMESTAMP":ts,
-        "X-BAPI-RECV-WINDOW":recv_window,
-        "X-BAPI-SIGN":signature,
-        "X-BAPI-SIGN-TYPE":"2"
+        "X-BAPI-API-KEY":API_KEY,"X-BAPI-TIMESTAMP":ts,"X-BAPI-RECV-WINDOW":recv_window,
+        "X-BAPI-SIGN":signature,"X-BAPI-SIGN-TYPE":"2"
     }
     data = get_json(BASE + path,params=params,headers=headers)
     if data.get("retCode") != 0:
@@ -534,10 +481,7 @@ def signed_get(path,params):
 def wallet_balance(force=False):
     if wallet_cache["data"] and time.time() - wallet_cache["updated"] < 60 and not force:
         return wallet_cache["data"]
-    result = signed_get(
-        "/v5/account/wallet-balance",
-        {"accountType":"UNIFIED"}
-    )
+    result = signed_get("/v5/account/wallet-balance", {"accountType":"UNIFIED"})
     assets = []
     total = 0.0
     for account in result.get("list", []):
@@ -550,20 +494,14 @@ def wallet_balance(force=False):
             if balance == 0 and usd_value == 0:
                 continue
             assets.append({
-                "coin":coin.get("coin",""),
-                "walletBalance":balance,
-                "usdValue":usd_value,
+                "coin":coin.get("coin",""),"walletBalance":balance,"usdValue":usd_value,
                 "availableToWithdraw":coin.get("availableToWithdraw")
             })
             total += usd_value
     assets.sort(key=lambda a:a["usdValue"],reverse=True)
     data = {
-        "success":True,
-        "available":True,
-        "accountType":"UNIFIED",
-        "totalUsd":total,
-        "assets":assets,
-        "updatedAt":now_iso()
+        "success":True,"available":True,"accountType":"UNIFIED",
+        "totalUsd":total,"assets":assets,"updatedAt":now_iso()
     }
     wallet_cache.update(updated=time.time(),data=data)
     return data
@@ -576,11 +514,9 @@ def bot_open_position(symbol,price,side,reason=""):
         
         if bot_state["balance"] < size:
             return None
-            
         for position in bot_state["positions"]:
             if position["symbol"] == symbol:
                 return None
-                
         qty = size / price
         tp_pct = float(st["tpPercent"]) / 100
         sl_pct = float(st["slPercent"]) / 100
@@ -592,16 +528,8 @@ def bot_open_position(symbol,price,side,reason=""):
             sl = price * (1 + sl_pct)
         position = {
             "id":int(time.time() * 1000) + len(bot_state["positions"]),
-            "symbol":symbol,
-            "side":side,
-            "sizeUsd":size,
-            "entryPrice":price,
-            "qty":qty,
-            "openedAt":now_iso(),
-            "openedTs":time.time(),
-            "tp":tp,
-            "sl":sl,
-            "reason":reason
+            "symbol":symbol,"side":side,"sizeUsd":size,"entryPrice":price,"qty":qty,
+            "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason
         }
         bot_state["positions"].append(position)
         bot_state["balance"] -= size
@@ -622,23 +550,13 @@ def bot_close_position(position,price,reason="manual"):
         pnl_pct = (pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
         bot_state["balance"] += (position["sizeUsd"] + pnl)
         trade = {
-            "symbol":position["symbol"],
-            "side":position["side"],
-            "sizeUsd":position["sizeUsd"],
-            "entryPrice":position["entryPrice"],
-            "exitPrice":price,
-            "pnl":pnl,
-            "pnlPct":pnl_pct,
-            "reason":reason,
-            "openedAt":position["openedAt"],
-            "closedAt":now_iso(),
-            "closedTs":time.time()
+            "symbol":position["symbol"],"side":position["side"],"sizeUsd":position["sizeUsd"],
+            "entryPrice":position["entryPrice"],"exitPrice":price,"pnl":pnl,"pnlPct":pnl_pct,
+            "reason":reason,"openedAt":position["openedAt"],"closedAt":now_iso(),"closedTs":time.time()
         }
         bot_state["closedTrades"].insert(0,trade)
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
-        bot_state["lastAction"] = (
-            f"Закрыта {position['side']} {position['symbol']}/USDT: {pnl:+.2f}$ [{reason}]"
-        )
+        bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {pnl:+.2f}$ [{reason}]"
     push_equity_point()
     bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if pnl >= 0 else "red")
     bot_save()
@@ -648,10 +566,8 @@ def bot_check_limits():
     with bot_state_lock:
         settings = bot_state["settings"]
         start = float(settings["startBalance"])
-        
         free_balance = float(bot_state["balance"])
         positions_value = sum(p["sizeUsd"] for p in bot_state["positions"])
-        
         open_pnl = 0.0
         try:
             prices, _, _ = refresh()
@@ -663,19 +579,14 @@ def bot_check_limits():
                     open_pnl += (p["entryPrice"] - current) * p["qty"]
         except Exception:
             pass
-            
         total_equity = free_balance + positions_value + open_pnl
         diff = total_equity - start
-        
         profit_target = float(settings["profitTarget"])
         max_loss = float(settings["maxLoss"])
-        
         if diff >= profit_target:
             return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
-        
         if diff <= -max_loss:
             return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
-            
     return None, None
 
 def bot_close_all(reason="manual"):
@@ -686,11 +597,7 @@ def bot_close_all(reason="manual"):
     with bot_state_lock:
         positions = list(bot_state["positions"])
     for position in positions:
-        bot_close_position(
-            position,
-            prices.get(position["symbol"],position["entryPrice"]),
-            reason
-        )
+        bot_close_position(position, prices.get(position["symbol"],position["entryPrice"]), reason)
 
 def bot_tick():
     with bot_state_lock:
@@ -751,33 +658,18 @@ def bot_tick():
             continue
         result = analyze(symbol,price,st)
         scan.append({
-            "symbol":symbol,
-            "price":price,
-            "rsi14":result["rsi14"],
-            "ema9":result["ema9"],
-            "ema21":result["ema21"],
-            "signal":result["signal"],
-            "explanation":result["explanation"],
+            "symbol":symbol,"price":price,"rsi14":result["rsi14"],"ema9":result["ema9"],
+            "ema21":result["ema21"],"signal":result["signal"],"explanation":result["explanation"],
             "sampleCount":result["sampleCount"]
         })
     with bot_state_lock:
         bot_state["scanResults"] = scan
         bot_state["lastSignalScan"] = now_iso()
-        signal_count = sum(
-            1 for item in scan
-            if item["signal"] in ("buy_candidate","sell_candidate")
-        )
-        insufficient = sum(
-            1 for item in scan
-            if item["signal"] == "insufficient_history"
-        )
-        bot_state["scanStatus"] = (
-            f"Проверено {len(scan)}/{len(top)} монет; сигналов: {signal_count}"
-        )
+        signal_count = sum(1 for item in scan if item["signal"] in ("buy_candidate","sell_candidate"))
+        insufficient = sum(1 for item in scan if item["signal"] == "insufficient_history")
+        bot_state["scanStatus"] = f"Проверено {len(scan)}/{len(top)} монет; сигналов: {signal_count}"
         if insufficient:
-            bot_state["scanStatus"] += (
-                f"; недостаточно истории: {insufficient}"
-            )
+            bot_state["scanStatus"] += f"; мало истории: {insufficient}"
     bot_save()
 
     with bot_state_lock:
@@ -787,27 +679,16 @@ def bot_tick():
     for item in scan:
         if item["symbol"] in current:
             continue
-        
-        # --- ЛОГИКА С ИИ ---
         if item["signal"] in ("buy_candidate", "sell_candidate"):
-            # Спрашиваем ИИ
             ai_allowed, ai_reason = ask_ai_advisor(
-                item["symbol"], 
-                item["price"], 
-                item["signal"], 
-                item["rsi14"] or 50, 
-                item["ema9"] or item["price"], 
-                item["ema21"] or item["price"]
+                item["symbol"], item["price"], item["signal"], 
+                item["rsi14"] or 50, item["ema9"] or item["price"], item["ema21"] or item["price"]
             )
-            
-            # Логируем решение ИИ
             log_color = "green" if ai_allowed else "red"
             bot_log(f"ИИ по {item['symbol']}: {ai_reason}", log_color)
-            
             if not ai_allowed:
-                continue # Пропускаем сделку, если ИИ против
+                continue
 
-        # --- ОТКРЫТИЕ ---
         if item["signal"] == "buy_candidate":
             if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI + ИИ"):
                 opened += 1
@@ -819,9 +700,7 @@ def bot_tick():
         if not bot_state["positions"]:
             bot_state["lastAction"] = "Сканирует — сигналов нет."
         else:
-            bot_state["lastAction"] = (
-                f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
-            )
+            bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
 
 def bot_worker():
     while True:
@@ -839,22 +718,17 @@ def compute_stats():
         start = float(bot_state["settings"]["startBalance"])
         equity = list(bot_state["equityCurve"])
         
-    wins = [trade for trade in trades if trade["pnl"] > 0]
-    losses = [trade for trade in trades if trade["pnl"] < 0]
+    wins = [t for t in trades if t["pnl"] > 0]
+    losses = [t for t in trades if t["pnl"] < 0]
     total = len(trades)
     winrate = len(wins) / total * 100 if total else 0
-    sum_profit = sum(trade["pnl"] for trade in wins) if wins else 0
-    sum_loss = abs(sum(trade["pnl"] for trade in losses)) if losses else 0
-    if sum_loss > 0:
-        profit_factor = sum_profit / sum_loss
-    elif sum_profit > 0:
-        profit_factor = float("inf")
-    else:
-        profit_factor = 0
+    sum_profit = sum(t["pnl"] for t in wins) if wins else 0
+    sum_loss = abs(sum(t["pnl"] for t in losses)) if losses else 0
+    profit_factor = (sum_profit / sum_loss) if sum_loss > 0 else (float("inf") if sum_profit > 0 else 0)
     avg_win = sum_profit / len(wins) if wins else 0
     avg_loss = -sum_loss / len(losses) if losses else 0
-    best = max((trade["pnl"] for trade in trades),default=0)
-    worst = min((trade["pnl"] for trade in trades),default=0)
+    best = max((t["pnl"] for t in trades),default=0)
+    worst = min((t["pnl"] for t in trades),default=0)
     
     max_drawdown = 0.0
     peak = -1e18
@@ -867,19 +741,11 @@ def compute_stats():
     by_symbol = {}
     for trade in trades:
         symbol = trade["symbol"]
-        by_symbol.setdefault(symbol,{
-            "symbol":symbol,
-            "trades":0,
-            "pnl":0.0,
-            "wins":0,
-            "losses":0
-        })
+        by_symbol.setdefault(symbol,{"symbol":symbol,"trades":0,"pnl":0.0,"wins":0,"losses":0})
         by_symbol[symbol]["trades"] += 1
         by_symbol[symbol]["pnl"] += trade["pnl"]
-        if trade["pnl"] > 0:
-            by_symbol[symbol]["wins"] += 1
-        elif trade["pnl"] < 0:
-            by_symbol[symbol]["losses"] += 1
+        if trade["pnl"] > 0: by_symbol[symbol]["wins"] += 1
+        elif trade["pnl"] < 0: by_symbol[symbol]["losses"] += 1
             
     try:
         prices,_,_ = refresh()
@@ -896,14 +762,8 @@ def compute_stats():
             pnl = (position["entryPrice"] - current) * position["qty"]
         open_pnl += pnl
         positions_live.append({
-            **position,
-            "currentPrice":current,
-            "pnl":pnl,
-            "pnlPct":(
-                pnl / position["sizeUsd"] * 100
-                if position["sizeUsd"]
-                else 0
-            )
+            **position, "currentPrice":current, "pnl":pnl,
+            "pnlPct":(pnl / position["sizeUsd"] * 100 if position["sizeUsd"] else 0)
         })
         
     positions_size = sum(p["sizeUsd"] for p in positions)
@@ -911,31 +771,14 @@ def compute_stats():
     total_pnl = total_equity - start
 
     return {
-        "trades":total,
-        "wins":len(wins),
-        "losses":len(losses),
-        "winrate":winrate,
-        "sumProfit":sum_profit,
-        "sumLoss":sum_loss,
-        "profitFactor":profit_factor,
-        "avgWin":avg_win,
-        "avgLoss":avg_loss,
-        "best":best,
-        "worst":worst,
+        "trades":total,"wins":len(wins),"losses":len(losses),"winrate":winrate,
+        "sumProfit":sum_profit,"sumLoss":sum_loss,"profitFactor":profit_factor,
+        "avgWin":avg_win,"avgLoss":avg_loss,"best":best,"worst":worst,
         "maxDrawdown":max_drawdown,
-        "bySymbol":sorted(
-            by_symbol.values(),
-            key=lambda item:item["pnl"],
-            reverse=True
-        ),
-        "balance":total_equity,
-        "startBalance":start,
-        "totalPnl":total_pnl,
-        "openPnl":open_pnl,
-        "closedPnl":balance - start,
-        "openPositions":len(positions_live),
-        "positionsLive":positions_live,
-        "equityCurve":equity
+        "bySymbol":sorted(by_symbol.values(), key=lambda item:item["pnl"], reverse=True),
+        "balance":total_equity,"startBalance":start,"totalPnl":total_pnl,
+        "openPnl":open_pnl,"closedPnl":balance - start,
+        "openPositions":len(positions_live),"positionsLive":positions_live,"equityCurve":equity
     }
 
 @app.after_request
@@ -954,13 +797,8 @@ def health():
 
 @app.route("/api/config")
 def config():
-    return jsonify({
-        "success":True,
-        "tradingMode":"simulation",
-        "liveTradingEnabled":False,
-        "databaseConfigured":bool(DATABASE_URL),
-        "databaseAvailable":db_status["available"]
-    })
+    return jsonify({"success":True,"tradingMode":"simulation","liveTradingEnabled":False,
+                    "databaseConfigured":bool(DATABASE_URL),"databaseAvailable":db_status["available"]})
 
 @app.route("/api/prices")
 @app.route("/api/market-prices")
@@ -973,12 +811,7 @@ def prices_api():
 @app.route("/api/usd-rub")
 def rub_api():
     try:
-        return jsonify({
-            "success":True,
-            "rate":usd_rub(),
-            "base":"USD",
-            "currency":"RUB"
-        })
+        return jsonify({"success":True,"rate":usd_rub(),"base":"USD","currency":"RUB"})
     except Exception:
         return jsonify({"success":False,"error":"Курс недоступен"}), 503
 
@@ -989,11 +822,7 @@ def balance_api():
         return jsonify(wallet_balance())
     except Exception as exc:
         log.warning("bal: %s",exc)
-        return jsonify({
-            "success":False,
-            "available":False,
-            "error":"Баланс недоступен"
-        }), 503
+        return jsonify({"success":False,"available":False,"error":"Баланс недоступен"}), 503
 
 @app.route("/api/trading/signals")
 def signals_api():
@@ -1014,20 +843,13 @@ def signals_api():
 def klines_api():
     sym = (request.args.get("symbol") or "BTCUSDT").upper().strip()
     iv = (request.args.get("interval") or "5m").strip()
-    bi = {
-        "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30",
-        "1h":"60","2h":"120","4h":"240","6h":"360",
-        "12h":"720","1d":"D","1w":"W"
-    }.get(iv,iv)
+    bi = {"1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","1h":"60","2h":"120","4h":"240","6h":"360","12h":"720","1d":"D","1w":"W"}.get(iv,iv)
     try:
         lim = max(1,min(int(request.args.get("limit","200")),1000))
     except Exception:
         lim = 200
     try:
-        data = get_json(
-            BASE + "/v5/market/kline",
-            {"category":"spot","symbol":sym,"interval":bi,"limit":lim}
-        )
+        data = get_json(BASE + "/v5/market/kline", {"category":"spot","symbol":sym,"interval":bi,"limit":lim})
         if data.get("retCode") != 0:
             raise RuntimeError(data.get("retMsg"))
         raw = (data.get("result") or {}).get("list", [])
@@ -1035,27 +857,14 @@ def klines_api():
         for item in reversed(raw):
             try:
                 candles.append({
-                    "time":int(item[0]),
-                    "open":float(item[1]),
-                    "high":float(item[2]),
-                    "low":float(item[3]),
-                    "close":float(item[4]),
-                    "volume":float(item[5]) if len(item) > 5 else 0
+                    "time":int(item[0]),"open":float(item[1]),"high":float(item[2]),
+                    "low":float(item[3]),"close":float(item[4]),"volume":float(item[5]) if len(item) > 5 else 0
                 })
             except Exception:
                 continue
-        return jsonify({
-            "success":True,
-            "symbol":sym,
-            "interval":iv,
-            "candles":candles
-        })
+        return jsonify({"success":True,"symbol":sym,"interval":iv,"candles":candles})
     except Exception as exc:
-        return jsonify({
-            "success":False,
-            "error":"Свечи недоступны",
-            "details":str(exc)
-        }), 503
+        return jsonify({"success":False,"error":"Свечи недоступны","details":str(exc)}), 503
 
 @app.route("/api/bot/state")
 def bot_state_api():
@@ -1071,11 +880,7 @@ def bot_state_api():
             "balance":stats["balance"],
             "startBalance":stats["startBalance"],
             "totalPnl":stats["totalPnl"],
-            "totalPnlPct":(
-                stats["totalPnl"] / stats["startBalance"] * 100
-                if stats["startBalance"]
-                else 0
-            ),
+            "totalPnlPct":(stats["totalPnl"] / stats["startBalance"] * 100 if stats["startBalance"] else 0),
             "positions":stats["positionsLive"],
             "closedTrades":bot_state["closedTrades"][:100],
             "logs":bot_state["logs"][:100],
@@ -1086,21 +891,12 @@ def bot_state_api():
             "scanStatus":bot_state["scanStatus"],
             "scanResults":bot_state["scanResults"],
             "stats":{
-                "trades":stats["trades"],
-                "wins":stats["wins"],
-                "losses":stats["losses"],
+                "trades":stats["trades"],"wins":stats["wins"],"losses":stats["losses"],
                 "winrate":stats["winrate"],
-                "profitFactor":(
-                    stats["profitFactor"]
-                    if math.isfinite(stats["profitFactor"])
-                    else None
-                ),
-                "avgWin":stats["avgWin"],
-                "avgLoss":stats["avgLoss"],
-                "best":stats["best"],
-                "worst":stats["worst"],
-                "maxDrawdown":stats["maxDrawdown"],
-                "bySymbol":stats["bySymbol"],
+                "profitFactor":(stats["profitFactor"] if math.isfinite(stats["profitFactor"]) else None),
+                "avgWin":stats["avgWin"],"avgLoss":stats["avgLoss"],
+                "best":stats["best"],"worst":stats["worst"],
+                "maxDrawdown":stats["maxDrawdown"],"bySymbol":stats["bySymbol"],
                 "equityCurve":stats["equityCurve"][-500:]
             }
         })
@@ -1116,18 +912,16 @@ def bot_start_api():
                         bot_state["settings"][key] = float(data["settings"][key])
                     except Exception:
                         pass
-        
         free = float(bot_state["balance"])
         pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["settings"]["startBalance"] = free + pos_value
-        
         bot_state["running"] = True
         bot_state["emergency"] = False
         bot_state["reason"] = "Бот запущен"
         bot_state["startedAt"] = now_iso()
         bot_state["stoppedAt"] = None
         bot_state["lastAction"] = "Запущен. Сканирует…"
-        bot_state["scanStatus"] = "Подготовка сканера: загрузка истории свечей 5m…"
+        bot_state["scanStatus"] = "Подготовка сканера…"
     push_equity_point()
     bot_log("Бот запущен.","green")
     return jsonify({"success":True})
@@ -1173,10 +967,7 @@ def bot_settings_api():
 def bot_strategy_api():
     data = request.get_json(silent=True) or {}
     with bot_state_lock:
-        for key in (
-            "emaFast","emaSlow","rsiPeriod","rsiBuyMin","rsiBuyMax",
-            "rsiSellMin","rsiSellMax"
-        ):
+        for key in ("emaFast","emaSlow","rsiPeriod","rsiBuyMin","rsiBuyMax","rsiSellMin","rsiSellMax"):
             if key in data:
                 try:
                     bot_state["strategy"][key] = int(data[key])
@@ -1195,19 +986,11 @@ def bot_strategy_api():
 def bot_reset_api():
     with bot_state_lock:
         bot_state.update({
-            "running":False,
-            "emergency":False,
-            "reason":"Сброшено",
+            "running":False,"emergency":False,"reason":"Сброшено",
             "balance":float(bot_state["settings"].get("startBalance",100.0)),
-            "positions":[],
-            "closedTrades":[],
-            "logs":[],
-            "equityCurve":[],
-            "startedAt":None,
-            "stoppedAt":None,
-            "lastAction":"Сброшено",
-            "scanResults":[],
-            "scanStatus":"Сброшено; ожидание запуска"
+            "positions":[],"closedTrades":[],"logs":[],"equityCurve":[],
+            "startedAt":None,"stoppedAt":None,"lastAction":"Сброшено",
+            "scanResults":[],"scanStatus":"Сброшено; ожидание запуска"
         })
     bot_log("Бот сброшен.","gold")
     return jsonify({"success":True})
@@ -1218,39 +1001,20 @@ def bot_export_csv():
         trades = list(bot_state["closedTrades"])
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow([
-        "Time","Symbol","Side","SizeUSD","EntryPrice",
-        "ExitPrice","PnL","PnL%","Reason"
-    ])
+    writer.writerow(["Time","Symbol","Side","SizeUSD","EntryPrice","ExitPrice","PnL","PnL%","Reason"])
     for trade in trades:
         writer.writerow([
-            trade.get("closedAt",""),
-            trade.get("symbol",""),
-            trade.get("side",""),
-            f"{trade.get('sizeUsd',0):.2f}",
-            f"{trade.get('entryPrice',0):.8f}",
-            f"{trade.get('exitPrice',0):.8f}",
-            f"{trade.get('pnl',0):.4f}",
-            f"{trade.get('pnlPct',0):.4f}",
-            trade.get("reason","")
+            trade.get("closedAt",""),trade.get("symbol",""),trade.get("side",""),
+            f"{trade.get('sizeUsd',0):.2f}",f"{trade.get('entryPrice',0):.8f}",
+            f"{trade.get('exitPrice',0):.8f}",f"{trade.get('pnl',0):.4f}",
+            f"{trade.get('pnlPct',0):.4f}",trade.get("reason","")
         ])
-    return Response(
-        out.getvalue(),
-        mimetype="text/csv",
-        headers={
-            "Content-Disposition":
-            "attachment;filename=cryptopulse_trades.csv"
-        }
-    )
+    return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=cryptopulse_trades.csv"})
 
 def tg(method,payload):
     if not TG_TOKEN:
         raise RuntimeError("no token")
-    r = session.post(
-        f"https://api.telegram.org/bot{TG_TOKEN}/{method}",
-        json=payload,
-        timeout=TIMEOUT
-    )
+    r = session.post(f"https://api.telegram.org/bot{TG_TOKEN}/{method}", json=payload, timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
 
@@ -1261,42 +1025,21 @@ def tg_send(chat,text,markup=None):
     return tg("sendMessage",payload)
 
 def keyboard():
-    return {
-        "inline_keyboard":[
-            [
-                {"text":"🌐 CryptoPulse","web_app":{"url":WEBAPP_URL}},
-                {"text":"📊 Цены","callback_data":"prices"}
-            ],
-            [
-                {"text":"💱 USD/RUB","callback_data":"usdrub"},
-                {
-                    "text":"🧮 Калькулятор",
-                    "web_app":{"url":WEBAPP_URL+"?page=calculator"}
-                }
-            ]
-        ]
-    }
+    return {"inline_keyboard":[[{"text":"🌐 CryptoPulse","web_app":{"url":WEBAPP_URL}},{"text":"📊 Цены","callback_data":"prices"}],[{"text":"💱 USD/RUB","callback_data":"usdrub"},{"text":"🧮 Калькулятор","web_app":{"url":WEBAPP_URL+"?page=calculator"}}]]}
 
 def telegram_prices():
     payload = market_payload()
     lines = ["CryptoPulse — Bybit Spot",""]
     for coin in payload["coins"][:40]:
-        change = (
-            "—" if coin["change24h"] is None
-            else f'{coin["change24h"]:+.2f}%'
-        )
-        lines.append(
-            f'{coin["symbol"]}: ${coin["priceUsd"]:,.8f} | 24ч {change}'
-        )
+        change = "—" if coin["change24h"] is None else f'{coin["change24h"]:+.2f}%'
+        lines.append(f'{coin["symbol"]}: ${coin["priceUsd"]:,.8f} | 24ч {change}')
     return "\n".join(lines)
 
 @app.route("/telegram-webhook", methods=["POST"])
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook():
     if TG_SECRET:
-        secret = request.headers.get(
-            "X-Telegram-Bot-Api-Secret-Token",""
-        )
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token","")
         if not hmac.compare_digest(secret,TG_SECRET):
             return jsonify({"ok":False}),401
     if not TG_TOKEN:
@@ -1304,13 +1047,9 @@ def telegram_webhook():
     update = request.get_json(silent=True) or {}
     callback = update.get("callback_query")
     if callback:
-        chat = (
-            (callback.get("message") or {}).get("chat") or {}
-        ).get("id")
+        chat = ((callback.get("message") or {}).get("chat") or {}).get("id")
         try:
-            tg("answerCallbackQuery",{
-                "callback_query_id":callback.get("id")
-            })
+            tg("answerCallbackQuery",{"callback_query_id":callback.get("id")})
         except Exception:
             pass
         if chat:
@@ -1320,12 +1059,7 @@ def telegram_webhook():
                     tg_send(chat,telegram_prices(),keyboard())
                 elif data == "usdrub":
                     rate = usd_rub()
-                    tg_send(
-                        chat,
-                        f"💱 USD/RUB\n\n1 USD = ₽{rate:.2f}\n\n"
-                        "Источник: open.er-api.com",
-                        keyboard()
-                    )
+                    tg_send(chat,f"💱 USD/RUB\n\n1 USD = ₽{rate:.2f}\n\nИсточник: open.er-api.com",keyboard())
             except Exception:
                 tg_send(chat,"Недоступно.",keyboard())
         return jsonify({"ok":True})
@@ -1333,12 +1067,7 @@ def telegram_webhook():
     chat = (message.get("chat") or {}).get("id")
     text = (message.get("text") or "").strip()
     if chat and text.startswith(("/start","/help")):
-        tg_send(
-            chat,
-            "CryptoPulse\nЦены, сигналы, курс USD/RUB.\n"
-            "Реальная торговля отключена.",
-            keyboard()
-        )
+        tg_send(chat,"CryptoPulse\nЦены, сигналы, курс USD/RUB.\nРеальная торговля отключена.",keyboard())
     elif chat and text.startswith("/prices"):
         try:
             tg_send(chat,telegram_prices(),keyboard())
@@ -1350,13 +1079,7 @@ def configure_telegram():
     if not TG_TOKEN:
         return
     try:
-        tg("setChatMenuButton",{
-            "menu_button":{
-                "type":"web_app",
-                "text":"Открыть CryptoPulse",
-                "web_app":{"url":WEBAPP_URL}
-            }
-        })
+        tg("setChatMenuButton",{"menu_button":{"type":"web_app","text":"Открыть CryptoPulse","web_app":{"url":WEBAPP_URL}}})
         payload = {"url":WEBHOOK_URL}
         if TG_SECRET:
             payload["secret_token"] = TG_SECRET
@@ -1385,3 +1108,4 @@ threading.Thread(target=bot_worker,daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
+    

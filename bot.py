@@ -144,7 +144,6 @@ def bot_log(text, color="blue"):
 
 def push_equity_point():
     with bot_state_lock:
-        # Сохраняем в историю именно ОБЩИЙ баланс, а не свободные деньги
         free = bot_state["balance"]
         pos_size = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["equityCurve"].append({
@@ -763,7 +762,7 @@ def compute_stats():
     with bot_state_lock:
         trades = list(bot_state["closedTrades"])
         positions = list(bot_state["positions"])
-        balance = float(bot_state["balance"])  # Это СВОБОДНЫЕ деньги
+        balance = float(bot_state["balance"])
         start = float(bot_state["settings"]["startBalance"])
         equity = list(bot_state["equityCurve"])
         
@@ -834,7 +833,6 @@ def compute_stats():
             )
         })
         
-    # --- ИСПРАВЛЕННЫЙ РАСЧЕТ БАЛАНСА ---
     positions_size = sum(p["sizeUsd"] for p in positions)
     total_equity = balance + positions_size + open_pnl 
     total_pnl = total_equity - start
@@ -1045,6 +1043,11 @@ def bot_start_api():
                         bot_state["settings"][key] = float(data["settings"][key])
                     except Exception:
                         pass
+        
+        free = float(bot_state["balance"])
+        pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
+        bot_state["settings"]["startBalance"] = free + pos_value
+        
         bot_state["running"] = True
         bot_state["emergency"] = False
         bot_state["reason"] = "Бот запущен"

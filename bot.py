@@ -49,19 +49,19 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 5
+BOT_TICK_SECONDS = 10
 BOT_START_BALANCE = 100.0
 
-FAST_TP_PERCENT = 0.4
-FAST_SL_PERCENT = 0.25
-MAX_TRADE_TIME_MINUTES = 2
-BREAKEVEN_TRIGGER = 0.05 # Снизили до 0.05, чтобы быстрее в безубыток
+# НАСТРОЙКИ ДЛЯ СДЕЛОК (Свинг-режим)
+FEE_RATE = 0.001        # 0.1% комиссия
+TP_PERCENT = 1.5        # Тейк-профит 1.5%
+SL_PERCENT = 1.0        # Стоп-лосс 1%
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
     "rsiBuyMin": 50, "rsiBuyMax": 68,
     "rsiSellMin": 32, "rsiSellMax": 50,
-    "topCoins": ["BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
+    "topCoins": ["ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
 session = requests.Session()
@@ -80,7 +80,7 @@ wallet_cache = {"updated":0,"data":None}
 
 bot_state = {
     "running":False,"emergency":False,"reason":"Не запущен",
-    "settings":{"profitTarget":1.0,"maxLoss":10.0,"tradeSize":20.0,"startBalance":BOT_START_BALANCE},
+    "settings":{"profitTarget":2.0,"maxLoss":10.0,"tradeSize":10.0,"startBalance":BOT_START_BALANCE},
     "strategy":dict(DEFAULT_STRATEGY),
     "balance":BOT_START_BALANCE,"equityCurve":[],
     "positions":[],"closedTrades":[],"logs":[],
@@ -93,9 +93,9 @@ bot_state_lock = threading.RLock()
 strategy_history = {}
 strategy_history_updated = 0.0
 strategy_history_lock = threading.Lock()
-SCAN_CANDLE_INTERVAL = "1"
+SCAN_CANDLE_INTERVAL = "5"
 SCAN_CANDLE_LIMIT = 200
-SCAN_HISTORY_REFRESH_SECONDS = 30
+SCAN_HISTORY_REFRESH_SECONDS = 60
 
 history_loading_flag = threading.Event()
 
@@ -106,28 +106,19 @@ if Groq and GROQ_API_KEY:
     except Exception as e:
         log.error("Groq init failed: %s", e)
 
-def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
-    """ИИ теперь просто пишет комментарий. Он не блокирует сделку."""
+def ask_ai_comment(symbol, price, signal, rsi_val):
     if not groq_client:
-        return "Комментарий: ИИ выключен"
-    
+        return "ИИ выключен"
     try:
-        prompt = (
-            f"Ты крипто-трейдер. Оцени сигнал. Монета: {symbol}/USDT, Цена: ${price:.4f}, "
-            f"RSI: {rsi_val:.1f}, Сигнал: {signal}. Ответь коротко: Согласен или Против."
-        )
-        
+        prompt = f"Оцени сигнал {signal} по {symbol} (RSI: {rsi_val:.1f}, Цена: ${price:.4f}). Ответь кратко: Согласен или Против."
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=10
+            temperature=0.1, max_tokens=10
         )
-        
-        return f"Комментарий ИИ: {completion.choices[0].message.content.strip()[:20]}"
-            
-    except Exception as e:
-        return f"Ошибка ИИ: {str(e)[:20]}"
+        return f"ИИ: {completion.choices[0].message.content.strip()[:20]}"
+    except Exception:
+        return "Ошибка ИИ"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -190,15 +181,12 @@ def push_equity_point():
         bot_state["equityCurve"] = bot_state["equityCurve"][-2000:]
 
 def db_connect():
-    if not DATABASE_URL:
-        raise RuntimeError("no db")
-    if psycopg is None:
-        raise RuntimeError("no psycopg")
+    if not DATABASE_URL: raise RuntimeError("no db")
+    if psycopg is None: raise RuntimeError("no psycopg")
     return psycopg.connect(DATABASE_URL, connect_timeout=8, row_factory=dict_row)
 
 def init_db():
-    if not DATABASE_URL:
-        return
+    if not DATABASE_URL: return
     try:
         with db_connect() as conn:
             with conn.cursor() as cur:
@@ -212,7 +200,6 @@ def init_db():
         db_status.update(available=True, lastError=None)
     except Exception as exc:
         db_status.update(available=False, lastError=str(exc))
-        log.exception("db init failed")
 
 def remember(prices, source="bybit"):
     timestamp = time.time()
@@ -220,18 +207,14 @@ def remember(prices, source="bybit"):
     valid = {}
     with lock:
         for symbol, value in prices.items():
-            try:
-                value = float(value)
-            except Exception:
-                continue
-            if not math.isfinite(value) or value <= 0:
-                continue
+            try: value = float(value)
+            except Exception: continue
+            if not math.isfinite(value) or value <= 0: continue
             valid[symbol] = value
             pts = history.setdefault((source, symbol), [])
             pts.append({"timestamp":timestamp,"price":value})
             history[(source, symbol)] = [p for p in pts if p["timestamp"] >= cutoff]
-    if not DATABASE_URL or not valid:
-        return
+    if not DATABASE_URL or not valid: return
     try:
         with db_lock:
             with db_connect() as conn:
@@ -242,13 +225,11 @@ def remember(prices, source="bybit"):
                         [(source,s,p,timestamp) for s,p in valid.items()])
                     cur.execute("""DELETE FROM price_history WHERE observed_at < NOW() - (%s * INTERVAL '1 hour')""", (HISTORY_HOURS,))
                     conn.commit()
-        db_status.update(available=True, lastError=None)
     except Exception as exc:
         db_status.update(available=False, lastError=str(exc))
 
 def get_points(symbol):
-    with lock:
-        pts = list(history.get(("bybit",symbol), []))
+    with lock: pts = list(history.get(("bybit",symbol), []))
     cutoff = time.time() - HISTORY_HOURS * 3600
     return [p for p in pts if p["timestamp"] >= cutoff]
 
@@ -269,8 +250,8 @@ def rsi(values, period=14):
     if losses == 0: return 100.0 if gains else 50.0
     return 100 - 100 / (1 + gains / losses)
 
-def fetch_strategy_candles(symbol):
-    for attempt in range(5):
+def fetch_strategy_data(symbol):
+    for attempt in range(3):
         try:
             response = requests.get(
                 BASE + "/v5/market/kline",
@@ -287,15 +268,13 @@ def fetch_strategy_candles(symbol):
                     try:
                         timestamp = int(item[0]) / 1000
                         price = float(item[4])
+                        volume = float(item[5])
+                        points.append({"timestamp":timestamp,"price":price,"volume":volume})
                     except (TypeError, ValueError, IndexError):
                         continue
-                    if math.isfinite(price) and price > 0:
-                        points.append({"timestamp":timestamp,"price":price})
                 return symbol, points
-            else:
-                time.sleep(2)
-        except Exception:
-            time.sleep(2)
+            else: time.sleep(1)
+        except Exception: time.sleep(1)
     return symbol, []
 
 def refresh_strategy_history_background(symbols):
@@ -303,61 +282,67 @@ def refresh_strategy_history_background(symbols):
     if history_loading_flag.is_set(): return
     history_loading_flag.set()
     try:
-        with bot_state_lock:
-            bot_state["scanStatus"] = f"Загружаю 1m-свечи: 0/{len(symbols)}"
-        
-        completed = 0
-        successful = 0
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = {pool.submit(fetch_strategy_candles, symbol): symbol for symbol in symbols}
+        with bot_state_lock: bot_state["scanStatus"] = f"Загружаю 5m-свечи: 0/{len(symbols)}"
+        completed = 0; successful = 0
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {pool.submit(fetch_strategy_data, symbol): symbol for symbol in symbols}
             for future in as_completed(futures):
                 symbol = futures[future]
                 try:
                     _, points = future.result()
                     if len(points) >= 30:
-                        with strategy_history_lock:
-                            strategy_history[symbol] = points
+                        with strategy_history_lock: strategy_history[symbol] = points
                         successful += 1
                 except Exception: pass
                 completed += 1
-                with bot_state_lock:
-                    bot_state["scanStatus"] = f"Загружаю 1m-свечи: {completed}/{len(symbols)}"
-                time.sleep(0.5)
-        
-        with strategy_history_lock:
-            strategy_history_updated = time.time()
-        with bot_state_lock:
-            bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)}"
+                with bot_state_lock: bot_state["scanStatus"] = f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
+                time.sleep(0.2)
+        with strategy_history_lock: strategy_history_updated = time.time()
+        with bot_state_lock: bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)}"
     except Exception as e:
-        with bot_state_lock:
-            bot_state["scanStatus"] = f"Ошибка: {e}"
-    finally:
-        history_loading_flag.clear()
+        with bot_state_lock: bot_state["scanStatus"] = f"Ошибка: {e}"
+    finally: history_loading_flag.clear()
 
 def analyze(symbol, price, strategy=None):
     st = strategy or bot_state["strategy"]
-    with strategy_history_lock:
-        pts = list(strategy_history.get(symbol, []))
-    if not pts:
-        pts = sorted(get_points(symbol), key=lambda p: p["timestamp"])
+    with strategy_history_lock: pts = list(strategy_history.get(symbol, []))
+    if not pts: pts = sorted(get_points(symbol), key=lambda p: p["timestamp"])
+    
     values = [p["price"] for p in pts]
-    if not values or values[-1] != price:
-        values.append(price)
+    volumes = [p.get("volume", 0) for p in pts]
+    
+    if not values or values[-1] != price: values.append(price)
+    
     ema_fast = ema(values, int(st["emaFast"]))
     ema_slow = ema(values, int(st["emaSlow"]))
     rsi_value = rsi(values, int(st["rsiPeriod"]))
+    
     signal = "insufficient_history"
-    explanation = "Нужно больше истории."
+    explanation = "Мало данных."
+    has_volume = False
+    
     if len(values) >= 30 and ema_fast is not None and ema_slow is not None and rsi_value is not None:
+        if len(volumes) >= 10:
+            avg_vol = sum(volumes[-10:-1]) / 9
+            if volumes[-1] > avg_vol * 1.1:
+                has_volume = True
+
         if price > ema_fast > ema_slow and st["rsiBuyMin"] <= rsi_value < st["rsiBuyMax"]:
-            signal = "buy_candidate"
-            explanation = "Бычий сигнал."
+            if has_volume:
+                signal = "buy_candidate"
+                explanation = "Бычий сигнал + Объем."
+            else:
+                explanation = "Бычий сигнал, но мало объема."
         elif price < ema_fast < ema_slow and st["rsiSellMin"] < rsi_value <= st["rsiSellMax"]:
-            signal = "sell_candidate"
-            explanation = "Медвежий сигнал."
+            if has_volume:
+                signal = "sell_candidate"
+                explanation = "Медвежий сигнал + Объем."
+            else:
+                explanation = "Медвежий сигнал, но мало объема."
         else:
             signal = "neutral"
             explanation = "Условия не совпали."
+            
     return {
         "symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,
         "sampleCount":len(values),"signal":signal,"explanation":explanation,"mode":"simulation"
@@ -467,13 +452,16 @@ def bot_open_position(symbol,price,side,reason=""):
         settings = bot_state["settings"]
         size = float(settings["tradeSize"])
         
-        if bot_state["balance"] < size: return None
+        fee = size * FEE_RATE
+        if bot_state["balance"] < (size + fee): return None
+        
         for position in bot_state["positions"]:
             if position["symbol"] == symbol: return None
             
         qty = size / price
-        tp_pct = FAST_TP_PERCENT / 100
-        sl_pct = FAST_SL_PERCENT / 100
+        tp_pct = TP_PERCENT / 100
+        sl_pct = SL_PERCENT / 100
+        
         if side == "Long":
             tp = price * (1 + tp_pct)
             sl = price * (1 - sl_pct)
@@ -484,11 +472,10 @@ def bot_open_position(symbol,price,side,reason=""):
         position = {
             "id":int(time.time() * 1000) + len(bot_state["positions"]),
             "symbol":symbol,"side":side,"sizeUsd":size,"entryPrice":price,"qty":qty,
-            "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason,
-            "maxPrice": price, "trailingStop": False
+            "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason
         }
         bot_state["positions"].append(position)
-        bot_state["balance"] -= size
+        bot_state["balance"] -= (size + fee)
         bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f}"
     bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f}", "blue")
     bot_save()
@@ -498,20 +485,26 @@ def bot_close_position(position,price,reason="manual"):
     with bot_state_lock:
         if position not in bot_state["positions"]: return None
         bot_state["positions"].remove(position)
+        
         if position["side"] == "Long": pnl = (price - position["entryPrice"]) * position["qty"]
         else: pnl = (position["entryPrice"] - price) * position["qty"]
-        pnl_pct = (pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
-        bot_state["balance"] += (position["sizeUsd"] + pnl)
+        
+        close_fee = position["sizeUsd"] * FEE_RATE
+        net_pnl = pnl - close_fee
+        pnl_pct = (net_pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
+        
+        bot_state["balance"] += (position["sizeUsd"] + net_pnl)
+        
         trade = {
             "symbol":position["symbol"],"side":position["side"],"sizeUsd":position["sizeUsd"],
-            "entryPrice":position["entryPrice"],"exitPrice":price,"pnl":pnl,"pnlPct":pnl_pct,
+            "entryPrice":position["entryPrice"],"exitPrice":price,"pnl":net_pnl,"pnlPct":pnl_pct,
             "reason":reason,"openedAt":position["openedAt"],"closedAt":now_iso(),"closedTs":time.time()
         }
         bot_state["closedTrades"].insert(0,trade)
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
-        bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {pnl:+.2f}$ [{reason}]"
+        bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
     push_equity_point()
-    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if pnl >= 0 else "red")
+    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if net_pnl >= 0 else "red")
     bot_save()
     return trade
 
@@ -554,6 +547,15 @@ def bot_tick():
         bot_log(f"Цены: {exc}","red")
         return
 
+    btc_price = prices.get("BTC")
+    btc_trend = "neutral"
+    if btc_price:
+        btc_analysis = analyze("BTC", btc_price, bot_state["strategy"])
+        if btc_analysis["signal"] == "sell_candidate":
+            btc_trend = "down"
+        elif btc_analysis["signal"] == "buy_candidate":
+            btc_trend = "up"
+
     with bot_state_lock:
         positions = list(bot_state["positions"])
         
@@ -561,38 +563,16 @@ def bot_tick():
         price = prices.get(position["symbol"])
         if price is None: continue
         
-        time_in_trade = (time.time() - position["openedTs"]) / 60
-        if time_in_trade > MAX_TRADE_TIME_MINUTES:
-            if position["side"] == "Long" and price < position["entryPrice"]:
-                bot_close_position(position, price, "Timeout (убыток)")
-                continue
-            if position["side"] == "Short" and price > position["entryPrice"]:
-                bot_close_position(position, price, "Timeout (убыток)")
-                continue
-
-        if position["side"] == "Long":
-            if price > position.get("maxPrice", position["entryPrice"]):
-                position["maxPrice"] = price
-                if price >= position["entryPrice"] * (1 + BREAKEVEN_TRIGGER / 100):
-                    position["trailingStop"] = True
-                    position["sl"] = max(position["sl"], position["entryPrice"])
-        else:
-            if price < position.get("maxPrice", position["entryPrice"]):
-                position["maxPrice"] = price
-                if price <= position["entryPrice"] * (1 - BREAKEVEN_TRIGGER / 100):
-                    position["trailingStop"] = True
-                    position["sl"] = min(position["sl"], position["entryPrice"])
-
         if position["side"] == "Long":
             if price >= position["tp"]:
                 bot_close_position(position,price,"TP"); continue
             if price <= position["sl"]:
-                bot_close_position(position,price,"SL" if not position["trailingStop"] else "Trailing Stop"); continue
+                bot_close_position(position,price,"SL"); continue
         else:
             if price <= position["tp"]:
                 bot_close_position(position,price,"TP"); continue
             if price >= position["sl"]:
-                bot_close_position(position,price,"SL" if not position["trailingStop"] else "Trailing Stop"); continue
+                bot_close_position(position,price,"SL"); continue
 
     kind,message = bot_check_limits()
     if kind:
@@ -637,18 +617,18 @@ def bot_tick():
         if item["symbol"] in current: continue
         
         with bot_state_lock:
-            if bot_state["balance"] < float(bot_state["settings"]["tradeSize"]):
+            fee = float(bot_state["settings"]["tradeSize"]) * FEE_RATE
+            if bot_state["balance"] < (float(bot_state["settings"]["tradeSize"]) + fee):
                 break
         
         if item["signal"] in ("buy_candidate", "sell_candidate"):
-            # ИИ просто комментирует, но не блокирует
-            ai_comment = ask_ai_advisor(
-                item["symbol"], item["price"], item["signal"], 
-                item["rsi14"] or 50, item["ema9"] or item["price"], item["ema21"] or item["price"]
-            )
+            if item["signal"] == "buy_candidate" and btc_trend == "down":
+                bot_log(f"{item['symbol']}: Пропуск (BTC падает)", "gold")
+                continue
+                
+            ai_comment = ask_ai_comment(item["symbol"], item["price"], item["signal"], item["rsi14"] or 50)
             bot_log(f"ИИ по {item['symbol']}: {ai_comment}", "blue")
             
-            # Открываем сделку по сигналу стратегии
             if item["signal"] == "buy_candidate":
                 if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI"): opened += 1
             elif item["signal"] == "sell_candidate":
@@ -870,10 +850,6 @@ def bot_strategy_api():
         for key in ("emaFast","emaSlow","rsiPeriod","rsiBuyMin","rsiBuyMax","rsiSellMin","rsiSellMax"):
             if key in data:
                 try: bot_state["strategy"][key] = int(data[key])
-                except Exception: pass
-        for key in ("tpPercent","slPercent"):
-            if key in data:
-                try: bot_state["strategy"][key] = float(data[key])
                 except Exception: pass
     bot_log("Стратегия обновлена.","blue")
     return jsonify({"success":True,"strategy":bot_state["strategy"]})

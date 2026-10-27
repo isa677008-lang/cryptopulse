@@ -49,14 +49,13 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 5  # Тик каждые 5 секунд
+BOT_TICK_SECONDS = 5
 BOT_START_BALANCE = 100.0
 
-# НАСТРОЙКИ ДЛЯ БЫСТРЫХ СДЕЛОК
-FAST_TP_PERCENT = 0.4   # Тейк-профит 0.4%
-FAST_SL_PERCENT = 0.25  # Стоп-лосс 0.25%
-MAX_TRADE_TIME_MINUTES = 2  # <--- ИЗМЕНЕНО: 2 МИНУТЫ
-BREAKEVEN_TRIGGER = 0.15    # Если цена ушла в плюс на 0.15%, переводим стоп в безубыток
+FAST_TP_PERCENT = 0.4
+FAST_SL_PERCENT = 0.25
+MAX_TRADE_TIME_MINUTES = 2
+BREAKEVEN_TRIGGER = 0.05 # Снизили до 0.05, чтобы быстрее в безубыток
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
@@ -108,52 +107,27 @@ if Groq and GROQ_API_KEY:
         log.error("Groq init failed: %s", e)
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
+    """ИИ теперь просто пишет комментарий. Он не блокирует сделку."""
     if not groq_client:
-        return None, "ИИ не настроен"
+        return "Комментарий: ИИ выключен"
     
-    with strategy_history_lock:
-        pts = list(strategy_history.get(symbol, []))
-    
-    recent_data = []
-    if len(pts) >= 5:
-        for p in pts[-5:]:
-            dt = datetime.fromtimestamp(p["timestamp"], tz=timezone.utc)
-            recent_data.append(f"{dt.strftime('%H:%M')}: ${p['price']:.4f}")
-    else:
-        recent_data.append("Мало данных")
-
-    trend_text = "\n".join(recent_data)
-
     try:
         prompt = (
-            f"Ты быстрый крипто-скальпер. Проанализируй 1-минутный график.\n"
-            f"Монета: {symbol}/USDT\n"
-            f"Цена: ${price:.4f}\nRSI: {rsi_val:.1f}\n"
-            f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
-            f"Последние 5 минут:\n{trend_text}\n"
-            f"Твоя задача: найти микро-тренд. Если цена растет — BUY. Если падает — SELL.\n"
-            f"Ответь строго одним словом: BUY или SELL."
+            f"Ты крипто-трейдер. Оцени сигнал. Монета: {symbol}/USDT, Цена: ${price:.4f}, "
+            f"RSI: {rsi_val:.1f}, Сигнал: {signal}. Ответь коротко: Согласен или Против."
         )
         
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=3
+            temperature=0.1,
+            max_tokens=10
         )
         
-        raw_answer = completion.choices[0].message.content.strip().upper()
-        
-        if "BUY" in raw_answer:
-            return "Long", "ИИ: BUY"
-        elif "SELL" in raw_answer:
-            return "Short", "ИИ: SELL"
-        else:
-            return None, f"ИИ неясен: {raw_answer[:10]}"
+        return f"Комментарий ИИ: {completion.choices[0].message.content.strip()[:20]}"
             
     except Exception as e:
-        log.warning("Groq error: %s", e)
-        return None, f"Ошибка ИИ: {str(e)[:20]}"
+        return f"Ошибка ИИ: {str(e)[:20]}"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -583,12 +557,10 @@ def bot_tick():
     with bot_state_lock:
         positions = list(bot_state["positions"])
         
-    # --- ЛОГИКА БЫСТРОГО ВЫХОДА И ТРЕЙЛИНГА ---
     for position in positions:
         price = prices.get(position["symbol"])
         if price is None: continue
         
-        # 1. Проверка времени (если висит > 2 минут и в минусе - закрываем)
         time_in_trade = (time.time() - position["openedTs"]) / 60
         if time_in_trade > MAX_TRADE_TIME_MINUTES:
             if position["side"] == "Long" and price < position["entryPrice"]:
@@ -598,7 +570,6 @@ def bot_tick():
                 bot_close_position(position, price, "Timeout (убыток)")
                 continue
 
-        # 2. Обновляем максимальную цену и подтягиваем стоп
         if position["side"] == "Long":
             if price > position.get("maxPrice", position["entryPrice"]):
                 position["maxPrice"] = price
@@ -612,7 +583,6 @@ def bot_tick():
                     position["trailingStop"] = True
                     position["sl"] = min(position["sl"], position["entryPrice"])
 
-        # 3. Проверяем, не сработал ли стоп/тейк
         if position["side"] == "Long":
             if price >= position["tp"]:
                 bot_close_position(position,price,"TP"); continue
@@ -671,17 +641,18 @@ def bot_tick():
                 break
         
         if item["signal"] in ("buy_candidate", "sell_candidate"):
-            ai_side, ai_reason = ask_ai_advisor(
+            # ИИ просто комментирует, но не блокирует
+            ai_comment = ask_ai_advisor(
                 item["symbol"], item["price"], item["signal"], 
                 item["rsi14"] or 50, item["ema9"] or item["price"], item["ema21"] or item["price"]
             )
-            log_color = "green" if ai_side else "red"
-            bot_log(f"ИИ по {item['symbol']}: {ai_reason}", log_color)
+            bot_log(f"ИИ по {item['symbol']}: {ai_comment}", "blue")
             
-            if ai_side == "Long":
-                if bot_open_position(item["symbol"],item["price"],"Long","ИИ: Long"): opened += 1
-            elif ai_side == "Short":
-                if bot_open_position(item["symbol"],item["price"],"Short","ИИ: Short"): opened += 1
+            # Открываем сделку по сигналу стратегии
+            if item["signal"] == "buy_candidate":
+                if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI"): opened += 1
+            elif item["signal"] == "sell_candidate":
+                if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI"): opened += 1
         
     with bot_state_lock:
         if not bot_state["positions"]: bot_state["lastAction"] = "Сканирует — сигналов нет."

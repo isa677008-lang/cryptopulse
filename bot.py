@@ -54,8 +54,11 @@ BOT_TICK_SECONDS = 10
 BOT_START_BALANCE = 100.0
 
 FEE_RATE = 0.001
-TP_PERCENT = 1.5
-SL_PERCENT = 1.0
+TP_PERCENT = 2.5
+SL_PERCENT = 2.0
+BE_TRIGGER_PERCENT = 1.0
+TRAILING_TRIGGER_PERCENT = 1.5
+TRAILING_DISTANCE_PERCENT = 1.0
 
 SIGNAL_UNIVERSE_SIZE = 60
 SIGNAL_UNIVERSE_REFRESH_SECONDS = 180
@@ -580,7 +583,7 @@ def bot_close_position(position,price,reason="manual"):
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
         bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
 
-        if reason in ("SL", "Timeout", "Manual", "manual"):
+        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing"):
             bot_state["cooldown"][position["symbol"]] = time.time() + 600
 
     push_equity_point()
@@ -685,12 +688,55 @@ def bot_tick():
     for position in positions:
         price = prices.get(position["symbol"])
         if price is None: continue
-        if position["side"] == "Long":
-            if price >= position["tp"]: bot_close_position(position,price,"TP"); continue
-            if price <= position["sl"]: bot_close_position(position,price,"SL"); continue
+        
+        entry = position["entryPrice"]
+        side = position["side"]
+        
+        if side == "Long":
+            profit_pct = (price - entry) / entry * 100
+            
+            if price >= position["tp"]: 
+                bot_close_position(position, price, "TP")
+                continue
+                
+            if price <= position["sl"]: 
+                reason = "SL" if position["sl"] < entry else "Breakeven"
+                bot_close_position(position, price, reason)
+                continue
+                
+            if profit_pct >= BE_TRIGGER_PERCENT:
+                if position["sl"] < entry:
+                    position["sl"] = entry
+                    bot_log(f"{position['symbol']}: Стоп перенесен в безубыток", "gold")
+                    
+            if profit_pct >= TRAILING_TRIGGER_PERCENT:
+                new_sl = price * (1 - TRAILING_DISTANCE_PERCENT / 100)
+                if new_sl > position["sl"]:
+                    position["sl"] = new_sl
+                    bot_log(f"{position['symbol']}: Трейлинг-стоп подтянут до ${new_sl:,.4f}", "blue")
+                    
         else:
-            if price <= position["tp"]: bot_close_position(position,price,"TP"); continue
-            if price >= position["sl"]: bot_close_position(position,price,"SL"); continue
+            profit_pct = (entry - price) / entry * 100
+            
+            if price <= position["tp"]: 
+                bot_close_position(position, price, "TP")
+                continue
+                
+            if price >= position["sl"]: 
+                reason = "SL" if position["sl"] > entry else "Breakeven"
+                bot_close_position(position, price, reason)
+                continue
+                
+            if profit_pct >= BE_TRIGGER_PERCENT:
+                if position["sl"] > entry:
+                    position["sl"] = entry
+                    bot_log(f"{position['symbol']}: Стоп перенесен в безубыток", "gold")
+                    
+            if profit_pct >= TRAILING_TRIGGER_PERCENT:
+                new_sl = price * (1 + TRAILING_DISTANCE_PERCENT / 100)
+                if new_sl < position["sl"]:
+                    position["sl"] = new_sl
+                    bot_log(f"{position['symbol']}: Трейлинг-стоп подтянут до ${new_sl:,.4f}", "blue")
 
     kind,message = bot_check_limits()
     if kind:

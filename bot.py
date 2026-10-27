@@ -103,38 +103,41 @@ if Groq and GROQ_API_KEY:
         log.error("Groq init failed: %s", e)
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
+    """Спрашиваем у ИИ, в какую сторону торговать."""
     if not groq_client:
-        return True, "ИИ не настроен"
+        return None, "ИИ не настроен"
     
     try:
         prompt = (
-            f"Ты профессиональный крипто-трейдер. Проанализируй сигнал.\n"
+            f"Ты профессиональный крипто-трейдер. Проанализируй рынок.\n"
             f"Монета: {symbol}/USDT\n"
             f"Текущая цена: ${price:.4f}\n"
             f"RSI(14): {rsi_val:.1f}\n"
             f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
-            f"Сигнал стратегии: {signal}\n"
+            f"Наша стратегия предлагает: {signal}\n"
+            f"Твоя задача: определить направление тренда. Если цена падает и RSI низкий — лучше открыть ШОРТ (SELL). "
+            f"Если цена растет — ЛОНГ (BUY). Если рынок непонятный — пропустить (SKIP).\n"
             f"Ответь строго одним словом: BUY, SELL или SKIP."
         )
         
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
+            temperature=0.2,
             max_tokens=10
         )
         answer = completion.choices[0].message.content.strip().upper()
         
         if "BUY" in answer:
-            return True, "ИИ: BUY"
+            return "Long", "ИИ: Тренд вверх (Long)"
         elif "SELL" in answer:
-            return True, "ИИ: SELL"
+            return "Short", "ИИ: Тренд вниз (Short)"
         else:
-            return False, "ИИ: SKIP"
+            return None, "ИИ: Пропустить (SKIP)"
             
     except Exception as e:
         log.warning("Groq error: %s", e)
-        return True, f"Ошибка ИИ: {str(e)[:40]}"
+        return None, f"Ошибка ИИ: {str(e)[:40]}"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -679,23 +682,24 @@ def bot_tick():
     for item in scan:
         if item["symbol"] in current:
             continue
+        
+        # --- ЛОГИКА С ИИ (Вариант 3) ---
         if item["signal"] in ("buy_candidate", "sell_candidate"):
-            ai_allowed, ai_reason = ask_ai_advisor(
+            ai_side, ai_reason = ask_ai_advisor(
                 item["symbol"], item["price"], item["signal"], 
                 item["rsi14"] or 50, item["ema9"] or item["price"], item["ema21"] or item["price"]
             )
-            log_color = "green" if ai_allowed else "red"
+            log_color = "green" if ai_side else "red"
             bot_log(f"ИИ по {item['symbol']}: {ai_reason}", log_color)
-            if not ai_allowed:
-                continue
-
-        if item["signal"] == "buy_candidate":
-            if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI + ИИ"):
-                opened += 1
-        elif item["signal"] == "sell_candidate":
-            if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI + ИИ"):
-                opened += 1
-                
+            
+            if ai_side == "Long":
+                if bot_open_position(item["symbol"],item["price"],"Long","ИИ: Тренд вверх"):
+                    opened += 1
+            elif ai_side == "Short":
+                if bot_open_position(item["symbol"],item["price"],"Short","ИИ: Тренд вниз"):
+                    opened += 1
+            # Если SKIP (None) — просто идем дальше
+        
     with bot_state_lock:
         if not bot_state["positions"]:
             bot_state["lastAction"] = "Сканирует — сигналов нет."
@@ -1108,4 +1112,3 @@ threading.Thread(target=bot_worker,daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
-    

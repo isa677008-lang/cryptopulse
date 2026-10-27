@@ -2,8 +2,13 @@ import os, time, hmac, math, logging, threading, json, csv, io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import urlencode
-
 import requests
+
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
 from flask import Flask, jsonify, send_from_directory, request, Response
 
 try:
@@ -29,6 +34,7 @@ BG_WORKER = os.getenv("ENABLE_BACKGROUND_WORKER","true").lower() in ("1","true",
 
 API_KEY = os.getenv("BYBIT_API_KEY","").strip()
 API_SECRET = os.getenv("BYBIT_API_SECRET","").strip()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY","").strip()
 
 DATABASE_URL = os.getenv("DATABASE_URL","").strip()
 if DATABASE_URL.startswith("postgres://"):
@@ -88,6 +94,52 @@ SCAN_CANDLE_LIMIT = 200
 SCAN_HISTORY_REFRESH_SECONDS = 60
 
 history_loading_flag = threading.Event()
+
+# --- ИИ ПОМОЩНИК ---
+groq_client = None
+if Groq and GROQ_API_KEY:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        log.error("Groq init failed: %s", e)
+
+def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
+    """Спрашиваем у ИИ, стоит ли открывать сделку."""
+    if not groq_client:
+        return True, "ИИ не настроен (пропускаем проверку)"
+    
+    try:
+        prompt = (
+            f"Ты профессиональный крипто-трейдер. Проанализируй сигнал.\n"
+            f"Монета: {symbol}/USDT\n"
+            f"Текущая цена: ${price:.4f}\n"
+            f"RSI(14): {rsi_val:.1f}\n"
+            f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
+            f"Сигнал стратегии: {signal}\n"
+            f"Ответь строго одним словом: BUY (если уверен, что цена пойдет вверх/сигнал верный), "
+            f"SELL (если уверен в падении) или SKIP (если рискованно и лучше пропустить)."
+        )
+        
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=10
+        )
+        answer = completion.choices[0].message.content.strip().upper()
+        
+        if "BUY" in answer:
+            return True, "ИИ подтвердил покупку (BUY)"
+        elif "SELL" in answer:
+            return True, "ИИ подтвердил продажу (SELL)"
+        else:
+            return False, "ИИ сказал пропустить (SKIP)"
+            
+    except Exception as e:
+        log.warning("Groq request failed: %s", e)
+        return True, "Ошибка ИИ (торгуем без него)"
+
+# -------------------
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -735,11 +787,32 @@ def bot_tick():
     for item in scan:
         if item["symbol"] in current:
             continue
+        
+        # --- ЛОГИКА С ИИ ---
+        if item["signal"] in ("buy_candidate", "sell_candidate"):
+            # Спрашиваем ИИ
+            ai_allowed, ai_reason = ask_ai_advisor(
+                item["symbol"], 
+                item["price"], 
+                item["signal"], 
+                item["rsi14"] or 50, 
+                item["ema9"] or item["price"], 
+                item["ema21"] or item["price"]
+            )
+            
+            # Логируем решение ИИ
+            log_color = "green" if ai_allowed else "red"
+            bot_log(f"ИИ по {item['symbol']}: {ai_reason}", log_color)
+            
+            if not ai_allowed:
+                continue # Пропускаем сделку, если ИИ против
+
+        # --- ОТКРЫТИЕ ---
         if item["signal"] == "buy_candidate":
-            if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI"):
+            if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI + ИИ"):
                 opened += 1
         elif item["signal"] == "sell_candidate":
-            if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI"):
+            if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI + ИИ"):
                 opened += 1
                 
     with bot_state_lock:

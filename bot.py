@@ -103,11 +103,10 @@ if Groq and GROQ_API_KEY:
         log.error("Groq init failed: %s", e)
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
-    """Спрашиваем у ИИ, в какую сторону торговать, давая полный контекст."""
+    """Спрашиваем у ИИ, в какую сторону торговать."""
     if not groq_client:
-        return "Long" if "buy" in signal else "Short", "ИИ не настроен (берем сигнал)"
+        return ("Long" if "buy" in signal else "Short"), "ИИ не настроен (берем сигнал)"
     
-    # Берем последние 10 свечей для анализа
     with strategy_history_lock:
         pts = list(strategy_history.get(symbol, []))
     
@@ -128,12 +127,12 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
             f"Текущая цена: ${price:.4f}\n"
             f"RSI(14): {rsi_val:.1f}\n"
             f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
-            f"Сигнал нашей простой стратегии: {signal}\n\n"
+            f"Сигнал стратегии: {signal}\n\n"
             f"Последние 10 свечей (5м):\n{trend_text}\n\n"
             f"Правила:\n"
-            f"1. Если цена резко упала и RSI низкий (ниже 30) — это может быть отскок (BUY) или продолжение падения (SELL). Смотри на последние свечи: если они красные и большие — падение продолжается (SELL). Если маленькие — готовится отскок (BUY).\n"
-            f"2. Если цена растет и RSI высокий (выше 70) — может быть коррекция (SELL) или продолжение роста (BUY).\n"
-            f"3. Если сигнал неясный — выбери направление, которое совпадает с последними 3-4 свечами (если они падали — SELL, если росли — BUY).\n"
+            f"1. Если цена резко упала и RSI низкий — это может быть отскок (BUY) или продолжение падения (SELL).\n"
+            f"2. Если цена растет и RSI высокий — может быть коррекция (SELL) или продолжение роста (BUY).\n"
+            f"3. Если сигнал неясный — выбери направление, которое совпадает с последними 3-4 свечами.\n"
             f"ЗАПРЕЩЕНО отвечать SKIP. Ты ОБЯЗАН выбрать BUY или SELL.\n"
             f"Ответь строго одним словом: BUY или SELL."
         )
@@ -141,14 +140,16 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=10
+            temperature=0.1,
+            max_tokens=5
         )
-        answer = completion.choices[0].message.content.strip().upper()
         
-        if "BUY" in answer:
+        raw_answer = completion.choices[0].message.content.strip().upper()
+        first_word = raw_answer.split()[0] if raw_answer.split() else ""
+        
+        if "BUY" in first_word:
             return "Long", "ИИ: BUY (Long)"
-        elif "SELL" in answer:
+        elif "SELL" in first_word:
             return "Short", "ИИ: SELL (Short)"
         else:
             return ("Long" if "buy" in signal else "Short"), "ИИ неясен (берем сигнал)"
@@ -701,7 +702,6 @@ def bot_tick():
         if item["symbol"] in current:
             continue
         
-        # --- ЛОГИКА С УМНЫМ ИИ ---
         if item["signal"] in ("buy_candidate", "sell_candidate"):
             ai_side, ai_reason = ask_ai_advisor(
                 item["symbol"], item["price"], item["signal"], 

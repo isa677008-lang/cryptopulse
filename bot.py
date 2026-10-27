@@ -49,15 +49,19 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 5  # ТУРБО-РЕЖИМ: тик каждые 5 секунд!
+BOT_TICK_SECONDS = 5  # Тик каждые 5 секунд
 BOT_START_BALANCE = 100.0
+
+# НАСТРОЙКИ ДЛЯ БЫСТРЫХ СДЕЛОК
+FAST_TP_PERCENT = 0.4   # Тейк-профит 0.4%
+FAST_SL_PERCENT = 0.25  # Стоп-лосс 0.25%
+MAX_TRADE_TIME_MINUTES = 2  # <--- ИЗМЕНЕНО: 2 МИНУТЫ
+BREAKEVEN_TRIGGER = 0.15    # Если цена ушла в плюс на 0.15%, переводим стоп в безубыток
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
     "rsiBuyMin": 50, "rsiBuyMax": 68,
     "rsiSellMin": 32, "rsiSellMax": 50,
-    "tpPercent": 0.4,   # БЫСТРЫЙ TP
-    "slPercent": 0.25,  # БЫСТРЫЙ SL
     "topCoins": ["BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
@@ -90,7 +94,7 @@ bot_state_lock = threading.RLock()
 strategy_history = {}
 strategy_history_updated = 0.0
 strategy_history_lock = threading.Lock()
-SCAN_CANDLE_INTERVAL = "1"  # 1-минутные свечи
+SCAN_CANDLE_INTERVAL = "1"
 SCAN_CANDLE_LIMIT = 200
 SCAN_HISTORY_REFRESH_SECONDS = 30
 
@@ -105,14 +109,14 @@ if Groq and GROQ_API_KEY:
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
     if not groq_client:
-        return ("Long" if "buy" in signal else "Short"), "ИИ не настроен"
+        return None, "ИИ не настроен"
     
     with strategy_history_lock:
         pts = list(strategy_history.get(symbol, []))
     
     recent_data = []
-    if len(pts) >= 10:
-        for p in pts[-10:]:
+    if len(pts) >= 5:
+        for p in pts[-5:]:
             dt = datetime.fromtimestamp(p["timestamp"], tz=timezone.utc)
             recent_data.append(f"{dt.strftime('%H:%M')}: ${p['price']:.4f}")
     else:
@@ -126,7 +130,7 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
             f"Монета: {symbol}/USDT\n"
             f"Цена: ${price:.4f}\nRSI: {rsi_val:.1f}\n"
             f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
-            f"Последние 10 минут:\n{trend_text}\n"
+            f"Последние 5 минут:\n{trend_text}\n"
             f"Твоя задача: найти микро-тренд. Если цена растет — BUY. Если падает — SELL.\n"
             f"Ответь строго одним словом: BUY или SELL."
         )
@@ -134,23 +138,22 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=5
+            temperature=0.0,
+            max_tokens=3
         )
         
         raw_answer = completion.choices[0].message.content.strip().upper()
-        first_word = raw_answer.split()[0] if raw_answer.split() else ""
         
-        if "BUY" in first_word:
+        if "BUY" in raw_answer:
             return "Long", "ИИ: BUY"
-        elif "SELL" in first_word:
+        elif "SELL" in raw_answer:
             return "Short", "ИИ: SELL"
         else:
-            return ("Long" if "buy" in signal else "Short"), "ИИ неясен"
+            return None, f"ИИ неясен: {raw_answer[:10]}"
             
     except Exception as e:
         log.warning("Groq error: %s", e)
-        return ("Long" if "buy" in signal else "Short"), f"Ошибка ИИ: {str(e)[:30]}"
+        return None, f"Ошибка ИИ: {str(e)[:20]}"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -487,7 +490,6 @@ def wallet_balance(force=False):
 
 def bot_open_position(symbol,price,side,reason=""):
     with bot_state_lock:
-        st = bot_state["strategy"]
         settings = bot_state["settings"]
         size = float(settings["tradeSize"])
         
@@ -496,8 +498,8 @@ def bot_open_position(symbol,price,side,reason=""):
             if position["symbol"] == symbol: return None
             
         qty = size / price
-        tp_pct = float(st["tpPercent"]) / 100
-        sl_pct = float(st["slPercent"]) / 100
+        tp_pct = FAST_TP_PERCENT / 100
+        sl_pct = FAST_SL_PERCENT / 100
         if side == "Long":
             tp = price * (1 + tp_pct)
             sl = price * (1 - sl_pct)
@@ -509,7 +511,7 @@ def bot_open_position(symbol,price,side,reason=""):
             "id":int(time.time() * 1000) + len(bot_state["positions"]),
             "symbol":symbol,"side":side,"sizeUsd":size,"entryPrice":price,"qty":qty,
             "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason,
-            "maxPrice": price, "trailingStop": False  # Для трейлинга
+            "maxPrice": price, "trailingStop": False
         }
         bot_state["positions"].append(position)
         bot_state["balance"] -= size
@@ -581,27 +583,36 @@ def bot_tick():
     with bot_state_lock:
         positions = list(bot_state["positions"])
         
-    # --- ЛОГИКА ТРЕЙЛИНГ-СТОПА ---
+    # --- ЛОГИКА БЫСТРОГО ВЫХОДА И ТРЕЙЛИНГА ---
     for position in positions:
         price = prices.get(position["symbol"])
         if price is None: continue
         
-        # Обновляем максимальную цену и подтягиваем стоп
+        # 1. Проверка времени (если висит > 2 минут и в минусе - закрываем)
+        time_in_trade = (time.time() - position["openedTs"]) / 60
+        if time_in_trade > MAX_TRADE_TIME_MINUTES:
+            if position["side"] == "Long" and price < position["entryPrice"]:
+                bot_close_position(position, price, "Timeout (убыток)")
+                continue
+            if position["side"] == "Short" and price > position["entryPrice"]:
+                bot_close_position(position, price, "Timeout (убыток)")
+                continue
+
+        # 2. Обновляем максимальную цену и подтягиваем стоп
         if position["side"] == "Long":
             if price > position.get("maxPrice", position["entryPrice"]):
                 position["maxPrice"] = price
-                # Если цена выросла на 0.15% (половина от TP), включаем трейлинг
-                if price >= position["entryPrice"] * 1.0015:
+                if price >= position["entryPrice"] * (1 + BREAKEVEN_TRIGGER / 100):
                     position["trailingStop"] = True
-                    position["sl"] = max(position["sl"], price * 0.998) # Подтягиваем стоп
+                    position["sl"] = max(position["sl"], position["entryPrice"])
         else:
             if price < position.get("maxPrice", position["entryPrice"]):
                 position["maxPrice"] = price
-                if price <= position["entryPrice"] * 0.9985:
+                if price <= position["entryPrice"] * (1 - BREAKEVEN_TRIGGER / 100):
                     position["trailingStop"] = True
-                    position["sl"] = min(position["sl"], price * 1.002)
+                    position["sl"] = min(position["sl"], position["entryPrice"])
 
-        # Проверяем, не сработал ли стоп/тейк
+        # 3. Проверяем, не сработал ли стоп/тейк
         if position["side"] == "Long":
             if price >= position["tp"]:
                 bot_close_position(position,price,"TP"); continue
@@ -655,7 +666,6 @@ def bot_tick():
     for item in scan:
         if item["symbol"] in current: continue
         
-        # Проверка баланса перед ИИ
         with bot_state_lock:
             if bot_state["balance"] < float(bot_state["settings"]["tradeSize"]):
                 break

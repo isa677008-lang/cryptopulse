@@ -103,21 +103,39 @@ if Groq and GROQ_API_KEY:
         log.error("Groq init failed: %s", e)
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
-    """Спрашиваем у ИИ, в какую сторону торговать."""
+    """Спрашиваем у ИИ, в какую сторону торговать, давая полный контекст."""
     if not groq_client:
-        return None, "ИИ не настроен"
+        return "Long" if "buy" in signal else "Short", "ИИ не настроен (берем сигнал)"
     
+    # Берем последние 10 свечей для анализа
+    with strategy_history_lock:
+        pts = list(strategy_history.get(symbol, []))
+    
+    recent_data = []
+    if len(pts) >= 10:
+        for p in pts[-10:]:
+            dt = datetime.fromtimestamp(p["timestamp"], tz=timezone.utc)
+            recent_data.append(f"{dt.strftime('%H:%M')}: ${p['price']:.4f}")
+    else:
+        recent_data.append("Мало данных")
+
+    trend_text = "\n".join(recent_data)
+
     try:
         prompt = (
-            f"Ты профессиональный крипто-трейдер. Проанализируй рынок.\n"
+            f"Ты профессиональный крипто-трейдер. Проанализируй ситуацию и прими решение.\n"
             f"Монета: {symbol}/USDT\n"
             f"Текущая цена: ${price:.4f}\n"
             f"RSI(14): {rsi_val:.1f}\n"
             f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
-            f"Наша стратегия предлагает: {signal}\n"
-            f"Твоя задача: определить направление тренда. Если цена падает и RSI низкий — лучше открыть ШОРТ (SELL). "
-            f"Если цена растет — ЛОНГ (BUY). Если рынок непонятный — пропустить (SKIP).\n"
-            f"Ответь строго одним словом: BUY, SELL или SKIP."
+            f"Сигнал нашей простой стратегии: {signal}\n\n"
+            f"Последние 10 свечей (5м):\n{trend_text}\n\n"
+            f"Правила:\n"
+            f"1. Если цена резко упала и RSI низкий (ниже 30) — это может быть отскок (BUY) или продолжение падения (SELL). Смотри на последние свечи: если они красные и большие — падение продолжается (SELL). Если маленькие — готовится отскок (BUY).\n"
+            f"2. Если цена растет и RSI высокий (выше 70) — может быть коррекция (SELL) или продолжение роста (BUY).\n"
+            f"3. Если сигнал неясный — выбери направление, которое совпадает с последними 3-4 свечами (если они падали — SELL, если росли — BUY).\n"
+            f"ЗАПРЕЩЕНО отвечать SKIP. Ты ОБЯЗАН выбрать BUY или SELL.\n"
+            f"Ответь строго одним словом: BUY или SELL."
         )
         
         completion = groq_client.chat.completions.create(
@@ -129,15 +147,15 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
         answer = completion.choices[0].message.content.strip().upper()
         
         if "BUY" in answer:
-            return "Long", "ИИ: Тренд вверх (Long)"
+            return "Long", "ИИ: BUY (Long)"
         elif "SELL" in answer:
-            return "Short", "ИИ: Тренд вниз (Short)"
+            return "Short", "ИИ: SELL (Short)"
         else:
-            return None, "ИИ: Пропустить (SKIP)"
+            return ("Long" if "buy" in signal else "Short"), "ИИ неясен (берем сигнал)"
             
     except Exception as e:
         log.warning("Groq error: %s", e)
-        return None, f"Ошибка ИИ: {str(e)[:40]}"
+        return ("Long" if "buy" in signal else "Short"), f"Ошибка ИИ: {str(e)[:40]}"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -683,7 +701,7 @@ def bot_tick():
         if item["symbol"] in current:
             continue
         
-        # --- ЛОГИКА С ИИ (Вариант 3) ---
+        # --- ЛОГИКА С УМНЫМ ИИ ---
         if item["signal"] in ("buy_candidate", "sell_candidate"):
             ai_side, ai_reason = ask_ai_advisor(
                 item["symbol"], item["price"], item["signal"], 
@@ -698,7 +716,6 @@ def bot_tick():
             elif ai_side == "Short":
                 if bot_open_position(item["symbol"],item["price"],"Short","ИИ: Тренд вниз"):
                     opened += 1
-            # Если SKIP (None) — просто идем дальше
         
     with bot_state_lock:
         if not bot_state["positions"]:

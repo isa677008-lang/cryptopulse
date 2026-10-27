@@ -79,13 +79,15 @@ wallet_cache = {"updated":0,"data":None}
 
 bot_state = {
     "running":False,"emergency":False,"reason":"Не запущен",
-    "settings":{"profitTarget":2.0,"maxLoss":10.0,"tradeSize":10.0,"startBalance":BOT_START_BALANCE},
+    "settings":{"profitTarget":2.0,"maxLoss":10.0,"tradeSize":10.0,"dailyMaxLoss":5.0,"startBalance":BOT_START_BALANCE,"dailyStartBalance":BOT_START_BALANCE},
     "strategy":dict(DEFAULT_STRATEGY),
     "balance":BOT_START_BALANCE,"equityCurve":[],
     "positions":[],"closedTrades":[],"logs":[],
     "startedAt":None,"stoppedAt":None,
     "lastAction":None,"lastSignalScan":None,"scanResults":[],
-    "scanStatus":"Ожидание запуска"
+    "scanStatus":"Ожидание запуска",
+    "lastDate": datetime.now().strftime("%Y-%m-%d"),
+    "cooldown": {}
 }
 bot_state_lock = threading.RLock()
 
@@ -133,7 +135,7 @@ def bot_save():
             data = {k: bot_state[k] for k in (
                 "running","emergency","reason","settings","strategy",
                 "balance","positions","closedTrades","logs","startedAt",
-                "stoppedAt","lastAction","lastSignalScan","scanResults"
+                "stoppedAt","lastAction","lastSignalScan","scanResults","lastDate","cooldown"
             )}
             data["equityCurve"] = bot_state["equityCurve"][-2000:]
             data["closedTrades"] = bot_state["closedTrades"][-1000:]
@@ -157,6 +159,8 @@ def bot_load():
             if bot_state.get("strategy"):
                 merged.update(bot_state["strategy"])
             bot_state["strategy"] = merged
+            bot_state["cooldown"] = data.get("cooldown", {})
+            bot_state["lastDate"] = data.get("lastDate", datetime.now().strftime("%Y-%m-%d"))
     except Exception as exc:
         log.warning("load fail: %s", exc)
 
@@ -502,6 +506,11 @@ def bot_close_position(position,price,reason="manual"):
         bot_state["closedTrades"].insert(0,trade)
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
         bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
+        
+        # Добавляем кулдаун
+        if reason in ("SL", "Timeout", "Manual", "manual"):
+            bot_state["cooldown"][position["symbol"]] = time.time() + 600 # 10 минут
+            
     push_equity_point()
     bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if net_pnl >= 0 else "red")
     bot_save()
@@ -513,6 +522,7 @@ def bot_check_limits():
         start = float(settings["startBalance"])
         free_balance = float(bot_state["balance"])
         positions_value = sum(p["sizeUsd"] for p in bot_state["positions"])
+        
         open_pnl = 0.0
         try:
             prices, _, _ = refresh()
@@ -521,12 +531,27 @@ def bot_check_limits():
                 if p["side"] == "Long": open_pnl += (current - p["entryPrice"]) * p["qty"]
                 else: open_pnl += (p["entryPrice"] - current) * p["qty"]
         except Exception: pass
+        
         total_equity = free_balance + positions_value + open_pnl
         diff = total_equity - start
+        
+        # Дневной лимит
+        today = datetime.now().strftime("%Y-%m-%d")
+        if bot_state["lastDate"] != today:
+            bot_state["lastDate"] = today
+            bot_state["settings"]["dailyStartBalance"] = total_equity
+            bot_save()
+            
+        daily_diff = total_equity - float(settings.get("dailyStartBalance", total_equity))
+        daily_max = float(settings.get("dailyMaxLoss", 5.0))
+        if daily_diff <= -daily_max:
+            return "daily_loss", f"Достигнут дневной лимит убытка (-${abs(daily_diff):.2f})"
+        
         profit_target = float(settings["profitTarget"])
         max_loss = float(settings["maxLoss"])
         if diff >= profit_target: return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
         if diff <= -max_loss: return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
+        
     return None, None
 
 def bot_close_all(reason="manual"):
@@ -616,6 +641,11 @@ def bot_tick():
         if item["symbol"] in current: continue
         
         with bot_state_lock:
+            # Проверка кулдауна
+            cooldown_time = bot_state["cooldown"].get(item["symbol"], 0)
+            if time.time() < cooldown_time:
+                continue
+                
             fee = float(bot_state["settings"]["tradeSize"]) * FEE_RATE
             if bot_state["balance"] < (float(bot_state["settings"]["tradeSize"]) + fee):
                 break
@@ -801,12 +831,13 @@ def bot_start_api():
     data = request.get_json(silent=True) or {}
     with bot_state_lock:
         if "settings" in data and isinstance(data["settings"],dict):
-            for key in ("profitTarget","maxLoss","tradeSize"):
+            for key in ("profitTarget","maxLoss","tradeSize","dailyMaxLoss"):
                 if key in data["settings"]:
                     try: bot_state["settings"][key] = float(data["settings"][key])
                     except Exception: pass
         free = float(bot_state["balance"]); pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["settings"]["startBalance"] = free + pos_value
+        bot_state["settings"]["dailyStartBalance"] = free + pos_value
         bot_state["running"] = True; bot_state["emergency"] = False
         bot_state["reason"] = "Бот запущен"; bot_state["startedAt"] = now_iso()
         bot_state["stoppedAt"] = None; bot_state["lastAction"] = "Запущен. Сканирует…"
@@ -831,11 +862,29 @@ def bot_emergency_api():
         bot_state["lastAction"] = "Аварийная остановка"; bot_state["scanStatus"] = "Аварийная остановка"
     bot_log("АВАРИЙНАЯ ОСТАНОВКА.","red"); return jsonify({"success":True})
 
+@app.route("/api/bot/close_position", methods=["POST"])
+def bot_close_position_api():
+    data = request.get_json(silent=True) or {}
+    pos_id = data.get("id")
+    with bot_state_lock:
+        position = next((p for p in bot_state["positions"] if p["id"] == pos_id), None)
+    if not position:
+        return jsonify({"success": False, "error": "Позиция не найдена"}), 404
+    
+    try:
+        prices,_,_ = refresh()
+    except Exception:
+        prices = {}
+    
+    price = prices.get(position["symbol"], position["entryPrice"])
+    bot_close_position(position, price, "Manual")
+    return jsonify({"success": True})
+
 @app.route("/api/bot/settings", methods=["POST"])
 def bot_settings_api():
     data = request.get_json(silent=True) or {}
     with bot_state_lock:
-        for key in ("profitTarget","maxLoss","tradeSize"):
+        for key in ("profitTarget","maxLoss","tradeSize","dailyMaxLoss"):
             if key in data:
                 try: bot_state["settings"][key] = float(data[key])
                 except Exception: pass
@@ -861,7 +910,7 @@ def bot_reset_api():
             "balance":float(bot_state["settings"].get("startBalance",100.0)),
             "positions":[],"closedTrades":[],"logs":[],"equityCurve":[],
             "startedAt":None,"stoppedAt":None,"lastAction":"Сброшено",
-            "scanResults":[],"scanStatus":"Сброшено; ожидание запуска"
+            "scanResults":[],"scanStatus":"Сброшено; ожидание запуска", "cooldown": {}
         })
     bot_log("Бот сброшен.","gold"); return jsonify({"success":True})
 
@@ -953,4 +1002,3 @@ threading.Thread(target=bot_worker,daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
-  

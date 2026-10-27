@@ -49,14 +49,15 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 15
+BOT_TICK_SECONDS = 5  # ТУРБО-РЕЖИМ: тик каждые 5 секунд!
 BOT_START_BALANCE = 100.0
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
     "rsiBuyMin": 50, "rsiBuyMax": 68,
     "rsiSellMin": 32, "rsiSellMax": 50,
-    "tpPercent": 2.0, "slPercent": 1.5,
+    "tpPercent": 0.4,   # БЫСТРЫЙ TP
+    "slPercent": 0.25,  # БЫСТРЫЙ SL
     "topCoins": ["BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
@@ -76,7 +77,7 @@ wallet_cache = {"updated":0,"data":None}
 
 bot_state = {
     "running":False,"emergency":False,"reason":"Не запущен",
-    "settings":{"profitTarget":100.0,"maxLoss":10.0,"tradeSize":20.0,"startBalance":BOT_START_BALANCE},
+    "settings":{"profitTarget":1.0,"maxLoss":10.0,"tradeSize":20.0,"startBalance":BOT_START_BALANCE},
     "strategy":dict(DEFAULT_STRATEGY),
     "balance":BOT_START_BALANCE,"equityCurve":[],
     "positions":[],"closedTrades":[],"logs":[],
@@ -89,9 +90,9 @@ bot_state_lock = threading.RLock()
 strategy_history = {}
 strategy_history_updated = 0.0
 strategy_history_lock = threading.Lock()
-SCAN_CANDLE_INTERVAL = "5"
+SCAN_CANDLE_INTERVAL = "1"  # 1-минутные свечи
 SCAN_CANDLE_LIMIT = 200
-SCAN_HISTORY_REFRESH_SECONDS = 60
+SCAN_HISTORY_REFRESH_SECONDS = 30
 
 history_loading_flag = threading.Event()
 
@@ -103,9 +104,8 @@ if Groq and GROQ_API_KEY:
         log.error("Groq init failed: %s", e)
 
 def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
-    """Спрашиваем у ИИ, в какую сторону торговать."""
     if not groq_client:
-        return ("Long" if "buy" in signal else "Short"), "ИИ не настроен (берем сигнал)"
+        return ("Long" if "buy" in signal else "Short"), "ИИ не настроен"
     
     with strategy_history_lock:
         pts = list(strategy_history.get(symbol, []))
@@ -122,18 +122,12 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
 
     try:
         prompt = (
-            f"Ты профессиональный крипто-трейдер. Проанализируй ситуацию и прими решение.\n"
+            f"Ты быстрый крипто-скальпер. Проанализируй 1-минутный график.\n"
             f"Монета: {symbol}/USDT\n"
-            f"Текущая цена: ${price:.4f}\n"
-            f"RSI(14): {rsi_val:.1f}\n"
+            f"Цена: ${price:.4f}\nRSI: {rsi_val:.1f}\n"
             f"EMA9: ${ema_fast:.4f}, EMA21: ${ema_slow:.4f}\n"
-            f"Сигнал стратегии: {signal}\n\n"
-            f"Последние 10 свечей (5м):\n{trend_text}\n\n"
-            f"Правила:\n"
-            f"1. Если цена резко упала и RSI низкий — это может быть отскок (BUY) или продолжение падения (SELL).\n"
-            f"2. Если цена растет и RSI высокий — может быть коррекция (SELL) или продолжение роста (BUY).\n"
-            f"3. Если сигнал неясный — выбери направление, которое совпадает с последними 3-4 свечами.\n"
-            f"ЗАПРЕЩЕНО отвечать SKIP. Ты ОБЯЗАН выбрать BUY или SELL.\n"
+            f"Последние 10 минут:\n{trend_text}\n"
+            f"Твоя задача: найти микро-тренд. Если цена растет — BUY. Если падает — SELL.\n"
             f"Ответь строго одним словом: BUY или SELL."
         )
         
@@ -148,15 +142,15 @@ def ask_ai_advisor(symbol, price, signal, rsi_val, ema_fast, ema_slow):
         first_word = raw_answer.split()[0] if raw_answer.split() else ""
         
         if "BUY" in first_word:
-            return "Long", "ИИ: BUY (Long)"
+            return "Long", "ИИ: BUY"
         elif "SELL" in first_word:
-            return "Short", "ИИ: SELL (Short)"
+            return "Short", "ИИ: SELL"
         else:
-            return ("Long" if "buy" in signal else "Short"), "ИИ неясен (берем сигнал)"
+            return ("Long" if "buy" in signal else "Short"), "ИИ неясен"
             
     except Exception as e:
         log.warning("Groq error: %s", e)
-        return ("Long" if "buy" in signal else "Short"), f"Ошибка ИИ: {str(e)[:40]}"
+        return ("Long" if "buy" in signal else "Short"), f"Ошибка ИИ: {str(e)[:30]}"
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -215,10 +209,7 @@ def push_equity_point():
     with bot_state_lock:
         free = bot_state["balance"]
         pos_size = sum(p["sizeUsd"] for p in bot_state["positions"])
-        bot_state["equityCurve"].append({
-            "ts":time.time(),
-            "balance": free + pos_size
-        })
+        bot_state["equityCurve"].append({"ts":time.time(), "balance": free + pos_size})
         bot_state["equityCurve"] = bot_state["equityCurve"][-2000:]
 
 def db_connect():
@@ -261,9 +252,7 @@ def remember(prices, source="bybit"):
             valid[symbol] = value
             pts = history.setdefault((source, symbol), [])
             pts.append({"timestamp":timestamp,"price":value})
-            history[(source, symbol)] = [
-                p for p in pts if p["timestamp"] >= cutoff
-            ]
+            history[(source, symbol)] = [p for p in pts if p["timestamp"] >= cutoff]
     if not DATABASE_URL or not valid:
         return
     try:
@@ -288,23 +277,19 @@ def get_points(symbol):
 
 def ema(values, period):
     values = [float(v) for v in values if v and float(v) > 0]
-    if len(values) < period:
-        return None
+    if len(values) < period: return None
     result = sum(values[:period]) / period
     multiplier = 2 / (period + 1)
-    for value in values[period:]:
-        result = (value - result) * multiplier + result
+    for value in values[period:]: result = (value - result) * multiplier + result
     return result
 
 def rsi(values, period=14):
     values = [float(v) for v in values if v and float(v) > 0]
-    if len(values) < period + 1:
-        return None
+    if len(values) < period + 1: return None
     changes = [values[i] - values[i-1] for i in range(1,len(values))][-period:]
     gains = sum(max(v,0) for v in changes) / period
     losses = sum(max(-v,0) for v in changes) / period
-    if losses == 0:
-        return 100.0 if gains else 50.0
+    if losses == 0: return 100.0 if gains else 50.0
     return 100 - 100 / (1 + gains / losses)
 
 def fetch_strategy_candles(symbol):
@@ -338,12 +323,11 @@ def fetch_strategy_candles(symbol):
 
 def refresh_strategy_history_background(symbols):
     global strategy_history_updated
-    if history_loading_flag.is_set():
-        return
+    if history_loading_flag.is_set(): return
     history_loading_flag.set()
     try:
         with bot_state_lock:
-            bot_state["scanStatus"] = f"Загружаю 5m-свечи: 0/{len(symbols)}"
+            bot_state["scanStatus"] = f"Загружаю 1m-свечи: 0/{len(symbols)}"
         
         completed = 0
         successful = 0
@@ -357,11 +341,10 @@ def refresh_strategy_history_background(symbols):
                         with strategy_history_lock:
                             strategy_history[symbol] = points
                         successful += 1
-                except Exception:
-                    pass
+                except Exception: pass
                 completed += 1
                 with bot_state_lock:
-                    bot_state["scanStatus"] = f"Загружаю 5m-свечи: {completed}/{len(symbols)}"
+                    bot_state["scanStatus"] = f"Загружаю 1m-свечи: {completed}/{len(symbols)}"
                 time.sleep(0.5)
         
         with strategy_history_lock:
@@ -405,28 +388,19 @@ def analyze(symbol, price, strategy=None):
 
 def fetch_prices():
     data = get_json(BASE + "/v5/market/tickers", {"category":"spot"})
-    if data.get("retCode") != 0:
-        raise RuntimeError(data.get("retMsg","err"))
-    prices = {}
-    changes = {}
+    if data.get("retCode") != 0: raise RuntimeError(data.get("retMsg","err"))
+    prices, changes = {}, {}
     for item in (data.get("result") or {}).get("list", []):
         pair = str(item.get("symbol","")).upper()
-        if not pair.endswith("USDT"):
-            continue
+        if not pair.endswith("USDT"): continue
         symbol = pair[:-4]
-        try:
-            value = float(item.get("lastPrice"))
-        except Exception:
-            continue
-        if not math.isfinite(value) or value <= 0:
-            continue
+        try: value = float(item.get("lastPrice"))
+        except Exception: continue
+        if not math.isfinite(value) or value <= 0: continue
         prices[symbol] = value
-        try:
-            changes[symbol] = float(item.get("price24hPcnt")) * 100
-        except Exception:
-            changes[symbol] = None
-    if not prices:
-        raise RuntimeError("no prices")
+        try: changes[symbol] = float(item.get("price24hPcnt")) * 100
+        except Exception: changes[symbol] = None
+    if not prices: raise RuntimeError("no prices")
     bybit_status.update(available=True,lastError=None,lastCheck=now_iso())
     return prices, changes
 
@@ -444,8 +418,7 @@ def refresh(force=False):
         except Exception as exc:
             bybit_status.update(available=False, lastError=str(exc), lastCheck=now_iso())
             cache["error"] = str(exc)
-            if cache["prices"]:
-                return dict(cache["prices"]),dict(cache["changes"]),str(exc)
+            if cache["prices"]: return dict(cache["prices"]),dict(cache["changes"]),str(exc)
             raise
 
 def usd_rub():
@@ -453,19 +426,14 @@ def usd_rub():
         return usd_rub_cache["rate"]
     data = get_json("https://open.er-api.com/v6/latest/USD")
     rate = float(data["rates"]["RUB"])
-    if not math.isfinite(rate) or rate <= 0:
-        raise RuntimeError("bad rate")
+    if not math.isfinite(rate) or rate <= 0: raise RuntimeError("bad rate")
     usd_rub_cache.update(updated=time.time(),rate=rate)
     return rate
 
 def market_payload(force=False):
     prices,changes,warning = refresh(force)
-    try:
-        rate = usd_rub()
-        rate_err = None
-    except Exception as exc:
-        rate = None
-        rate_err = str(exc)
+    try: rate = usd_rub(); rate_err = None
+    except Exception as exc: rate = None; rate_err = str(exc)
     coins = []
     for symbol,price in prices.items():
         pts = [p for p in get_points(symbol) if 2700 <= time.time() - p["timestamp"] <= 4500]
@@ -485,10 +453,8 @@ def market_payload(force=False):
     }
 
 def signed_get(path,params):
-    if not API_KEY or not API_SECRET:
-        raise RuntimeError("no key")
-    ts = str(int(time.time() * 1000))
-    recv_window = "5000"
+    if not API_KEY or not API_SECRET: raise RuntimeError("no key")
+    ts = str(int(time.time() * 1000)); recv_window = "5000"
     query = urlencode(sorted((k,str(v)) for k,v in params.items()))
     signature = hmac.new(API_SECRET.encode(), (ts + API_KEY + recv_window + query).encode(), "sha256").hexdigest()
     headers = {
@@ -496,8 +462,7 @@ def signed_get(path,params):
         "X-BAPI-SIGN":signature,"X-BAPI-SIGN-TYPE":"2"
     }
     data = get_json(BASE + path,params=params,headers=headers)
-    if data.get("retCode") != 0:
-        raise RuntimeError(f"err {data.get('retCode')}: {data.get('retMsg')}")
+    if data.get("retCode") != 0: raise RuntimeError(f"err {data.get('retCode')}: {data.get('retMsg')}")
     return data.get("result") or {}
 
 def wallet_balance(force=False):
@@ -511,20 +476,12 @@ def wallet_balance(force=False):
             try:
                 balance = float(coin.get("walletBalance") or 0)
                 usd_value = float(coin.get("usdValue") or 0)
-            except Exception:
-                continue
-            if balance == 0 and usd_value == 0:
-                continue
-            assets.append({
-                "coin":coin.get("coin",""),"walletBalance":balance,"usdValue":usd_value,
-                "availableToWithdraw":coin.get("availableToWithdraw")
-            })
+            except Exception: continue
+            if balance == 0 and usd_value == 0: continue
+            assets.append({"coin":coin.get("coin",""),"walletBalance":balance,"usdValue":usd_value,"availableToWithdraw":coin.get("availableToWithdraw")})
             total += usd_value
     assets.sort(key=lambda a:a["usdValue"],reverse=True)
-    data = {
-        "success":True,"available":True,"accountType":"UNIFIED",
-        "totalUsd":total,"assets":assets,"updatedAt":now_iso()
-    }
+    data = {"success":True,"available":True,"accountType":"UNIFIED","totalUsd":total,"assets":assets,"updatedAt":now_iso()}
     wallet_cache.update(updated=time.time(),data=data)
     return data
 
@@ -534,11 +491,10 @@ def bot_open_position(symbol,price,side,reason=""):
         settings = bot_state["settings"]
         size = float(settings["tradeSize"])
         
-        if bot_state["balance"] < size:
-            return None
+        if bot_state["balance"] < size: return None
         for position in bot_state["positions"]:
-            if position["symbol"] == symbol:
-                return None
+            if position["symbol"] == symbol: return None
+            
         qty = size / price
         tp_pct = float(st["tpPercent"]) / 100
         sl_pct = float(st["slPercent"]) / 100
@@ -548,10 +504,12 @@ def bot_open_position(symbol,price,side,reason=""):
         else:
             tp = price * (1 - tp_pct)
             sl = price * (1 + sl_pct)
+            
         position = {
             "id":int(time.time() * 1000) + len(bot_state["positions"]),
             "symbol":symbol,"side":side,"sizeUsd":size,"entryPrice":price,"qty":qty,
-            "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason
+            "openedAt":now_iso(),"openedTs":time.time(),"tp":tp,"sl":sl,"reason":reason,
+            "maxPrice": price, "trailingStop": False  # Для трейлинга
         }
         bot_state["positions"].append(position)
         bot_state["balance"] -= size
@@ -562,13 +520,10 @@ def bot_open_position(symbol,price,side,reason=""):
 
 def bot_close_position(position,price,reason="manual"):
     with bot_state_lock:
-        if position not in bot_state["positions"]:
-            return None
+        if position not in bot_state["positions"]: return None
         bot_state["positions"].remove(position)
-        if position["side"] == "Long":
-            pnl = (price - position["entryPrice"]) * position["qty"]
-        else:
-            pnl = (position["entryPrice"] - price) * position["qty"]
+        if position["side"] == "Long": pnl = (price - position["entryPrice"]) * position["qty"]
+        else: pnl = (position["entryPrice"] - price) * position["qty"]
         pnl_pct = (pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
         bot_state["balance"] += (position["sizeUsd"] + pnl)
         trade = {
@@ -595,77 +550,78 @@ def bot_check_limits():
             prices, _, _ = refresh()
             for p in bot_state["positions"]:
                 current = prices.get(p["symbol"], p["entryPrice"])
-                if p["side"] == "Long":
-                    open_pnl += (current - p["entryPrice"]) * p["qty"]
-                else:
-                    open_pnl += (p["entryPrice"] - current) * p["qty"]
-        except Exception:
-            pass
+                if p["side"] == "Long": open_pnl += (current - p["entryPrice"]) * p["qty"]
+                else: open_pnl += (p["entryPrice"] - current) * p["qty"]
+        except Exception: pass
         total_equity = free_balance + positions_value + open_pnl
         diff = total_equity - start
         profit_target = float(settings["profitTarget"])
         max_loss = float(settings["maxLoss"])
-        if diff >= profit_target:
-            return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
-        if diff <= -max_loss:
-            return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
+        if diff >= profit_target: return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
+        if diff <= -max_loss: return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
     return None, None
 
 def bot_close_all(reason="manual"):
-    try:
-        prices,_,_ = refresh()
-    except Exception:
-        prices = {}
-    with bot_state_lock:
-        positions = list(bot_state["positions"])
+    try: prices,_,_ = refresh()
+    except Exception: prices = {}
+    with bot_state_lock: positions = list(bot_state["positions"])
     for position in positions:
         bot_close_position(position, prices.get(position["symbol"],position["entryPrice"]), reason)
 
 def bot_tick():
     with bot_state_lock:
-        if not bot_state["running"]:
-            return
+        if not bot_state["running"]: return
     try:
         prices,_,_ = refresh(force=True)
     except Exception as exc:
-        with bot_state_lock:
-            bot_state["scanStatus"] = f"Ошибка получения цен: {exc}"
+        with bot_state_lock: bot_state["scanStatus"] = f"Ошибка получения цен: {exc}"
         bot_log(f"Цены: {exc}","red")
         return
 
     with bot_state_lock:
         positions = list(bot_state["positions"])
+        
+    # --- ЛОГИКА ТРЕЙЛИНГ-СТОПА ---
     for position in positions:
         price = prices.get(position["symbol"])
-        if price is None:
-            continue
+        if price is None: continue
+        
+        # Обновляем максимальную цену и подтягиваем стоп
+        if position["side"] == "Long":
+            if price > position.get("maxPrice", position["entryPrice"]):
+                position["maxPrice"] = price
+                # Если цена выросла на 0.15% (половина от TP), включаем трейлинг
+                if price >= position["entryPrice"] * 1.0015:
+                    position["trailingStop"] = True
+                    position["sl"] = max(position["sl"], price * 0.998) # Подтягиваем стоп
+        else:
+            if price < position.get("maxPrice", position["entryPrice"]):
+                position["maxPrice"] = price
+                if price <= position["entryPrice"] * 0.9985:
+                    position["trailingStop"] = True
+                    position["sl"] = min(position["sl"], price * 1.002)
+
+        # Проверяем, не сработал ли стоп/тейк
         if position["side"] == "Long":
             if price >= position["tp"]:
-                bot_close_position(position,price,"TP")
-                continue
+                bot_close_position(position,price,"TP"); continue
             if price <= position["sl"]:
-                bot_close_position(position,price,"SL")
-                continue
+                bot_close_position(position,price,"SL" if not position["trailingStop"] else "Trailing Stop"); continue
         else:
             if price <= position["tp"]:
-                bot_close_position(position,price,"TP")
-                continue
+                bot_close_position(position,price,"TP"); continue
             if price >= position["sl"]:
-                bot_close_position(position,price,"SL")
-                continue
+                bot_close_position(position,price,"SL" if not position["trailingStop"] else "Trailing Stop"); continue
 
     kind,message = bot_check_limits()
     if kind:
         bot_log(message + ". Останавливаем.", "gold" if kind == "profit" else "red")
         bot_close_all("limits")
         with bot_state_lock:
-            bot_state["running"] = False
-            bot_state["reason"] = message
-            bot_state["stoppedAt"] = now_iso()
-            bot_state["lastAction"] = message
+            bot_state["running"] = False; bot_state["reason"] = message
+            bot_state["stoppedAt"] = now_iso(); bot_state["lastAction"] = message
             bot_state["scanStatus"] = f"Остановлено: {message}"
-        bot_save()
-        return
+        bot_save(); return
 
     st = bot_state["strategy"]
     top = st.get("topCoins",DEFAULT_STRATEGY["topCoins"])
@@ -676,8 +632,7 @@ def bot_tick():
     scan = []
     for symbol in top:
         price = prices.get(symbol)
-        if price is None:
-            continue
+        if price is None: continue
         result = analyze(symbol,price,st)
         scan.append({
             "symbol":symbol,"price":price,"rsi14":result["rsi14"],"ema9":result["ema9"],
@@ -690,8 +645,7 @@ def bot_tick():
         signal_count = sum(1 for item in scan if item["signal"] in ("buy_candidate","sell_candidate"))
         insufficient = sum(1 for item in scan if item["signal"] == "insufficient_history")
         bot_state["scanStatus"] = f"Проверено {len(scan)}/{len(top)} монет; сигналов: {signal_count}"
-        if insufficient:
-            bot_state["scanStatus"] += f"; мало истории: {insufficient}"
+        if insufficient: bot_state["scanStatus"] += f"; мало истории: {insufficient}"
     bot_save()
 
     with bot_state_lock:
@@ -699,8 +653,12 @@ def bot_tick():
         
     opened = 0
     for item in scan:
-        if item["symbol"] in current:
-            continue
+        if item["symbol"] in current: continue
+        
+        # Проверка баланса перед ИИ
+        with bot_state_lock:
+            if bot_state["balance"] < float(bot_state["settings"]["tradeSize"]):
+                break
         
         if item["signal"] in ("buy_candidate", "sell_candidate"):
             ai_side, ai_reason = ask_ai_advisor(
@@ -711,24 +669,18 @@ def bot_tick():
             bot_log(f"ИИ по {item['symbol']}: {ai_reason}", log_color)
             
             if ai_side == "Long":
-                if bot_open_position(item["symbol"],item["price"],"Long","ИИ: Тренд вверх"):
-                    opened += 1
+                if bot_open_position(item["symbol"],item["price"],"Long","ИИ: Long"): opened += 1
             elif ai_side == "Short":
-                if bot_open_position(item["symbol"],item["price"],"Short","ИИ: Тренд вниз"):
-                    opened += 1
+                if bot_open_position(item["symbol"],item["price"],"Short","ИИ: Short"): opened += 1
         
     with bot_state_lock:
-        if not bot_state["positions"]:
-            bot_state["lastAction"] = "Сканирует — сигналов нет."
-        else:
-            bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
+        if not bot_state["positions"]: bot_state["lastAction"] = "Сканирует — сигналов нет."
+        else: bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
 
 def bot_worker():
     while True:
-        try:
-            bot_tick()
-        except Exception:
-            log.exception("tick fail")
+        try: bot_tick()
+        except Exception: log.exception("tick fail")
         time.sleep(BOT_TICK_SECONDS)
 
 def compute_stats():
@@ -756,8 +708,7 @@ def compute_stats():
     for point in equity:
         peak = max(peak,point["balance"])
         drawdown = peak - point["balance"]
-        if drawdown > max_drawdown:
-            max_drawdown = drawdown
+        if drawdown > max_drawdown: max_drawdown = drawdown
             
     by_symbol = {}
     for trade in trades:
@@ -768,19 +719,15 @@ def compute_stats():
         if trade["pnl"] > 0: by_symbol[symbol]["wins"] += 1
         elif trade["pnl"] < 0: by_symbol[symbol]["losses"] += 1
             
-    try:
-        prices,_,_ = refresh()
-    except Exception:
-        prices = {}
+    try: prices,_,_ = refresh()
+    except Exception: prices = {}
         
     positions_live = []
     open_pnl = 0.0
     for position in positions:
         current = prices.get(position["symbol"],position["entryPrice"])
-        if position["side"] == "Long":
-            pnl = (current - position["entryPrice"]) * position["qty"]
-        else:
-            pnl = (position["entryPrice"] - current) * position["qty"]
+        if position["side"] == "Long": pnl = (current - position["entryPrice"]) * position["qty"]
+        else: pnl = (position["entryPrice"] - current) * position["qty"]
         open_pnl += pnl
         positions_live.append({
             **position, "currentPrice":current, "pnl":pnl,
@@ -809,12 +756,10 @@ def headers(response):
     return response
 
 @app.route("/")
-def index():
-    return send_from_directory(app.static_folder,"index.html")
+def index(): return send_from_directory(app.static_folder,"index.html")
 
 @app.route("/health")
-def health():
-    return jsonify({"status":"ok","service":"CryptoPulse","timestamp":now_iso()})
+def health(): return jsonify({"status":"ok","service":"CryptoPulse","timestamp":now_iso()})
 
 @app.route("/api/config")
 def config():
@@ -824,23 +769,18 @@ def config():
 @app.route("/api/prices")
 @app.route("/api/market-prices")
 def prices_api():
-    try:
-        return jsonify(market_payload())
-    except Exception:
-        return jsonify({"success":False,"error":"Рынок недоступен","coins":[]}), 503
+    try: return jsonify(market_payload())
+    except Exception: return jsonify({"success":False,"error":"Рынок недоступен","coins":[]}), 503
 
 @app.route("/api/usd-rub")
 def rub_api():
-    try:
-        return jsonify({"success":True,"rate":usd_rub(),"base":"USD","currency":"RUB"})
-    except Exception:
-        return jsonify({"success":False,"error":"Курс недоступен"}), 503
+    try: return jsonify({"success":True,"rate":usd_rub(),"base":"USD","currency":"RUB"})
+    except Exception: return jsonify({"success":False,"error":"Курс недоступен"}), 503
 
 @app.route("/api/account/balance")
 @app.route("/api/bybit/balance")
 def balance_api():
-    try:
-        return jsonify(wallet_balance())
+    try: return jsonify(wallet_balance())
     except Exception as exc:
         log.warning("bal: %s",exc)
         return jsonify({"success":False,"available":False,"error":"Баланс недоступен"}), 503
@@ -857,69 +797,43 @@ def signals_api():
             item["change24h"] = coin["change24h"]
             out.append(item)
         return jsonify({"success":True,"signals":out})
-    except Exception:
-        return jsonify({"success":False,"signals":[]}), 503
+    except Exception: return jsonify({"success":False,"signals":[]}), 503
 
 @app.route("/api/klines")
 def klines_api():
     sym = (request.args.get("symbol") or "BTCUSDT").upper().strip()
     iv = (request.args.get("interval") or "5m").strip()
     bi = {"1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","1h":"60","2h":"120","4h":"240","6h":"360","12h":"720","1d":"D","1w":"W"}.get(iv,iv)
-    try:
-        lim = max(1,min(int(request.args.get("limit","200")),1000))
-    except Exception:
-        lim = 200
+    try: lim = max(1,min(int(request.args.get("limit","200")),1000))
+    except Exception: lim = 200
     try:
         data = get_json(BASE + "/v5/market/kline", {"category":"spot","symbol":sym,"interval":bi,"limit":lim})
-        if data.get("retCode") != 0:
-            raise RuntimeError(data.get("retMsg"))
+        if data.get("retCode") != 0: raise RuntimeError(data.get("retMsg"))
         raw = (data.get("result") or {}).get("list", [])
         candles = []
         for item in reversed(raw):
-            try:
-                candles.append({
-                    "time":int(item[0]),"open":float(item[1]),"high":float(item[2]),
-                    "low":float(item[3]),"close":float(item[4]),"volume":float(item[5]) if len(item) > 5 else 0
-                })
-            except Exception:
-                continue
+            try: candles.append({"time":int(item[0]),"open":float(item[1]),"high":float(item[2]),"low":float(item[3]),"close":float(item[4]),"volume":float(item[5]) if len(item) > 5 else 0})
+            except Exception: continue
         return jsonify({"success":True,"symbol":sym,"interval":iv,"candles":candles})
-    except Exception as exc:
-        return jsonify({"success":False,"error":"Свечи недоступны","details":str(exc)}), 503
+    except Exception as exc: return jsonify({"success":False,"error":"Свечи недоступны","details":str(exc)}), 503
 
 @app.route("/api/bot/state")
 def bot_state_api():
     stats = compute_stats()
     with bot_state_lock:
         return jsonify({
-            "success":True,
-            "running":bot_state["running"],
-            "emergency":bot_state["emergency"],
-            "reason":bot_state["reason"],
-            "settings":bot_state["settings"],
-            "strategy":bot_state["strategy"],
-            "balance":stats["balance"],
-            "startBalance":stats["startBalance"],
-            "totalPnl":stats["totalPnl"],
-            "totalPnlPct":(stats["totalPnl"] / stats["startBalance"] * 100 if stats["startBalance"] else 0),
-            "positions":stats["positionsLive"],
-            "closedTrades":bot_state["closedTrades"][:100],
-            "logs":bot_state["logs"][:100],
-            "startedAt":bot_state["startedAt"],
-            "stoppedAt":bot_state["stoppedAt"],
-            "lastAction":bot_state["lastAction"],
-            "lastSignalScan":bot_state["lastSignalScan"],
-            "scanStatus":bot_state["scanStatus"],
-            "scanResults":bot_state["scanResults"],
-            "stats":{
-                "trades":stats["trades"],"wins":stats["wins"],"losses":stats["losses"],
-                "winrate":stats["winrate"],
-                "profitFactor":(stats["profitFactor"] if math.isfinite(stats["profitFactor"]) else None),
-                "avgWin":stats["avgWin"],"avgLoss":stats["avgLoss"],
-                "best":stats["best"],"worst":stats["worst"],
-                "maxDrawdown":stats["maxDrawdown"],"bySymbol":stats["bySymbol"],
-                "equityCurve":stats["equityCurve"][-500:]
-            }
+            "success":True,"running":bot_state["running"],"emergency":bot_state["emergency"],
+            "reason":bot_state["reason"],"settings":bot_state["settings"],"strategy":bot_state["strategy"],
+            "balance":stats["balance"],"startBalance":stats["startBalance"],
+            "totalPnl":stats["totalPnl"],"totalPnlPct":(stats["totalPnl"] / stats["startBalance"] * 100 if stats["startBalance"] else 0),
+            "positions":stats["positionsLive"],"closedTrades":bot_state["closedTrades"][:100],
+            "logs":bot_state["logs"][:100],"startedAt":bot_state["startedAt"],"stoppedAt":bot_state["stoppedAt"],
+            "lastAction":bot_state["lastAction"],"lastSignalScan":bot_state["lastSignalScan"],
+            "scanStatus":bot_state["scanStatus"],"scanResults":bot_state["scanResults"],
+            "stats":{"trades":stats["trades"],"wins":stats["wins"],"losses":stats["losses"],
+                     "winrate":stats["winrate"],"profitFactor":(stats["profitFactor"] if math.isfinite(stats["profitFactor"]) else None),
+                     "avgWin":stats["avgWin"],"avgLoss":stats["avgLoss"],"best":stats["best"],"worst":stats["worst"],
+                     "maxDrawdown":stats["maxDrawdown"],"bySymbol":stats["bySymbol"],"equityCurve":stats["equityCurve"][-500:]}
         })
 
 @app.route("/api/bot/start", methods=["POST"])
@@ -929,47 +843,33 @@ def bot_start_api():
         if "settings" in data and isinstance(data["settings"],dict):
             for key in ("profitTarget","maxLoss","tradeSize"):
                 if key in data["settings"]:
-                    try:
-                        bot_state["settings"][key] = float(data["settings"][key])
-                    except Exception:
-                        pass
-        free = float(bot_state["balance"])
-        pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
+                    try: bot_state["settings"][key] = float(data["settings"][key])
+                    except Exception: pass
+        free = float(bot_state["balance"]); pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["settings"]["startBalance"] = free + pos_value
-        bot_state["running"] = True
-        bot_state["emergency"] = False
-        bot_state["reason"] = "Бот запущен"
-        bot_state["startedAt"] = now_iso()
-        bot_state["stoppedAt"] = None
-        bot_state["lastAction"] = "Запущен. Сканирует…"
+        bot_state["running"] = True; bot_state["emergency"] = False
+        bot_state["reason"] = "Бот запущен"; bot_state["startedAt"] = now_iso()
+        bot_state["stoppedAt"] = None; bot_state["lastAction"] = "Запущен. Сканирует…"
         bot_state["scanStatus"] = "Подготовка сканера…"
-    push_equity_point()
-    bot_log("Бот запущен.","green")
+    push_equity_point(); bot_log("Бот запущен.","green")
     return jsonify({"success":True})
 
 @app.route("/api/bot/stop", methods=["POST"])
 def bot_stop_api():
     with bot_state_lock:
-        bot_state["running"] = False
-        bot_state["reason"] = "Остановлен вручную"
-        bot_state["stoppedAt"] = now_iso()
-        bot_state["lastAction"] = "Остановлен вручную"
+        bot_state["running"] = False; bot_state["reason"] = "Остановлен вручную"
+        bot_state["stoppedAt"] = now_iso(); bot_state["lastAction"] = "Остановлен вручную"
         bot_state["scanStatus"] = "Сканер остановлен"
-    bot_log("Бот остановлен.","red")
-    return jsonify({"success":True})
+    bot_log("Бот остановлен.","red"); return jsonify({"success":True})
 
 @app.route("/api/bot/emergency", methods=["POST"])
 def bot_emergency_api():
     bot_close_all("emergency")
     with bot_state_lock:
-        bot_state["running"] = False
-        bot_state["emergency"] = True
-        bot_state["reason"] = "Аварийная остановка"
-        bot_state["stoppedAt"] = now_iso()
-        bot_state["lastAction"] = "Аварийная остановка"
-        bot_state["scanStatus"] = "Аварийная остановка"
-    bot_log("АВАРИЙНАЯ ОСТАНОВКА.","red")
-    return jsonify({"success":True})
+        bot_state["running"] = False; bot_state["emergency"] = True
+        bot_state["reason"] = "Аварийная остановка"; bot_state["stoppedAt"] = now_iso()
+        bot_state["lastAction"] = "Аварийная остановка"; bot_state["scanStatus"] = "Аварийная остановка"
+    bot_log("АВАРИЙНАЯ ОСТАНОВКА.","red"); return jsonify({"success":True})
 
 @app.route("/api/bot/settings", methods=["POST"])
 def bot_settings_api():
@@ -977,10 +877,8 @@ def bot_settings_api():
     with bot_state_lock:
         for key in ("profitTarget","maxLoss","tradeSize"):
             if key in data:
-                try:
-                    bot_state["settings"][key] = float(data[key])
-                except Exception:
-                    pass
+                try: bot_state["settings"][key] = float(data[key])
+                except Exception: pass
     bot_log("Настройки сохранены.","blue")
     return jsonify({"success":True,"settings":bot_state["settings"]})
 
@@ -990,16 +888,12 @@ def bot_strategy_api():
     with bot_state_lock:
         for key in ("emaFast","emaSlow","rsiPeriod","rsiBuyMin","rsiBuyMax","rsiSellMin","rsiSellMax"):
             if key in data:
-                try:
-                    bot_state["strategy"][key] = int(data[key])
-                except Exception:
-                    pass
+                try: bot_state["strategy"][key] = int(data[key])
+                except Exception: pass
         for key in ("tpPercent","slPercent"):
             if key in data:
-                try:
-                    bot_state["strategy"][key] = float(data[key])
-                except Exception:
-                    pass
+                try: bot_state["strategy"][key] = float(data[key])
+                except Exception: pass
     bot_log("Стратегия обновлена.","blue")
     return jsonify({"success":True,"strategy":bot_state["strategy"]})
 
@@ -1013,36 +907,28 @@ def bot_reset_api():
             "startedAt":None,"stoppedAt":None,"lastAction":"Сброшено",
             "scanResults":[],"scanStatus":"Сброшено; ожидание запуска"
         })
-    bot_log("Бот сброшен.","gold")
-    return jsonify({"success":True})
+    bot_log("Бот сброшен.","gold"); return jsonify({"success":True})
 
 @app.route("/api/bot/export.csv")
 def bot_export_csv():
-    with bot_state_lock:
-        trades = list(bot_state["closedTrades"])
-    out = io.StringIO()
-    writer = csv.writer(out)
+    with bot_state_lock: trades = list(bot_state["closedTrades"])
+    out = io.StringIO(); writer = csv.writer(out)
     writer.writerow(["Time","Symbol","Side","SizeUSD","EntryPrice","ExitPrice","PnL","PnL%","Reason"])
     for trade in trades:
-        writer.writerow([
-            trade.get("closedAt",""),trade.get("symbol",""),trade.get("side",""),
-            f"{trade.get('sizeUsd',0):.2f}",f"{trade.get('entryPrice',0):.8f}",
-            f"{trade.get('exitPrice',0):.8f}",f"{trade.get('pnl',0):.4f}",
-            f"{trade.get('pnlPct',0):.4f}",trade.get("reason","")
-        ])
+        writer.writerow([trade.get("closedAt",""),trade.get("symbol",""),trade.get("side",""),
+                         f"{trade.get('sizeUsd',0):.2f}",f"{trade.get('entryPrice',0):.8f}",
+                         f"{trade.get('exitPrice',0):.8f}",f"{trade.get('pnl',0):.4f}",
+                         f"{trade.get('pnlPct',0):.4f}",trade.get("reason","")])
     return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=cryptopulse_trades.csv"})
 
 def tg(method,payload):
-    if not TG_TOKEN:
-        raise RuntimeError("no token")
+    if not TG_TOKEN: raise RuntimeError("no token")
     r = session.post(f"https://api.telegram.org/bot{TG_TOKEN}/{method}", json=payload, timeout=TIMEOUT)
-    r.raise_for_status()
-    return r.json()
+    r.raise_for_status(); return r.json()
 
 def tg_send(chat,text,markup=None):
     payload = {"chat_id":chat,"text":text}
-    if markup:
-        payload["reply_markup"] = markup
+    if markup: payload["reply_markup"] = markup
     return tg("sendMessage",payload)
 
 def keyboard():
@@ -1061,70 +947,52 @@ def telegram_prices():
 def telegram_webhook():
     if TG_SECRET:
         secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token","")
-        if not hmac.compare_digest(secret,TG_SECRET):
-            return jsonify({"ok":False}),401
-    if not TG_TOKEN:
-        return jsonify({"ok":False}),503
+        if not hmac.compare_digest(secret,TG_SECRET): return jsonify({"ok":False}),401
+    if not TG_TOKEN: return jsonify({"ok":False}),503
     update = request.get_json(silent=True) or {}
     callback = update.get("callback_query")
     if callback:
         chat = ((callback.get("message") or {}).get("chat") or {}).get("id")
-        try:
-            tg("answerCallbackQuery",{"callback_query_id":callback.get("id")})
-        except Exception:
-            pass
+        try: tg("answerCallbackQuery",{"callback_query_id":callback.get("id")})
+        except Exception: pass
         if chat:
             data = callback.get("data")
             try:
-                if data == "prices":
-                    tg_send(chat,telegram_prices(),keyboard())
+                if data == "prices": tg_send(chat,telegram_prices(),keyboard())
                 elif data == "usdrub":
                     rate = usd_rub()
                     tg_send(chat,f"💱 USD/RUB\n\n1 USD = ₽{rate:.2f}\n\nИсточник: open.er-api.com",keyboard())
-            except Exception:
-                tg_send(chat,"Недоступно.",keyboard())
+            except Exception: tg_send(chat,"Недоступно.",keyboard())
         return jsonify({"ok":True})
     message = update.get("message") or {}
-    chat = (message.get("chat") or {}).get("id")
-    text = (message.get("text") or "").strip()
+    chat = (message.get("chat") or {}).get("id"); text = (message.get("text") or "").strip()
     if chat and text.startswith(("/start","/help")):
         tg_send(chat,"CryptoPulse\nЦены, сигналы, курс USD/RUB.\nРеальная торговля отключена.",keyboard())
     elif chat and text.startswith("/prices"):
-        try:
-            tg_send(chat,telegram_prices(),keyboard())
-        except Exception:
-            tg_send(chat,"Недоступно.",keyboard())
+        try: tg_send(chat,telegram_prices(),keyboard())
+        except Exception: tg_send(chat,"Недоступно.",keyboard())
     return jsonify({"ok":True})
 
 def configure_telegram():
-    if not TG_TOKEN:
-        return
+    if not TG_TOKEN: return
     try:
         tg("setChatMenuButton",{"menu_button":{"type":"web_app","text":"Открыть CryptoPulse","web_app":{"url":WEBAPP_URL}}})
         payload = {"url":WEBHOOK_URL}
-        if TG_SECRET:
-            payload["secret_token"] = TG_SECRET
+        if TG_SECRET: payload["secret_token"] = TG_SECRET
         tg("setWebhook",payload)
-    except Exception:
-        log.exception("tg setup fail")
+    except Exception: log.exception("tg setup fail")
 
 def worker():
     while True:
-        try:
-            refresh(force=True)
-        except Exception:
-            log.exception("bg fail")
+        try: refresh(force=True)
+        except Exception: log.exception("bg fail")
         time.sleep(REFRESH_SECONDS)
 
 init_db()
 bot_load()
 
-if TG_AUTO:
-    configure_telegram()
-
-if BG_WORKER:
-    threading.Thread(target=worker,daemon=True).start()
-
+if TG_AUTO: configure_telegram()
+if BG_WORKER: threading.Thread(target=worker,daemon=True).start()
 threading.Thread(target=bot_worker,daemon=True).start()
 
 if __name__ == "__main__":

@@ -102,9 +102,11 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 .coin-cell{display:flex;align-items:center;gap:10px}.coin-name{font-weight:700}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.settings{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
 @media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+#globalError{display:none; position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#ff5d73; color:white; padding:12px 20px; z-index:9999; border-radius:8px; font-weight:bold; font-size:14px; box-shadow:0 4px 12px rgba(0,0,0,0.5); text-align:center; max-width:90vw;}
 </style>
 </head>
 <body>
+<div id="globalError"></div>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><div class="brand-logo">₿</div><div class="brand-name">Crypto<span>Pulse</span></div></div>
@@ -216,6 +218,13 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 </div>
 
 <script>
+// ПЕРЕХВАТ ОШИБОК
+window.onerror = function(msg, url, line) {
+    const el = document.getElementById('globalError');
+    if(el) { el.style.display = 'block'; el.textContent = "Ошибка JS: " + msg + " (строка " + line + ")"; }
+    return false;
+};
+
 const $ = id => document.getElementById(id);
 const S = { coins: [], rub: null, bot: null };
 
@@ -264,7 +273,11 @@ async function refreshBot(){
     const data = await api("/api/bot/state");
     S.bot = data;
     renderBot(data);
-  }catch(e){ console.warn("bot state error", e); }
+  }catch(e){
+    console.warn("bot state error", e);
+    const el = document.getElementById('globalError');
+    if(el) { el.style.display = 'block'; el.textContent = "Ошибка API: " + e.message; }
+  }
 }
 
 function renderBot(data){
@@ -299,7 +312,6 @@ function renderBot(data){
     <div class="log-row"><span class="log-time">${esc(l.time)}</span><span class="log-dot ${esc(l.color||"blue")}"></span><span class="log-text">${esc(l.text)}</span></div>
   `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
 
-  // --- ИСПРАВЛЕНИЕ: ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ПОЗИЦИЙ ---
   const positions = data.positions || [];
   if (positions.length > 0) {
     $("positionsBody").innerHTML = positions.map(p=>`
@@ -308,7 +320,6 @@ function renderBot(data){
   } else {
     $("positionsBody").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
   }
-  // ---------------------------------------------------
 
   if (data.stats) {
     $("stTrades").textContent = data.stats.trades || 0;

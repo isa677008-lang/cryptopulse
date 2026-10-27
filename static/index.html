@@ -218,7 +218,6 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
 </div>
 
 <script>
-// ПЕРЕХВАТ ОШИБОК
 window.onerror = function(msg, url, line) {
     const el = document.getElementById('globalError');
     if(el) { el.style.display = 'block'; el.textContent = "Ошибка JS: " + msg + " (строка " + line + ")"; }
@@ -228,8 +227,8 @@ window.onerror = function(msg, url, line) {
 const $ = id => document.getElementById(id);
 const S = { coins: [], rub: null, bot: null };
 
-function n(v, d=8){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:2}); }
-function money(v, d=2){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d}); }
+function n(v, d=8){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:Math.min(2,d)}); }
+function money(v, d=2){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return "$" + Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:Math.min(2,d)}); }
 function pct(v){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%"; }
 function cls(v){ if(v==null) return ""; return Number(v)>0?"pnl-pos":Number(v)<0?"pnl-neg":""; }
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }

@@ -299,10 +299,16 @@ function renderBot(data){
     <div class="log-row"><span class="log-time">${esc(l.time)}</span><span class="log-dot ${esc(l.color||"blue")}"></span><span class="log-text">${esc(l.text)}</span></div>
   `).join("") : `<div class="log-row"><span class="log-time">—</span><span class="log-dot blue"></span><span class="log-text">Пока пусто</span></div>`;
 
+  // --- ИСПРАВЛЕНИЕ: ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ПОЗИЦИЙ ---
   const positions = data.positions || [];
-  $("positionsBody").innerHTML = positions.length ? positions.map(p=>`
-    <tr><td class="pair">${esc(p.symbol)}/USDT</td><td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td><td>$${n(p.sizeUsd,0)}</td><td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td></tr>
-  `).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
+  if (positions.length > 0) {
+    $("positionsBody").innerHTML = positions.map(p=>`
+      <tr><td class="pair">${esc(p.symbol)}/USDT</td><td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td><td>$${n(p.sizeUsd,0)}</td><td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}$${Math.abs(p.pnl).toFixed(2)} <small>(${pct(p.pnlPct)})</small></td></tr>
+    `).join("");
+  } else {
+    $("positionsBody").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Нет открытых позиций</td></tr>`;
+  }
+  // ---------------------------------------------------
 
   if (data.stats) {
     $("stTrades").textContent = data.stats.trades || 0;

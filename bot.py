@@ -180,7 +180,6 @@ def bot_load():
             bot_state["dailyTradesReset"] = data.get("dailyTradesReset", datetime.now().strftime("%Y-%m-%d"))
             bot_state["dailyTradesCount"] = data.get("dailyTradesCount", 0)
             bot_state["paused"] = data.get("paused", False)
-            # подстраховка настроек
             if "dailyMaxTrades" not in bot_state["settings"]:
                 bot_state["settings"]["dailyMaxTrades"] = DEFAULT_DAILY_MAX_TRADES
     except Exception as exc:
@@ -655,7 +654,6 @@ def bot_tick():
             bot_state["dailyTradesReset"] = today
             bot_state["dailyTradesCount"] = 0
 
-    # PANIC
     btc_price = prices.get("BTC")
     if btc_price:
         pts = sorted(get_points("BTC"), key=lambda p: p["timestamp"])
@@ -704,7 +702,6 @@ def bot_tick():
             bot_state["scanStatus"] = f"Остановлено: {message}"
         bot_save(); return
 
-    # пауза
     with bot_state_lock:
         if bot_state.get("paused"):
             bot_state["lastAction"] = "Пауза — новые не открываю, старые держу"
@@ -716,7 +713,6 @@ def bot_tick():
             push_equity_point()
         return
 
-    # дневной лимит сделок
     with bot_state_lock:
         daily_max = int(bot_state["settings"].get("dailyMaxTrades", DEFAULT_DAILY_MAX_TRADES))
         daily_count = int(bot_state.get("dailyTradesCount", 0))
@@ -1185,7 +1181,6 @@ def worker():
 init_db()
 bot_load()
 
-# Seed equity point
 if not bot_state["equityCurve"]:
     with bot_state_lock:
         free = float(bot_state["balance"])

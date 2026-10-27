@@ -144,9 +144,12 @@ def bot_log(text, color="blue"):
 
 def push_equity_point():
     with bot_state_lock:
+        # Сохраняем в историю именно ОБЩИЙ баланс, а не свободные деньги
+        free = bot_state["balance"]
+        pos_size = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["equityCurve"].append({
             "ts":time.time(),
-            "balance":bot_state["balance"]
+            "balance": free + pos_size
         })
         bot_state["equityCurve"] = bot_state["equityCurve"][-2000:]
 
@@ -595,7 +598,6 @@ def bot_check_limits():
         settings = bot_state["settings"]
         start = float(settings["startBalance"])
         
-        # Считаем реальный P&L, не включая заблокированные в позициях деньги
         free_balance = float(bot_state["balance"])
         positions_value = sum(p["sizeUsd"] for p in bot_state["positions"])
         
@@ -761,9 +763,10 @@ def compute_stats():
     with bot_state_lock:
         trades = list(bot_state["closedTrades"])
         positions = list(bot_state["positions"])
-        balance = float(bot_state["balance"])
+        balance = float(bot_state["balance"])  # Это СВОБОДНЫЕ деньги
         start = float(bot_state["settings"]["startBalance"])
         equity = list(bot_state["equityCurve"])
+        
     wins = [trade for trade in trades if trade["pnl"] > 0]
     losses = [trade for trade in trades if trade["pnl"] < 0]
     total = len(trades)
@@ -780,6 +783,7 @@ def compute_stats():
     avg_loss = -sum_loss / len(losses) if losses else 0
     best = max((trade["pnl"] for trade in trades),default=0)
     worst = min((trade["pnl"] for trade in trades),default=0)
+    
     max_drawdown = 0.0
     peak = -1e18
     for point in equity:
@@ -787,6 +791,7 @@ def compute_stats():
         drawdown = peak - point["balance"]
         if drawdown > max_drawdown:
             max_drawdown = drawdown
+            
     by_symbol = {}
     for trade in trades:
         symbol = trade["symbol"]
@@ -803,10 +808,12 @@ def compute_stats():
             by_symbol[symbol]["wins"] += 1
         elif trade["pnl"] < 0:
             by_symbol[symbol]["losses"] += 1
+            
     try:
         prices,_,_ = refresh()
     except Exception:
         prices = {}
+        
     positions_live = []
     open_pnl = 0.0
     for position in positions:
@@ -826,6 +833,12 @@ def compute_stats():
                 else 0
             )
         })
+        
+    # --- ИСПРАВЛЕННЫЙ РАСЧЕТ БАЛАНСА ---
+    positions_size = sum(p["sizeUsd"] for p in positions)
+    total_equity = balance + positions_size + open_pnl 
+    total_pnl = total_equity - start
+
     return {
         "trades":total,
         "wins":len(wins),
@@ -844,9 +857,9 @@ def compute_stats():
             key=lambda item:item["pnl"],
             reverse=True
         ),
-        "balance":balance,
+        "balance":total_equity,
         "startBalance":start,
-        "totalPnl":balance - start + open_pnl,
+        "totalPnl":total_pnl,
         "openPnl":open_pnl,
         "closedPnl":balance - start,
         "openPositions":len(positions_live),
@@ -984,7 +997,7 @@ def bot_state_api():
             "reason":bot_state["reason"],
             "settings":bot_state["settings"],
             "strategy":bot_state["strategy"],
-            "balance":bot_state["balance"] + stats["openPnl"],
+            "balance":stats["balance"],
             "startBalance":stats["startBalance"],
             "totalPnl":stats["totalPnl"],
             "totalPnlPct":(

@@ -595,10 +595,16 @@ def bot_check_limits():
         start = float(settings["startBalance"])
         balance = float(bot_state["balance"])
         diff = balance - start
-        if diff >= float(settings["profitTarget"]):
+        
+        profit_target = float(settings["profitTarget"])
+        max_loss = float(settings["maxLoss"])
+        
+        if diff >= profit_target:
             return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
-        if diff <= -float(settings["maxLoss"]):
+        
+        if diff <= -max_loss:
             return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
+            
     return None, None
 
 def bot_close_all(reason="manual"):

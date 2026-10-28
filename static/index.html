@@ -188,6 +188,12 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
                   <div class="input-wrap"><input type="number" id="dailyMaxTrades" value="50" min="1" step="1" style="padding-left:12px"></div>
                 </div>
                 <div class="field">
+                  <label>Сдерживание позиций
+                    <label class="checkbox-wrap" title="Если галочка стоит — бот не откроет больше указанного числа позиций"><input type="checkbox" id="chk_maxPositions" checked></label>
+                  </label>
+                  <div class="input-wrap"><input type="number" id="maxOpenPositions" value="20" min="1" step="1" style="padding-left:12px"></div>
+                </div>
+                <div class="field">
                   <label>Риск на сделку, %</label>
                   <div class="input-wrap"><input type="number" id="riskPerTradePct" value="1" min="0.1" step="0.1" style="padding-left:12px"></div>
                 </div>
@@ -335,7 +341,7 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
 });
 
 let EDITING = false;
-const EDIT_IDS = ["profitTarget","maxLoss","dailyMaxLoss","tradeSize","dailyMaxTrades","riskPerTradePct"];
+const EDIT_IDS = ["profitTarget","maxLoss","dailyMaxLoss","tradeSize","dailyMaxTrades","riskPerTradePct","maxOpenPositions"];
 
 function bindEditGuards(){
   EDIT_IDS.forEach(id=>{
@@ -411,12 +417,14 @@ function renderBot(data){
       if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
       if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades ?? 50;
       if(document.activeElement !== $("riskPerTradePct")) $("riskPerTradePct").value = data.settings.riskPerTradePct ?? 1;
+      if(document.activeElement !== $("maxOpenPositions")) $("maxOpenPositions").value = data.settings.maxOpenPositions ?? 20;
     }
     $("chk_profitTarget").checked = data.settings.enableProfitTarget !== false;
     $("chk_maxLoss").checked = data.settings.enableMaxLoss !== false;
     $("chk_dailyMaxLoss").checked = data.settings.enableDailyMaxLoss !== false;
     $("chk_fixedTradeSize").checked = data.settings.fixedTradeSize !== false;
     $("chk_dailyMaxTrades").checked = data.settings.enableDailyMaxTrades !== false;
+    $("chk_maxPositions").checked = data.settings.enableMaxPositions !== false;
   }
 
   const eq = Number(data.balance) || 0;
@@ -566,11 +574,13 @@ function collectSettings() {
     tradeSize: Number($("tradeSize").value)||50,
     dailyMaxTrades: Number($("dailyMaxTrades").value)||50,
     riskPerTradePct: Number($("riskPerTradePct").value)||1,
+    maxOpenPositions: Number($("maxOpenPositions").value)||20,
     enableProfitTarget: $("chk_profitTarget").checked,
     enableMaxLoss: $("chk_maxLoss").checked,
     enableDailyMaxLoss: $("chk_dailyMaxLoss").checked,
     fixedTradeSize: $("chk_fixedTradeSize").checked,
     enableDailyMaxTrades: $("chk_dailyMaxTrades").checked,
+    enableMaxPositions: $("chk_maxPositions").checked,
   };
 }
 
@@ -582,7 +592,7 @@ function saveSettings(){
   }).then(()=>clearError()).catch(e=>showError(e.message));
 }
 
-["profitTarget","maxLoss","tradeSize","dailyMaxLoss","dailyMaxTrades","riskPerTradePct"].forEach(id=>{
+["profitTarget","maxLoss","tradeSize","dailyMaxLoss","dailyMaxTrades","riskPerTradePct","maxOpenPositions"].forEach(id=>{
   const el = $(id);
   el.addEventListener("keydown", (ev)=>{
     if(ev.key === "Enter"){ ev.preventDefault(); el.blur(); }
@@ -590,7 +600,7 @@ function saveSettings(){
   el.addEventListener("blur", ()=>{ saveSettings(); });
 });
 
-["chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades"].forEach(id=>{
+["chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades","chk_maxPositions"].forEach(id=>{
   $(id).addEventListener("change", ()=>{ saveSettings(); });
 });
 

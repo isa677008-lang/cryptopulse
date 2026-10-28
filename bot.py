@@ -48,7 +48,11 @@ REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
 BOT_TICK_SECONDS = 10
-BOT_START_BALANCE = 100.0
+
+# ==========================================
+# ВОТ ЗДЕСЬ МЫ ПОМЕНЯЛИ СТАРТОВЫЙ БАЛАНС
+# ==========================================
+BOT_START_BALANCE = 1000.0 
 
 FEE_RATE = 0.001
 TP_PERCENT = 3.0
@@ -84,9 +88,12 @@ bybit_status = {"available":False,"lastError":None,"lastCheck":None}
 db_status = {"configured":bool(DATABASE_URL),"available":False,"lastError":None}
 wallet_cache = {"updated":0,"data":None}
 
+# ==========================================
+# ЗДЕСЬ МЕНЯЕМ РАЗМЕР СДЕЛКИ (tradeSize)
+# ==========================================
 bot_state = {
     "running":False,"paused":False,"emergency":False,"reason":"Не запущен",
-    "settings":{"profitTarget":2.0,"maxLoss":10.0,"tradeSize":10.0,"dailyMaxLoss":5.0,
+    "settings":{"profitTarget":10.0,"maxLoss":50.0,"tradeSize":50.0,"dailyMaxLoss":20.0,
                 "dailyMaxTrades":DEFAULT_DAILY_MAX_TRADES,
                 "startBalance":BOT_START_BALANCE,"dailyStartBalance":BOT_START_BALANCE},
     "strategy":dict(DEFAULT_STRATEGY),

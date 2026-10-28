@@ -122,7 +122,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
     <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
     <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
     <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span></button>
-    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.4 beta</div></div>
+    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.5 beta</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
@@ -268,9 +268,23 @@ function money(v, d=2){ if(v===null||v===undefined||!Number.isFinite(Number(v)))
 function pct(v){ if(v===null||v===undefined||!Number.isFinite(Number(v))) return "—"; return (Number(v)>0?"+":"") + Number(v).toFixed(2) + "%"; }
 function cls(v){ if(v==null) return ""; return Number(v)>0?"pnl-pos":Number(v)<0?"pnl-neg":""; }
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
 async function api(url, opts){
-  const r = await fetch(url, {cache:"no-store", ...opts});
+  const secret = localStorage.getItem("bot_secret") || "";
+  const headers = opts?.headers || {};
+  if (secret) headers["X-Bot-Secret"] = secret;
+
+  const r = await fetch(url, {cache:"no-store", ...opts, headers});
   const data = await r.json();
+  
+  if(r.status === 401) {
+      const pwd = prompt("Введите пароль администратора (BOT_ADMIN_SECRET):");
+      if (pwd) {
+          localStorage.setItem("bot_secret", pwd);
+          return api(url, opts);
+      }
+  }
+  
   if(!r.ok || data.success===false) throw Error(data.error || "Ошибка");
   return data;
 }

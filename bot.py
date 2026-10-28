@@ -69,8 +69,8 @@ TRAILING_TRIGGER_PERCENT = 1.0
 TRAILING_DISTANCE_PERCENT = 0.4
 RISK_PER_TRADE_PCT = 1.0
 MAX_POSITION_PCT = 20.0
-MAX_OPEN_POSITIONS = 5
-MAX_TOTAL_EXPOSURE_PCT = 60.0
+MAX_OPEN_POSITIONS = 20
+MAX_TOTAL_EXPOSURE_PCT = 80.0
 
 SIGNAL_UNIVERSE_SIZE = 100
 SIGNAL_UNIVERSE_REFRESH_SECONDS = 180
@@ -112,6 +112,7 @@ bot_state = {
         "riskPerTradePct": RISK_PER_TRADE_PCT,
         "maxOpenPositions": MAX_OPEN_POSITIONS,
         "maxTotalExposurePct": MAX_TOTAL_EXPOSURE_PCT,
+        "enableMaxPositions": True,
     },
     "strategy": dict(DEFAULT_STRATEGY),
     "balance": BOT_START_BALANCE,
@@ -194,7 +195,7 @@ def bot_load():
                 merged.update(bot_state["strategy"])
             bot_state["strategy"] = merged
             for key in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                        "fixedTradeSize", "enableDailyMaxTrades"):
+                        "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions"):
                 bot_state["settings"].setdefault(key, True)
             bot_state["settings"].setdefault("dailyMaxTrades", DEFAULT_DAILY_MAX_TRADES)
             bot_state["settings"].setdefault("riskPerTradePct", RISK_PER_TRADE_PCT)
@@ -653,8 +654,10 @@ def bot_open_position(symbol, price, side, reason=""):
         return None
     with bot_state_lock:
         settings = bot_state["settings"]
-        if len(bot_state["positions"]) >= int(settings.get("maxOpenPositions", MAX_OPEN_POSITIONS)):
-            return None
+        if settings.get("enableMaxPositions", True):
+            max_pos = int(settings.get("maxOpenPositions", MAX_OPEN_POSITIONS))
+            if len(bot_state["positions"]) >= max_pos:
+                return None
         total_exposure = sum(p["sizeUsd"] for p in bot_state["positions"])
         balance = float(bot_state["balance"])
         if total_exposure >= balance * (settings.get("maxTotalExposurePct", MAX_TOTAL_EXPOSURE_PCT) / 100):
@@ -1246,8 +1249,13 @@ def bot_start_api():
                     bot_state["settings"]["maxOpenPositions"] = max(1, int(data["settings"]["maxOpenPositions"]))
                 except Exception:
                     pass
+            if "maxTotalExposurePct" in data["settings"]:
+                try:
+                    bot_state["settings"]["maxTotalExposurePct"] = float(data["settings"]["maxTotalExposurePct"])
+                except Exception:
+                    pass
             for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                         "fixedTradeSize", "enableDailyMaxTrades"):
+                         "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions"):
                 if flag in data["settings"]:
                     bot_state["settings"][flag] = bool(data["settings"][flag])
         free = float(bot_state["balance"])
@@ -1352,8 +1360,13 @@ def bot_settings_api():
                 bot_state["settings"]["maxOpenPositions"] = max(1, int(data["maxOpenPositions"]))
             except Exception:
                 pass
+        if "maxTotalExposurePct" in data:
+            try:
+                bot_state["settings"]["maxTotalExposurePct"] = float(data["maxTotalExposurePct"])
+            except Exception:
+                pass
         for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                     "fixedTradeSize", "enableDailyMaxTrades"):
+                     "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions"):
             if flag in data:
                 bot_state["settings"][flag] = bool(data[flag])
     bot_log("Настройки сохранены.", "blue")

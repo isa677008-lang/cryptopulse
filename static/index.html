@@ -349,7 +349,6 @@ function renderBot(data){
     if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
     if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades || 10;
     
-    // Checkboxes
     $("chk_profitTarget").checked = data.settings.enableProfitTarget !== false;
     $("chk_maxLoss").checked = data.settings.enableMaxLoss !== false;
     $("chk_dailyMaxLoss").checked = data.settings.enableDailyMaxLoss !== false;
@@ -544,15 +543,24 @@ $("mktSearch").oninput = renderMarkets;
 
 const canvas = $("chart"); const ctx = canvas.getContext("2d");
 let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
+let chartFrameId = null;
 
 async function loadCandles(symbol, interval){
-  chartState.loading = true; chartState.error = null; drawChart();
+  chartState.loading = true; chartState.error = null; scheduleDrawChart();
   try{
     const r = await fetch(`/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=200`, {cache:"no-store"});
     const data = await r.json();
     if(!r.ok || data.success === false) throw new Error(data.error || "Ошибка");
     chartState.candles = data.candles || [];
-  }catch(e){ chartState.error = e.message; chartState.candles = []; } finally{ chartState.loading = false; drawChart(); }
+  }catch(e){ chartState.error = e.message; chartState.candles = []; } finally{ chartState.loading = false; scheduleDrawChart(); }
+}
+
+function scheduleDrawChart() {
+    if (chartFrameId) return;
+    chartFrameId = requestAnimationFrame(() => {
+        chartFrameId = null;
+        drawChart();
+    });
 }
 
 function drawChart(){
@@ -578,9 +586,8 @@ function drawChart(){
 
 $("chartSymbol").onchange = () => { chartState.symbol = $("chartSymbol").value; loadCandles(chartState.symbol, chartState.interval); };
 document.querySelectorAll(".chart-tf button").forEach(b=>{ b.onclick = ()=>{ document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); chartState.interval = b.dataset.tf; loadCandles(chartState.symbol, chartState.interval); }; });
-window.addEventListener("resize", ()=>{ if(chartState.candles.length) drawChart(); drawEquityChart(S.bot?.stats?.equityCurve || []); });
+window.addEventListener("resize", ()=>{ if(chartState.candles.length) scheduleDrawChart(); drawEquityChart(S.bot?.stats?.equityCurve || []); });
 
-/* EQUITY CHART */
 const eqCanvas = $("equityChart"); const eqCtx = eqCanvas.getContext("2d");
 function drawEquityChart(equity){
   if(!eqCanvas || !eqCanvas.parentElement) return;

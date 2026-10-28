@@ -51,21 +51,21 @@ BOT_TICK_SECONDS = 10
 BOT_START_BALANCE = 100.0
 
 FEE_RATE = 0.001
-TP_PERCENT = 3.0  # Увеличили тейк-профит
-SL_PERCENT = 1.5  # Уменьшили стоп-лосс
+TP_PERCENT = 3.0
+SL_PERCENT = 1.5
 BE_TRIGGER_PERCENT = 1.0
 TRAILING_TRIGGER_PERCENT = 1.5
 TRAILING_DISTANCE_PERCENT = 1.0
 
-SIGNAL_UNIVERSE_SIZE = 60
+SIGNAL_UNIVERSE_SIZE = 100 
 SIGNAL_UNIVERSE_REFRESH_SECONDS = 180
 PANIC_BTC_DROP_PCT = -3.0
 EQUITY_PUSH_SECONDS = 15
-DEFAULT_DAILY_MAX_TRADES = 10
+DEFAULT_DAILY_MAX_TRADES = 35 
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
-    "rsiBuyMin": 50, "rsiBuyMax": 65, # Сузили диапазон (не покупаем на самом пике)
+    "rsiBuyMin": 50, "rsiBuyMax": 65,
     "rsiSellMin": 35, "rsiSellMax": 50,
     "topCoins": ["ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
@@ -325,7 +325,7 @@ def refresh_strategy_history_background(symbols):
     try:
         with bot_state_lock: bot_state["scanStatus"] = f"Загружаю MTF-свечи: 0/{len(symbols)}"
         completed = 0; successful = 0
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=5) as pool:
             futures = {pool.submit(fetch_klines, symbol, SCAN_CANDLE_INTERVAL, SCAN_CANDLE_LIMIT): symbol for symbol in symbols}
             for future in as_completed(futures):
                 symbol = futures[future]
@@ -347,14 +347,12 @@ def refresh_strategy_history_background(symbols):
 def analyze(symbol, price, strategy=None):
     st = strategy or bot_state["strategy"]
     with strategy_history_lock: pts = list(strategy_history.get(symbol, []))
-    
     if not pts:
         return {"symbol":symbol,"price":price,"rsi14":None,"ema9":None,"ema21":None,"signal":"insufficient_history","explanation":"Мало данных.","sampleCount":0}
 
     values = [p["price"] for p in pts]
     volumes = [p.get("volume", 0) for p in pts]
 
-    # MTF Анализ: Проверяем старшие таймфреймы
     h1_candles = fetch_klines(symbol, "60", 50)
     h4_candles = fetch_klines(symbol, "240", 50)
     h1_trend = get_trend_from_candles(h1_candles)
@@ -373,10 +371,8 @@ def analyze(symbol, price, strategy=None):
             avg_vol = sum(volumes[-10:-1]) / 9
             if volumes[-1] > avg_vol * 1.1: has_volume = True
 
-        # Сигнал на покупку
         if price > ema_fast > ema_slow and st["rsiBuyMin"] <= rsi_value < st["rsiBuyMax"]:
             if has_volume:
-                # Проверка старших ТФ (Фильтр тренда)
                 if h1_trend == "down" or h4_trend == "down":
                     explanation = f"Бычий сигнал, но тренд H1/H4 вниз."
                 else:
@@ -384,11 +380,8 @@ def analyze(symbol, price, strategy=None):
                     explanation = "Бычий сигнал + Объем + MTF совпал."
             else:
                 explanation = "Бычий сигнал, но мало объема."
-                
-        # Сигнал на продажу
         elif price < ema_fast < ema_slow and st["rsiSellMin"] < rsi_value <= st["rsiSellMax"]:
             if has_volume:
-                # Проверка старших ТФ
                 if h1_trend == "up" or h4_trend == "up":
                     explanation = f"Медвежий сигнал, но тренд H1/H4 вверх."
                 else:
@@ -400,10 +393,7 @@ def analyze(symbol, price, strategy=None):
             signal = "neutral"
             explanation = "Условия не совпали."
 
-    return {
-        "symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,
-        "sampleCount":len(values),"signal":signal,"explanation":explanation,"mode":"simulation"
-    }
+    return {"symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,"sampleCount":len(values),"signal":signal,"explanation":explanation,"mode":"simulation"}
 
 
 def fetch_prices():

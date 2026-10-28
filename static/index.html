@@ -49,11 +49,13 @@
 .status-box .dot.paused{background:var(--gold);box-shadow:0 0 8px var(--gold)}
 .status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
 .status-box .reason{margin-top:10px;color:var(--muted);font-size:12px}
-.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
-.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:var(--muted)}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
 .input-wrap{position:relative}
 .input-wrap input,.input-wrap select{width:100%;padding:11px 12px 11px 30px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);font-weight:600}
 .input-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
+.checkbox-wrap{display:flex;align-items:center;gap:6px;cursor:pointer}
+.checkbox-wrap input[type="checkbox"]{width:16px;height:16px;accent-color:var(--blue);cursor:pointer}
 select,select option,select optgroup{background-color:#0e1627 !important;color:#eaf1ff !important;color-scheme:dark !important}
 select option:checked,select option:hover{background-color:#1d3157 !important;color:#fff !important}
 .chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px}
@@ -120,7 +122,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
     <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
     <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
     <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История сделок</span></button>
-    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.3 beta</div></div>
+    <div class="sidebar-footer"><div><span class="dot"></span>Сервер работает</div><div class="v">v3.4 beta</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
@@ -150,11 +152,26 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
                 </div>
               </div>
               <div class="settings">
-                <div class="field"><label>Цель по прибыли</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="2" min="0"></div></div>
-                <div class="field"><label>Макс. убыток</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="10" min="0"></div></div>
-                <div class="field"><label>Дневной лимит убытка</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="dailyMaxLoss" value="5" min="0"></div></div>
-                <div class="field"><label>Размер сделки</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="10" min="1"></div></div>
-                <div class="field"><label>Макс. сделок в день</label><div class="input-wrap"><input type="number" id="dailyMaxTrades" value="10" min="1" style="padding-left:12px"></div></div>
+                <div class="field">
+                  <label>Цель по прибыли <label class="checkbox-wrap"><input type="checkbox" id="chk_profitTarget" checked title="Если убрать галочку, бот не будет останавливаться при достижении цели"></label></label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="20" min="0"></div>
+                </div>
+                <div class="field">
+                  <label>Макс. убыток <label class="checkbox-wrap"><input type="checkbox" id="chk_maxLoss" checked title="Если убрать галочку, бот не остановится при этом убытке"></label></label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="50" min="0"></div>
+                </div>
+                <div class="field">
+                  <label>Дневной лимит убытка <label class="checkbox-wrap"><input type="checkbox" id="chk_dailyMaxLoss" checked title="Если убрать галочку, дневной лимит не будет учитываться"></label></label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="dailyMaxLoss" value="30" min="0"></div>
+                </div>
+                <div class="field">
+                  <label>Размер сделки <label class="checkbox-wrap"><input type="checkbox" id="chk_fixedTradeSize" checked title="Если убрать галочку, бот сам будет считать размер сделки (2% от баланса)"></label></label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="50" min="1"></div>
+                </div>
+                <div class="field">
+                  <label>Макс. сделок в день <label class="checkbox-wrap"><input type="checkbox" id="chk_dailyMaxTrades" checked title="Если убрать галочку, лимит сделок не будет учитываться"></label></label>
+                  <div class="input-wrap"><input type="number" id="dailyMaxTrades" value="50" min="1" style="padding-left:12px"></div>
+                </div>
                 <div class="field"><label>Режим</label><div class="input-wrap"><select id="modeSelect" style="padding-left:12px"><option>Симуляция</option></select></div></div>
               </div>
             </div>
@@ -174,8 +191,8 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
             <div class="card">
               <div class="balance-head"><h2>Баланс (симуляция)</h2><button class="refresh-btn" id="balanceRefresh">Обновить</button></div>
               <div class="balance-list">
-                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></div><div class="meta"><div class="k">Общий баланс</div><div class="v" id="balTotal">$100.00</div></div></div>
-                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg></div><div class="meta"><div class="k">Свободно</div><div class="v" id="balFree">$100.00</div></div></div>
+                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></div><div class="meta"><div class="k">Общий баланс</div><div class="v" id="balTotal">$1000.00</div></div></div>
+                <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg></div><div class="meta"><div class="k">Свободно</div><div class="v" id="balFree">$1000.00</div></div></div>
                 <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4d8dff" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/></svg></div><div class="meta"><div class="k">В позициях</div><div class="v" id="balPos">$0.00</div></div></div>
                 <div class="balance-item"><div class="balance-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1fcf8a" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg></div><div class="meta"><div class="k">Общий P&L</div><div class="v green" id="balPnl">+$0.00 (0.00%)</div></div></div>
               </div>
@@ -201,7 +218,7 @@ select option:checked,select option:hover{background-color:#1d3157 !important;co
           <div class="col">
             <div class="card"><h2>Пульс бота <small id="botPulse">—</small></h2><div id="lastActionBox" style="font-size:15px;font-weight:600;color:var(--blue);padding:10px;background:#0a1322;border-radius:8px;border:1px solid var(--line)">Бот остановлен</div></div>
             <div class="card"><h2>График баланса (Equity)</h2><div class="chart-wrap" style="height:200px"><canvas id="equityChart"></canvas></div></div>
-            <div class="card"><h2>Сканер рынка (топ-60) <small>EMA/RSI · свечи 5m</small></h2><div id="scanList" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Ожидание данных...</div></div></div>
+            <div class="card"><h2>Сканер рынка (топ-100) <small>EMA/RSI/ADX · 1m</small></h2><div id="scanList" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Ожидание данных...</div></div></div>
           </div>
           <div class="col">
             <div class="card"><h2>Открытые позиции</h2><div id="botPositions" style="max-height:400px;overflow-y:auto"><div style="color:var(--muted);padding:10px">Нет открытых позиций</div></div></div>
@@ -331,6 +348,13 @@ function renderBot(data){
     if(document.activeElement !== $("dailyMaxLoss")) $("dailyMaxLoss").value = data.settings.dailyMaxLoss || 5;
     if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
     if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades || 10;
+    
+    // Checkboxes
+    $("chk_profitTarget").checked = data.settings.enableProfitTarget !== false;
+    $("chk_maxLoss").checked = data.settings.enableMaxLoss !== false;
+    $("chk_dailyMaxLoss").checked = data.settings.enableDailyMaxLoss !== false;
+    $("chk_fixedTradeSize").checked = data.settings.fixedTradeSize !== false;
+    $("chk_dailyMaxTrades").checked = data.settings.enableDailyMaxTrades !== false;
   }
 
   const total = Number(data.balance) || 0;
@@ -375,7 +399,7 @@ function renderBot(data){
     $("botPulse").textContent = data.scanStatus || (data.running ? "Активен" : "Спит");
 
     const scan = data.scanResults || [];
-    $("scanList").innerHTML = scan.length ? scan.slice(0, 80).map(s => `
+    $("scanList").innerHTML = scan.length ? scan.slice(0, 100).map(s => `
       <div class="scan-row" title="${esc(s.explanation||"")}">
         <div class="scan-symbol">${esc(s.symbol)}</div>
         <div class="scan-signal ${s.signal==="buy_candidate"?"buy":s.signal==="sell_candidate"?"sell":"neutral"}">${s.signal==="buy_candidate"?"BUY":s.signal==="sell_candidate"?"SELL":"ЖДЁМ"}</div>
@@ -462,15 +486,24 @@ function renderSignals(){
 }
 $("sigSearch").oninput = renderSignals;
 
+function collectSettings() {
+    return {
+        profitTarget: Number($("profitTarget").value)||20,
+        maxLoss: Number($("maxLoss").value)||50,
+        dailyMaxLoss: Number($("dailyMaxLoss").value)||30,
+        tradeSize: Number($("tradeSize").value)||50,
+        dailyMaxTrades: Number($("dailyMaxTrades").value)||50,
+        enableProfitTarget: $("chk_profitTarget").checked,
+        enableMaxLoss: $("chk_maxLoss").checked,
+        enableDailyMaxLoss: $("chk_dailyMaxLoss").checked,
+        fixedTradeSize: $("chk_fixedTradeSize").checked,
+        enableDailyMaxTrades: $("chk_dailyMaxTrades").checked
+    };
+}
+
 $("btnStart").onclick = async ()=>{
   try{
-    await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
-      profitTarget: Number($("profitTarget").value)||2,
-      maxLoss: Number($("maxLoss").value)||10,
-      dailyMaxLoss: Number($("dailyMaxLoss").value)||5,
-      tradeSize: Number($("tradeSize").value)||10,
-      dailyMaxTrades: Number($("dailyMaxTrades").value)||10
-    })});
+    await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify(collectSettings())});
     await api("/api/bot/start", {method:"POST"});
     refreshBot();
   }catch(e){ alert("Ошибка: " + e.message); }
@@ -485,14 +518,9 @@ $("btnPause").onclick = async ()=>{
 };
 $("btnEmergency").onclick = async ()=>{ if(!confirm("Закрыть все позиции?")) return; try{ await api("/api/bot/emergency", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
 $("btnReset").onclick = async ()=>{ if(!confirm("Сбросить баланс и историю?")) return; try{ await api("/api/bot/reset", {method:"POST"}); refreshBot(); }catch(e){ alert("Ошибка: " + e.message); } };
-["profitTarget","maxLoss","tradeSize","dailyMaxLoss","dailyMaxTrades"].forEach(id=>{
-  $(id).onchange = async ()=>{ try{ await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({
-    profitTarget: Number($("profitTarget").value)||2,
-    maxLoss: Number($("maxLoss").value)||10,
-    dailyMaxLoss: Number($("dailyMaxLoss").value)||5,
-    tradeSize: Number($("tradeSize").value)||10,
-    dailyMaxTrades: Number($("dailyMaxTrades").value)||10
-  })}); }catch(e){ console.warn(e); } };
+
+["profitTarget","maxLoss","tradeSize","dailyMaxLoss","dailyMaxTrades","chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades"].forEach(id=>{
+  $(id).onchange = async ()=>{ try{ await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify(collectSettings())}); }catch(e){ console.warn(e); } };
 });
 
 async function loadMarkets(){

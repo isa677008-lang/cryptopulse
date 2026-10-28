@@ -47,30 +47,27 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 10
+BOT_TICK_SECONDS = 5 # Ускорили тик до 5 секунд для скальпинга
 
-# ==========================================
-# ВОТ ЗДЕСЬ МЫ ПОМЕНЯЛИ СТАРТОВЫЙ БАЛАНС
-# ==========================================
 BOT_START_BALANCE = 1000.0 
 
 FEE_RATE = 0.001
-TP_PERCENT = 3.0
-SL_PERCENT = 1.5
-BE_TRIGGER_PERCENT = 1.0
-TRAILING_TRIGGER_PERCENT = 1.5
-TRAILING_DISTANCE_PERCENT = 1.0
+TP_PERCENT = 1.0     # Быстрый профит
+SL_PERCENT = 1.5     # Стоп-лосс
+BE_TRIGGER_PERCENT = 0.5 # Безубыток при +0.5%
+TRAILING_TRIGGER_PERCENT = 0.7
+TRAILING_DISTANCE_PERCENT = 0.3
 
 SIGNAL_UNIVERSE_SIZE = 100 
 SIGNAL_UNIVERSE_REFRESH_SECONDS = 180
 PANIC_BTC_DROP_PCT = -3.0
 EQUITY_PUSH_SECONDS = 15
-DEFAULT_DAILY_MAX_TRADES = 35 
+DEFAULT_DAILY_MAX_TRADES = 50 
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
-    "rsiBuyMin": 50, "rsiBuyMax": 65,
-    "rsiSellMin": 35, "rsiSellMax": 50,
+    "rsiBuyMin": 45, "rsiBuyMax": 70,
+    "rsiSellMin": 30, "rsiSellMax": 55,
     "topCoins": ["ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","TON","LINK","DOT","LTC","TRX","NEAR","SUI"]
 }
 
@@ -88,12 +85,9 @@ bybit_status = {"available":False,"lastError":None,"lastCheck":None}
 db_status = {"configured":bool(DATABASE_URL),"available":False,"lastError":None}
 wallet_cache = {"updated":0,"data":None}
 
-# ==========================================
-# ЗДЕСЬ МЕНЯЕМ РАЗМЕР СДЕЛКИ (tradeSize)
-# ==========================================
 bot_state = {
     "running":False,"paused":False,"emergency":False,"reason":"Не запущен",
-    "settings":{"profitTarget":10.0,"maxLoss":50.0,"tradeSize":50.0,"dailyMaxLoss":20.0,
+    "settings":{"profitTarget":20.0,"maxLoss":50.0,"tradeSize":50.0,"dailyMaxLoss":30.0,
                 "dailyMaxTrades":DEFAULT_DAILY_MAX_TRADES,
                 "startBalance":BOT_START_BALANCE,"dailyStartBalance":BOT_START_BALANCE},
     "strategy":dict(DEFAULT_STRATEGY),
@@ -112,7 +106,7 @@ bot_state_lock = threading.RLock()
 strategy_history = {}
 strategy_history_updated = 0.0
 strategy_history_lock = threading.Lock()
-SCAN_CANDLE_INTERVAL = "5"
+SCAN_CANDLE_INTERVAL = "1" # 1-минутный график
 SCAN_CANDLE_LIMIT = 200
 
 history_loading_flag = threading.Event()
@@ -313,24 +307,12 @@ def fetch_klines(symbol, interval, limit=100):
     return []
 
 
-def get_trend_from_candles(candles):
-    if len(candles) < 30: return "neutral"
-    values = [p["price"] for p in candles]
-    ema9 = ema(values, 9)
-    ema21 = ema(values, 21)
-    if not ema9 or not ema21: return "neutral"
-    price = values[-1]
-    if price > ema9 > ema21: return "up"
-    elif price < ema9 < ema21: return "down"
-    return "neutral"
-
-
 def refresh_strategy_history_background(symbols):
     global strategy_history_updated
     if history_loading_flag.is_set(): return
     history_loading_flag.set()
     try:
-        with bot_state_lock: bot_state["scanStatus"] = f"Загружаю MTF-свечи: 0/{len(symbols)}"
+        with bot_state_lock: bot_state["scanStatus"] = f"Загружаю 1m-свечи: 0/{len(symbols)}"
         completed = 0; successful = 0
         with ThreadPoolExecutor(max_workers=5) as pool:
             futures = {pool.submit(fetch_klines, symbol, SCAN_CANDLE_INTERVAL, SCAN_CANDLE_LIMIT): symbol for symbol in symbols}
@@ -343,7 +325,7 @@ def refresh_strategy_history_background(symbols):
                         successful += 1
                 except Exception: pass
                 completed += 1
-                with bot_state_lock: bot_state["scanStatus"] = f"Загружаю MTF-свечи: {completed}/{len(symbols)}"
+                with bot_state_lock: bot_state["scanStatus"] = f"Загружаю 1m-свечи: {completed}/{len(symbols)}"
         with strategy_history_lock: strategy_history_updated = time.time()
         with bot_state_lock: bot_state["scanStatus"] = f"Готово: {successful}/{len(symbols)}"
     except Exception as e:
@@ -360,11 +342,6 @@ def analyze(symbol, price, strategy=None):
     values = [p["price"] for p in pts]
     volumes = [p.get("volume", 0) for p in pts]
 
-    h1_candles = fetch_klines(symbol, "60", 50)
-    h4_candles = fetch_klines(symbol, "240", 50)
-    h1_trend = get_trend_from_candles(h1_candles)
-    h4_trend = get_trend_from_candles(h4_candles)
-
     ema_fast = ema(values, int(st["emaFast"]))
     ema_slow = ema(values, int(st["emaSlow"]))
     rsi_value = rsi(values, int(st["rsiPeriod"]))
@@ -380,20 +357,14 @@ def analyze(symbol, price, strategy=None):
 
         if price > ema_fast > ema_slow and st["rsiBuyMin"] <= rsi_value < st["rsiBuyMax"]:
             if has_volume:
-                if h1_trend == "down" or h4_trend == "down":
-                    explanation = f"Бычий сигнал, но тренд H1/H4 вниз."
-                else:
-                    signal = "buy_candidate"
-                    explanation = "Бычий сигнал + Объем + MTF совпал."
+                signal = "buy_candidate"
+                explanation = "Бычий сигнал + Объем (Скальпинг)."
             else:
                 explanation = "Бычий сигнал, но мало объема."
         elif price < ema_fast < ema_slow and st["rsiSellMin"] < rsi_value <= st["rsiSellMax"]:
             if has_volume:
-                if h1_trend == "up" or h4_trend == "up":
-                    explanation = f"Медвежий сигнал, но тренд H1/H4 вверх."
-                else:
-                    signal = "sell_candidate"
-                    explanation = "Медвежий сигнал + Объем + MTF совпал."
+                signal = "sell_candidate"
+                explanation = "Медвежий сигнал + Объем (Скальпинг)."
             else:
                 explanation = "Медвежий сигнал, но мало объема."
         else:
@@ -531,7 +502,7 @@ def bot_close_position(position,price,reason="manual"):
         bot_state["closedTrades"].insert(0,trade)
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
         bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
-        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing"): bot_state["cooldown"][position["symbol"]] = time.time() + 600
+        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing"): bot_state["cooldown"][position["symbol"]] = time.time() + 300 # Кулдаун 5 минут для скальпинга
     push_equity_point()
     bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if net_pnl >= 0 else "red")
     tg_notify(f"{'🟢' if net_pnl>=0 else '🔴'} Закрыт {position['side']} {position['symbol']}/USDT @ ${price:.4f}\nP&L: {net_pnl:+.2f}$ ({pnl_pct:+.2f}%) [{reason}]")
@@ -552,7 +523,7 @@ def bot_check_limits():
         total_equity = free_balance + positions_value + open_pnl; diff = total_equity - start
         today = datetime.now().strftime("%Y-%m-%d")
         if bot_state["lastDate"] != today: bot_state["lastDate"] = today; bot_state["settings"]["dailyStartBalance"] = total_equity; bot_save()
-        daily_diff = total_equity - float(settings.get("dailyStartBalance", total_equity)); daily_max = float(settings.get("dailyMaxLoss", 5.0))
+        daily_diff = total_equity - float(settings.get("dailyStartBalance", total_equity)); daily_max = float(settings.get("dailyMaxLoss", 30.0))
         if daily_diff <= -daily_max: return "daily_loss", f"Достигнут дневной лимит убытка (-${abs(daily_diff):.2f})"
         profit_target = float(settings["profitTarget"]); max_loss = float(settings["maxLoss"])
         if diff >= profit_target: return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
@@ -586,11 +557,7 @@ def bot_tick():
                 bot_log(f"PANIC: BTC {btc_1h:+.2f}% за час — закрываю всё", "red"); bot_close_all("panic")
                 with bot_state_lock: bot_state["paused"] = True; bot_state["lastAction"] = f"Panic: BTC {btc_1h:.1f}%"; bot_state["scanStatus"] = "Panic — пауза"
                 tg_notify(f"🚨 PANIC: BTC {btc_1h:+.2f}%. Все закрыто, пауза."); bot_save(); return
-    btc_trend = "neutral"
-    if btc_price:
-        btc_analysis = analyze("BTC", btc_price, bot_state["strategy"])
-        if btc_analysis["signal"] == "sell_candidate": btc_trend = "down"
-        elif btc_analysis["signal"] == "buy_candidate": btc_trend = "up"
+    
     with bot_state_lock: positions = list(bot_state["positions"])
     for position in positions:
         price = prices.get(position["symbol"])
@@ -604,16 +571,16 @@ def bot_tick():
                 if position["sl"] < entry: position["sl"] = entry; bot_log(f"{position['symbol']}: Стоп в безубыток", "gold")
             if profit_pct >= TRAILING_TRIGGER_PERCENT:
                 new_sl = price * (1 - TRAILING_DISTANCE_PERCENT / 100)
-                if new_sl > position["sl"]: position["sl"] = new_sl; bot_log(f"{position['symbol']}: Трейлинг до ${new_sl:,.4f}", "blue")
+                if new_sl > position["sl"]: position["sl"] = new_sl
         else:
-            profit_pct = (entry - price) / entry * 100
-            if price <= position["tp"]: bot_close_position(position, price, "TP"); continue
+            profit_pct = (entry - price) / entry * 100            if price <= position["tp"]: bot_close_position(position, price, "TP"); continue
             if price >= position["sl"]: reason = "SL" if position["sl"] > entry else "Breakeven"; bot_close_position(position, price, reason); continue
             if profit_pct >= BE_TRIGGER_PERCENT:
                 if position["sl"] > entry: position["sl"] = entry; bot_log(f"{position['symbol']}: Стоп в безубыток", "gold")
             if profit_pct >= TRAILING_TRIGGER_PERCENT:
                 new_sl = price * (1 + TRAILING_DISTANCE_PERCENT / 100)
-                if new_sl < position["sl"]: position["sl"] = new_sl; bot_log(f"{position['symbol']}: Трейлинг до ${new_sl:,.4f}", "blue")
+                if new_sl < position["sl"]: position["sl"] = new_sl
+                
     kind,message = bot_check_limits()
     if kind:
         bot_log(message + ". Останавливаем.", "gold" if kind == "profit" else "red"); bot_close_all("limits")
@@ -657,12 +624,11 @@ def bot_tick():
             fee = float(bot_state["settings"]["tradeSize"]) * FEE_RATE
             if bot_state["balance"] < (float(bot_state["settings"]["tradeSize"]) + fee): break
         if item["signal"] in ("buy_candidate", "sell_candidate"):
-            if item["signal"] == "buy_candidate" and btc_trend == "down": bot_log(f"{item['symbol']}: Пропуск (BTC падает)", "gold"); continue
             ai_comment = ask_ai_comment(item["symbol"], item["price"], item["signal"], item["rsi14"] or 50); bot_log(f"ИИ по {item['symbol']}: {ai_comment}", "blue")
             if item["signal"] == "buy_candidate":
-                if bot_open_position(item["symbol"],item["price"],"Long","EMA/RSI/MTF"): opened += 1
+                if bot_open_position(item["symbol"],item["price"],"Long","Scalp"): opened += 1
             elif item["signal"] == "sell_candidate":
-                if bot_open_position(item["symbol"],item["price"],"Short","EMA/RSI/MTF"): opened += 1
+                if bot_open_position(item["symbol"],item["price"],"Short","Scalp"): opened += 1
     with bot_state_lock:
         if not bot_state["positions"]: bot_state["lastAction"] = "Сканирует — сигналов нет."
         else: bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
@@ -759,7 +725,7 @@ def signals_api():
 
 @app.route("/api/klines")
 def klines_api():
-    sym = (request.args.get("symbol") or "BTCUSDT").upper().strip(); iv = (request.args.get("interval") or "5m").strip()
+    sym = (request.args.get("symbol") or "BTCUSDT").upper().strip(); iv = (request.args.get("interval") or "1m").strip()
     bi = {"1m":"1","3m":"3","5m":"5","15m":"15","30m":"30","1h":"60","2h":"120","4h":"240","6h":"360","12h":"720","1d":"D","1w":"W"}.get(iv,iv)
     try: lim = max(1,min(int(request.args.get("limit","200")),1000))
     except Exception: lim = 200
@@ -801,7 +767,7 @@ def bot_start_api():
         free = float(bot_state["balance"]); pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["settings"]["startBalance"] = free + pos_value; bot_state["settings"]["dailyStartBalance"] = free + pos_value
         bot_state["running"] = True; bot_state["paused"] = False; bot_state["emergency"] = False; bot_state["reason"] = "Бот запущен"; bot_state["startedAt"] = now_iso()
-        bot_state["stoppedAt"] = None; bot_state["lastAction"] = "Запущен. Сканирует…"; bot_state["scanStatus"] = "Подготовка сканера…"
+        bot_state["stoppedAt"] = None; bot_state["lastAction"] = "Запущен. Скальпирует…"; bot_state["scanStatus"] = "Подготовка сканера…"
     push_equity_point(); bot_log("Бот запущен.","green"); return jsonify({"success":True})
 
 @app.route("/api/bot/stop", methods=["POST"])
@@ -856,7 +822,7 @@ def bot_strategy_api():
 @app.route("/api/bot/reset", methods=["POST"])
 def bot_reset_api():
     with bot_state_lock:
-        bot_state.update({"running":False,"paused":False,"emergency":False,"reason":"Сброшено","balance":float(bot_state["settings"].get("startBalance",100.0)),"positions":[],"closedTrades":[],"logs":[],"equityCurve":[],"startedAt":None,"stoppedAt":None,"lastAction":"Сброшено","scanResults":[],"scanStatus":"Сброшено","dailyTradesCount":0,"dailyTradesReset":datetime.now().strftime("%Y-%m-%d"),"cooldown": {}})
+        bot_state.update({"running":False,"paused":False,"emergency":False,"reason":"Сброшено","balance":float(bot_state["settings"].get("startBalance",1000.0)),"positions":[],"closedTrades":[],"logs":[],"equityCurve":[],"startedAt":None,"stoppedAt":None,"lastAction":"Сброшено","scanResults":[],"scanStatus":"Сброшено","dailyTradesCount":0,"dailyTradesReset":datetime.now().strftime("%Y-%m-%d"),"cooldown": {}})
     bot_log("Бот сброшен.","gold"); return jsonify({"success":True})
 
 @app.route("/api/bot/export.csv")

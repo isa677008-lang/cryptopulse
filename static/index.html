@@ -54,7 +54,7 @@
 .status-box .dot.emergency{background:var(--red);box-shadow:0 0 8px var(--red)}
 .status-box .reason{margin-top:10px;color:var(--muted);font-size:12px}
 .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
-.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:8px}
 .input-wrap{position:relative}
 .input-wrap input,.input-wrap select{width:100%;padding:11px 12px 11px 30px;background:#0a1322;border:1px solid var(--line);border-radius:9px;color:var(--text);font-weight:600}
 .input-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px}
@@ -63,7 +63,7 @@
 select,select option{background-color:#0e1627 !important;color:#eaf1ff !important;color-scheme:dark !important}
 .chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .chart-symbol{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
-.chart-symbol select{background:transparent;border:0;color:var(--text);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0}
+.chart-symbol select{background:#0a1322;border:1px solid var(--line);color:var(--text);font-weight:700;font-size:15px;cursor:pointer;padding:6px 10px;border-radius:8px}
 .chart-tf{display:flex;gap:4px;background:#0a1322;padding:4px;border-radius:8px}
 .chart-tf button{padding:5px 10px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:600}
 .chart-tf button.active{background:#1d3157;color:#bcd4ff}
@@ -98,8 +98,6 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 .tag{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700}
 .tag.long{background:var(--green-soft);color:var(--green)}.tag.short{background:var(--red-soft);color:var(--red)}
 .pnl-pos{color:var(--green);font-weight:700}.pnl-neg{color:var(--red);font-weight:700}
-.warn{display:flex;gap:12px;align-items:flex-start;background:#0e1c33;border:1px solid #1d3357;border-radius:12px;padding:14px;font-size:12px;color:#a8bcdc}
-.warn svg{flex:0 0 18px;color:var(--blue);margin-top:1px}
 .page{display:none}.page.active{display:block}
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
 .stat-card{background:#0a1322;border:1px solid var(--line);border-radius:10px;padding:12px}
@@ -159,18 +157,46 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
                 </div>
               </div>
               <div class="settings">
-                <div class="field"><label>Цель по прибыли</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="20" min="0"></div></div>
-                <div class="field"><label>Макс. убыток</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="50" min="0"></div></div>
-                <div class="field"><label>Дневной лимит убытка</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="dailyMaxLoss" value="30" min="0"></div></div>
-                <div class="field"><label>Размер сделки</label><div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="50" min="1"></div></div>
-                <div class="field"><label>Макс. сделок в день</label><div class="input-wrap"><input type="number" id="dailyMaxTrades" value="50" min="1" style="padding-left:12px"></div></div>
-                <div class="field"><label>Риск на сделку, %</label><div class="input-wrap"><input type="number" id="riskPerTradePct" value="1" min="0.1" step="0.1" style="padding-left:12px"></div></div>
+                <div class="field">
+                  <label>Цель по прибыли
+                    <label class="checkbox-wrap" title="Если галочка стоит — бот остановится при достижении цели"><input type="checkbox" id="chk_profitTarget" checked></label>
+                  </label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="profitTarget" value="20" min="0" step="any"></div>
+                </div>
+                <div class="field">
+                  <label>Макс. убыток
+                    <label class="checkbox-wrap" title="Если галочка стоит — бот остановится при этом убытке"><input type="checkbox" id="chk_maxLoss" checked></label>
+                  </label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="maxLoss" value="50" min="0" step="any"></div>
+                </div>
+                <div class="field">
+                  <label>Дневной лимит убытка
+                    <label class="checkbox-wrap" title="Если галочка стоит — дневной лимит учитывается"><input type="checkbox" id="chk_dailyMaxLoss" checked></label>
+                  </label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="dailyMaxLoss" value="30" min="0" step="any"></div>
+                </div>
+                <div class="field">
+                  <label>Размер сделки
+                    <label class="checkbox-wrap" title="Если галочка стоит — фиксированный размер. Если снята — от риска"><input type="checkbox" id="chk_fixedTradeSize" checked></label>
+                  </label>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="50" min="1" step="any"></div>
+                </div>
+                <div class="field">
+                  <label>Макс. сделок в день
+                    <label class="checkbox-wrap" title="Если галочка стоит — лимит сделок учитывается"><input type="checkbox" id="chk_dailyMaxTrades" checked></label>
+                  </label>
+                  <div class="input-wrap"><input type="number" id="dailyMaxTrades" value="50" min="1" step="1" style="padding-left:12px"></div>
+                </div>
+                <div class="field">
+                  <label>Риск на сделку, %</label>
+                  <div class="input-wrap"><input type="number" id="riskPerTradePct" value="1" min="0.1" step="0.1" style="padding-left:12px"></div>
+                </div>
               </div>
             </div>
             <div class="card">
               <div class="chart-head">
-                <div class="chart-symbol"><select id="chartSymbol"><option>BTCUSDT</option></select><div class="chart-tf"><button data-tf="1m">1m</button><button class="active" data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button><button data-tf="1d">1d</button></div></div>
-                <div style="font-size:12px;color:var(--muted)">Bybit Spot</div>
+                <div class="chart-symbol"><select id="chartSymbol"><option value="BTCUSDT">BTC/USDT</option></select></div>
+                <div class="chart-tf"><button data-tf="1m">1m</button><button class="active" data-tf="5m">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button><button data-tf="1d">1d</button></div>
               </div>
               <div class="chart-wrap"><canvas id="chart"></canvas></div>
             </div>
@@ -251,6 +277,8 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 const $ = id => document.getElementById(id);
 const S = { coins: [], rub: null, bot: null, signals: [], config: null };
 
+let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
+
 window.onerror = function(msg, url, line) {
   showError("Ошибка JS: " + msg + " (строка " + line + ")");
   return false;
@@ -306,6 +334,19 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
   };
 });
 
+let EDITING = false;
+const EDIT_IDS = ["profitTarget","maxLoss","dailyMaxLoss","tradeSize","dailyMaxTrades","riskPerTradePct"];
+
+function bindEditGuards(){
+  EDIT_IDS.forEach(id=>{
+    const el = $(id);
+    if(!el) return;
+    el.addEventListener("focus", ()=>{ EDITING = true; });
+    el.addEventListener("blur", ()=>{ EDITING = false; });
+  });
+}
+bindEditGuards();
+
 async function refreshBot(){
   try{
     const data = await api("/api/bot/state");
@@ -339,19 +380,15 @@ function renderBot(data){
   const dailyMax = data.settings?.dailyMaxTrades || 10;
   $("statusTradesToday").textContent = `${dailyCount} / ${dailyMax}`;
 
-  // Реальный возраст данных
   const age = Number(data.ageSeconds);
   if (Number.isFinite(age)) {
     const stale = data.stale || age > 60;
-    $("dataAge").textContent = stale
-      ? `устарели (${age.toFixed(0)} с)`
-      : `свежие (${age.toFixed(0)} с)`;
+    $("dataAge").textContent = stale ? `устарели (${age.toFixed(0)} с)` : `свежие (${age.toFixed(0)} с)`;
     $("dataAge").style.color = stale ? "var(--red)" : "var(--green)";
   } else {
     $("dataAge").textContent = "—";
   }
 
-  // API status
   const ok = !!data.bybitAvailable && !data.stale;
   $("apiDot").className = "dot " + (ok ? "ok" : "bad");
   $("apiStatus").textContent = ok
@@ -363,17 +400,23 @@ function renderBot(data){
     ? `Цены устарели (${(age||0).toFixed(0)} с). Торговля приостановлена.`
     : `Цены обновлены ${(age||0).toFixed(0)} с назад.`;
 
-  // Sidebar
   $("sbDot").className = "dot " + (ok ? "ok" : "bad");
   $("sbStatus").textContent = ok ? "Bybit OK" : "Bybit offline";
 
   if(data.settings){
-    if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
-    if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
-    if(document.activeElement !== $("dailyMaxLoss")) $("dailyMaxLoss").value = data.settings.dailyMaxLoss || 30;
-    if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
-    if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades || 50;
-    if(document.activeElement !== $("riskPerTradePct")) $("riskPerTradePct").value = data.settings.riskPerTradePct || 1;
+    if(!EDITING){
+      if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
+      if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
+      if(document.activeElement !== $("dailyMaxLoss")) $("dailyMaxLoss").value = data.settings.dailyMaxLoss ?? 30;
+      if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
+      if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades ?? 50;
+      if(document.activeElement !== $("riskPerTradePct")) $("riskPerTradePct").value = data.settings.riskPerTradePct ?? 1;
+    }
+    $("chk_profitTarget").checked = data.settings.enableProfitTarget !== false;
+    $("chk_maxLoss").checked = data.settings.enableMaxLoss !== false;
+    $("chk_dailyMaxLoss").checked = data.settings.enableDailyMaxLoss !== false;
+    $("chk_fixedTradeSize").checked = data.settings.fixedTradeSize !== false;
+    $("chk_dailyMaxTrades").checked = data.settings.enableDailyMaxTrades !== false;
   }
 
   const eq = Number(data.balance) || 0;
@@ -523,8 +566,33 @@ function collectSettings() {
     tradeSize: Number($("tradeSize").value)||50,
     dailyMaxTrades: Number($("dailyMaxTrades").value)||50,
     riskPerTradePct: Number($("riskPerTradePct").value)||1,
+    enableProfitTarget: $("chk_profitTarget").checked,
+    enableMaxLoss: $("chk_maxLoss").checked,
+    enableDailyMaxLoss: $("chk_dailyMaxLoss").checked,
+    fixedTradeSize: $("chk_fixedTradeSize").checked,
+    enableDailyMaxTrades: $("chk_dailyMaxTrades").checked,
   };
 }
+
+function saveSettings(){
+  return api("/api/bot/settings", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(collectSettings())
+  }).then(()=>clearError()).catch(e=>showError(e.message));
+}
+
+["profitTarget","maxLoss","tradeSize","dailyMaxLoss","dailyMaxTrades","riskPerTradePct"].forEach(id=>{
+  const el = $(id);
+  el.addEventListener("keydown", (ev)=>{
+    if(ev.key === "Enter"){ ev.preventDefault(); el.blur(); }
+  });
+  el.addEventListener("blur", ()=>{ saveSettings(); });
+});
+
+["chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades"].forEach(id=>{
+  $(id).addEventListener("change", ()=>{ saveSettings(); });
+});
 
 async function withBusy(btn, fn){
   setBusy(btn, true);
@@ -562,10 +630,6 @@ $("btnReset").onclick = ()=>{
   });
 };
 
-["profitTarget","maxLoss","tradeSize","dailyMaxLoss","dailyMaxTrades","riskPerTradePct"].forEach(id=>{
-  $(id).onchange = async ()=>{ try{ await api("/api/bot/settings", {method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify(collectSettings())}); clearError(); }catch(e){ showError(e.message); } };
-});
-
 async function downloadCsv(){
   try{
     const secret = getSecret();
@@ -579,13 +643,33 @@ async function downloadCsv(){
   }catch(e){ showError("CSV: " + e.message); }
 }
 
+function fillChartSymbols(){
+  const sym = $("chartSymbol");
+  const cur = chartState.symbol || sym.value || "BTCUSDT";
+  const symbols = (S.coins || []).map(c => c.symbol).filter(Boolean);
+  if (!symbols.includes("BTC")) symbols.unshift("BTC");
+  const html = symbols.map(s => {
+    const v = s + "USDT";
+    return `<option value="${esc(v)}">${esc(s)}/USDT</option>`;
+  }).join("");
+  if (sym.dataset.sig !== html) {
+    sym.innerHTML = html;
+    sym.dataset.sig = html;
+  }
+  const want = cur.endsWith("USDT") ? cur : cur + "USDT";
+  if ([...sym.options].some(o => o.value === want)) {
+    sym.value = want;
+  } else if (sym.options.length) {
+    sym.value = sym.options[0].value;
+  }
+  chartState.symbol = sym.value;
+}
+
 async function loadMarkets(){
   try{
     const data = await api("/api/prices");
     S.coins = data.coins||[]; S.rub = data.usdRub; renderMarkets();
-    const sym = $("chartSymbol"); const cur = sym.value;
-    sym.innerHTML = S.coins.slice(0,200).map(c=>`<option value="${esc(c.symbol)}USDT">${esc(c.symbol)}/USDT</option>`).join("");
-    if([...sym.options].some(o=>o.value===cur)) sym.value = cur;
+    fillChartSymbols();
   }catch(e){
     $("mktRows").innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red);padding:20px">${esc(e.message)}</td></tr>`;
   }
@@ -600,9 +684,7 @@ function renderMarkets(){
 }
 $("mktSearch").oninput = renderMarkets;
 
-// CANDLES
 const canvas = $("chart"); const ctx = canvas.getContext("2d");
-let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
 let chartFrameId = null;
 
 async function loadCandles(symbol, interval){
@@ -640,7 +722,12 @@ function drawChart(){
   const last = candles[candles.length-1]; const lastY = yFor(last.close); const lastColor = last.close >= last.open ? "#1fcf8a" : "#ff5d73"; ctx.strokeStyle = lastColor; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(pad.l+cw, lastY); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = lastColor; ctx.fillRect(pad.l+cw+2, lastY-9, pad.r-8, 18); ctx.fillStyle = "#0a1222"; ctx.font = "bold 11px sans-serif"; ctx.textAlign="left"; ctx.fillText(last.close.toFixed(last.close>100?2:4), pad.l+cw+6, lastY+4);
 }
 
-$("chartSymbol").onchange = ()=>{ chartState.symbol = $("chartSymbol").value; loadCandles(chartState.symbol, chartState.interval); };
+$("chartSymbol").onchange = ()=>{
+  const v = $("chartSymbol").value;
+  if (!v) return;
+  chartState.symbol = v;
+  loadCandles(chartState.symbol, chartState.interval);
+};
 document.querySelectorAll(".chart-tf button").forEach(b=>{ b.onclick = ()=>{ document.querySelectorAll(".chart-tf button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); chartState.interval = b.dataset.tf; loadCandles(chartState.symbol, chartState.interval); }; });
 window.addEventListener("resize", ()=>{ if(chartState.candles.length) scheduleDrawChart(); drawEquityChart(S.bot?.stats?.equityCurve || []); });
 
@@ -690,9 +777,7 @@ function drawEquityChart(equity){
 }
 
 (async ()=>{
-  try{
-    S.config = await api("/api/config");
-  }catch(e){ /* config не критичен */ }
+  try{ S.config = await api("/api/config"); }catch(e){}
   await refreshBot();
   await loadMarkets();
   chartState.symbol = $("chartSymbol").value || "BTCUSDT";

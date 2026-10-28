@@ -47,14 +47,14 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 5 # Ускорили тик до 5 секунд для скальпинга
+BOT_TICK_SECONDS = 5
 
 BOT_START_BALANCE = 1000.0 
 
 FEE_RATE = 0.001
-TP_PERCENT = 1.0     # Быстрый профит
-SL_PERCENT = 1.5     # Стоп-лосс
-BE_TRIGGER_PERCENT = 0.5 # Безубыток при +0.5%
+TP_PERCENT = 1.0
+SL_PERCENT = 1.5
+BE_TRIGGER_PERCENT = 0.5
 TRAILING_TRIGGER_PERCENT = 0.7
 TRAILING_DISTANCE_PERCENT = 0.3
 
@@ -106,7 +106,7 @@ bot_state_lock = threading.RLock()
 strategy_history = {}
 strategy_history_updated = 0.0
 strategy_history_lock = threading.Lock()
-SCAN_CANDLE_INTERVAL = "1" # 1-минутный график
+SCAN_CANDLE_INTERVAL = "1"
 SCAN_CANDLE_LIMIT = 200
 
 history_loading_flag = threading.Event()
@@ -502,7 +502,7 @@ def bot_close_position(position,price,reason="manual"):
         bot_state["closedTrades"].insert(0,trade)
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
         bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
-        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing"): bot_state["cooldown"][position["symbol"]] = time.time() + 300 # Кулдаун 5 минут для скальпинга
+        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing"): bot_state["cooldown"][position["symbol"]] = time.time() + 300
     push_equity_point()
     bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]", "green" if net_pnl >= 0 else "red")
     tg_notify(f"{'🟢' if net_pnl>=0 else '🔴'} Закрыт {position['side']} {position['symbol']}/USDT @ ${price:.4f}\nP&L: {net_pnl:+.2f}$ ({pnl_pct:+.2f}%) [{reason}]")
@@ -573,7 +573,8 @@ def bot_tick():
                 new_sl = price * (1 - TRAILING_DISTANCE_PERCENT / 100)
                 if new_sl > position["sl"]: position["sl"] = new_sl
         else:
-            profit_pct = (entry - price) / entry * 100            if price <= position["tp"]: bot_close_position(position, price, "TP"); continue
+            profit_pct = (entry - price) / entry * 100
+            if price <= position["tp"]: bot_close_position(position, price, "TP"); continue
             if price >= position["sl"]: reason = "SL" if position["sl"] > entry else "Breakeven"; bot_close_position(position, price, reason); continue
             if profit_pct >= BE_TRIGGER_PERCENT:
                 if position["sl"] > entry: position["sl"] = entry; bot_log(f"{position['symbol']}: Стоп в безубыток", "gold")

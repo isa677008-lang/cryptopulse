@@ -47,16 +47,17 @@ HISTORY_HOURS = 72
 REFRESH_SECONDS = 60
 
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE","bot_state.json")
-BOT_TICK_SECONDS = 5
+BOT_TICK_SECONDS = 3 
 
 BOT_START_BALANCE = 1000.0 
 
 FEE_RATE = 0.001
-TP_PERCENT = 1.0
+TP_PERCENT = 1.2
 SL_PERCENT = 1.5
-BE_TRIGGER_PERCENT = 0.5
-TRAILING_TRIGGER_PERCENT = 0.7
-TRAILING_DISTANCE_PERCENT = 0.3
+BE_TRIGGER_PERCENT = 0.8
+TRAILING_TRIGGER_PERCENT = 1.0
+TRAILING_DISTANCE_PERCENT = 0.4
+RISK_PER_TRADE_PCT = 2.0
 
 SIGNAL_UNIVERSE_SIZE = 100 
 SIGNAL_UNIVERSE_REFRESH_SECONDS = 180
@@ -85,11 +86,16 @@ bybit_status = {"available":False,"lastError":None,"lastCheck":None}
 db_status = {"configured":bool(DATABASE_URL),"available":False,"lastError":None}
 wallet_cache = {"updated":0,"data":None}
 
+# ДЕФОЛТНЫЕ НАСТРОЙКИ С ГАЛОЧКАМИ (True = включено)
 bot_state = {
     "running":False,"paused":False,"emergency":False,"reason":"Не запущен",
-    "settings":{"profitTarget":20.0,"maxLoss":50.0,"tradeSize":50.0,"dailyMaxLoss":30.0,
-                "dailyMaxTrades":DEFAULT_DAILY_MAX_TRADES,
-                "startBalance":BOT_START_BALANCE,"dailyStartBalance":BOT_START_BALANCE},
+    "settings":{
+        "profitTarget":20.0, "maxLoss":50.0, "tradeSize":50.0, "dailyMaxLoss":30.0,
+        "dailyMaxTrades":DEFAULT_DAILY_MAX_TRADES,
+        "startBalance":BOT_START_BALANCE, "dailyStartBalance":BOT_START_BALANCE,
+        "enableProfitTarget": True, "enableMaxLoss": True, "enableDailyMaxLoss": True,
+        "fixedTradeSize": True, "enableDailyMaxTrades": True
+    },
     "strategy":dict(DEFAULT_STRATEGY),
     "balance":BOT_START_BALANCE,"equityCurve":[],
     "positions":[],"closedTrades":[],"logs":[],
@@ -170,7 +176,12 @@ def bot_load():
             bot_state["dailyTradesReset"] = data.get("dailyTradesReset", datetime.now().strftime("%Y-%m-%d"))
             bot_state["dailyTradesCount"] = data.get("dailyTradesCount", 0)
             bot_state["paused"] = data.get("paused", False)
-            if "dailyMaxTrades" not in bot_state["settings"]: bot_state["settings"]["dailyMaxTrades"] = DEFAULT_DAILY_MAX_TRADES
+            # Убедимся, что все ключи настроек на месте
+            for key in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss", "fixedTradeSize", "enableDailyMaxTrades"):
+                if key not in bot_state["settings"]:
+                    bot_state["settings"][key] = True
+            if "dailyMaxTrades" not in bot_state["settings"]: 
+                bot_state["settings"]["dailyMaxTrades"] = DEFAULT_DAILY_MAX_TRADES
     except Exception as exc: log.warning("load fail: %s", exc)
 
 
@@ -271,6 +282,42 @@ def rsi(values, period=14):
     return 100 - 100 / (1 + gains / losses)
 
 
+def adx(highs, lows, closes, period=14):
+    if len(closes) < period * 2: return None
+    tr_list, plus_dm, minus_dm = [], [], []
+    for i in range(1, len(closes)):
+        h, l, pc = highs[i], lows[i], closes[i-1]
+        tr = max(h - l, abs(h - pc), abs(l - pc))
+        tr_list.append(tr)
+        up_move = highs[i] - highs[i-1]
+        down_move = lows[i-1] - lows[i]
+        plus_dm.append(up_move if up_move > down_move and up_move > 0 else 0.0)
+        minus_dm.append(down_move if down_move > up_move and down_move > 0 else 0.0)
+
+    def smooth(data, p):
+        if len(data) < p: return []
+        res = [sum(data[:p])]
+        for val in data[p:]: res.append(res[-1] - (res[-1]/p) + val)
+        return res
+
+    tr_smooth = smooth(tr_list, period)
+    plus_smooth = smooth(plus_dm, period)
+    minus_smooth = smooth(minus_dm, period)
+    if not tr_smooth or not plus_smooth or not minus_smooth: return None
+
+    dx_list = []
+    for i in range(len(tr_smooth)):
+        if tr_smooth[i] == 0: continue
+        pdi = 100 * (plus_smooth[i] / tr_smooth[i])
+        mdi = 100 * (minus_smooth[i] / tr_smooth[i])
+        if (pdi + mdi) == 0: continue
+        dx_list.append(100 * abs(pdi - mdi) / (pdi + mdi))
+
+    if not dx_list: return None
+    adx_val = sum(dx_list[-period:]) / period
+    return adx_val
+
+
 def get_signal_universe(top_n=SIGNAL_UNIVERSE_SIZE):
     with lock: turnover = dict(cache.get("turnover", {}))
     anchors = list(DEFAULT_STRATEGY["topCoins"])
@@ -286,7 +333,7 @@ def get_signal_universe(top_n=SIGNAL_UNIVERSE_SIZE):
     return result[:max(top_n, len(anchors))]
 
 
-def fetch_klines(symbol, interval, limit=100):
+def fetch_klines(symbol, interval, limit=200):
     try:
         response = requests.get(
             BASE + "/v5/market/kline",
@@ -300,7 +347,7 @@ def fetch_klines(symbol, interval, limit=100):
             points = []
             for item in reversed(raw):
                 try:
-                    points.append({"timestamp":int(item[0])/1000,"price":float(item[4]),"volume":float(item[5])})
+                    points.append({"timestamp":int(item[0])/1000,"open":float(item[1]),"high":float(item[2]),"low":float(item[3]),"price":float(item[4]),"volume":float(item[5])})
                 except (TypeError, ValueError, IndexError): continue
             return points
     except Exception: pass
@@ -320,7 +367,7 @@ def refresh_strategy_history_background(symbols):
                 symbol = futures[future]
                 try:
                     points = future.result()
-                    if len(points) >= 30:
+                    if len(points) >= 50:
                         with strategy_history_lock: strategy_history[symbol] = points
                         successful += 1
                 except Exception: pass
@@ -336,21 +383,27 @@ def refresh_strategy_history_background(symbols):
 def analyze(symbol, price, strategy=None):
     st = strategy or bot_state["strategy"]
     with strategy_history_lock: pts = list(strategy_history.get(symbol, []))
-    if not pts:
-        return {"symbol":symbol,"price":price,"rsi14":None,"ema9":None,"ema21":None,"signal":"insufficient_history","explanation":"Мало данных.","sampleCount":0}
+    if not pts or len(pts) < 50:
+        return {"symbol":symbol,"price":price,"rsi14":None,"ema9":None,"ema21":None,"signal":"insufficient_history","explanation":"Мало данных.","sampleCount":len(pts) if pts else 0}
 
     values = [p["price"] for p in pts]
+    highs = [p["high"] for p in pts]
+    lows = [p["low"] for p in pts]
     volumes = [p.get("volume", 0) for p in pts]
 
     ema_fast = ema(values, int(st["emaFast"]))
     ema_slow = ema(values, int(st["emaSlow"]))
     rsi_value = rsi(values, int(st["rsiPeriod"]))
+    adx_value = adx(highs, lows, values, 14)
 
     signal = "insufficient_history"
     explanation = "Мало данных."
     has_volume = False
 
-    if len(values) >= 30 and ema_fast is not None and ema_slow is not None and rsi_value is not None:
+    if adx_value is not None and adx_value < 20:
+        return {"symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,"signal":"neutral","explanation":f"Флэт (ADX {adx_value:.1f}).","sampleCount":len(values)}
+
+    if ema_fast is not None and ema_slow is not None and rsi_value is not None:
         if len(volumes) >= 10:
             avg_vol = sum(volumes[-10:-1]) / 9
             if volumes[-1] > avg_vol * 1.1: has_volume = True
@@ -358,20 +411,20 @@ def analyze(symbol, price, strategy=None):
         if price > ema_fast > ema_slow and st["rsiBuyMin"] <= rsi_value < st["rsiBuyMax"]:
             if has_volume:
                 signal = "buy_candidate"
-                explanation = "Бычий сигнал + Объем (Скальпинг)."
+                explanation = f"Бычий сигнал (ADX {adx_value:.1f}) + Объем."
             else:
-                explanation = "Бычий сигнал, но мало объема."
+                explanation = "Мало объема."
         elif price < ema_fast < ema_slow and st["rsiSellMin"] < rsi_value <= st["rsiSellMax"]:
             if has_volume:
                 signal = "sell_candidate"
-                explanation = "Медвежий сигнал + Объем (Скальпинг)."
+                explanation = f"Медвежий сигнал (ADX {adx_value:.1f}) + Объем."
             else:
-                explanation = "Медвежий сигнал, но мало объема."
+                explanation = "Мало объема."
         else:
             signal = "neutral"
             explanation = "Условия не совпали."
 
-    return {"symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,"sampleCount":len(values),"signal":signal,"explanation":explanation,"mode":"simulation"}
+    return {"symbol":symbol,"price":price,"ema9":ema_fast,"ema21":ema_slow,"rsi14":rsi_value,"signal":signal,"explanation":explanation,"sampleCount":len(values)}
 
 
 def fetch_prices():
@@ -468,7 +521,13 @@ def wallet_balance(force=False):
 def bot_open_position(symbol,price,side,reason=""):
     with bot_state_lock:
         settings = bot_state["settings"]
-        size = float(settings["tradeSize"])
+        # Если галочка стоит - берем фиксированную сумму. Если нет - считаем сами (2% от баланса)
+        if settings.get("fixedTradeSize", True):
+            size = float(settings["tradeSize"])
+        else:
+            size = (bot_state["balance"] * RISK_PER_TRADE_PCT) / 100
+        if size < 10: size = 10
+
         fee = size * FEE_RATE
         if bot_state["balance"] < (size + fee): return None
         for position in bot_state["positions"]:
@@ -482,7 +541,7 @@ def bot_open_position(symbol,price,side,reason=""):
         bot_state["positions"].append(position)
         bot_state["balance"] -= (size + fee)
         bot_state["dailyTradesCount"] = bot_state.get("dailyTradesCount", 0) + 1
-        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f}"
+        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f} (${size:.0f})"
     bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f}", "blue")
     tg_notify(f"🟢 Открыт {side} {symbol}/USDT @ ${price:.4f}\nTP ${tp:.4f} | SL ${sl:.4f}")
     push_equity_point(); bot_save(); return position
@@ -523,11 +582,25 @@ def bot_check_limits():
         total_equity = free_balance + positions_value + open_pnl; diff = total_equity - start
         today = datetime.now().strftime("%Y-%m-%d")
         if bot_state["lastDate"] != today: bot_state["lastDate"] = today; bot_state["settings"]["dailyStartBalance"] = total_equity; bot_save()
-        daily_diff = total_equity - float(settings.get("dailyStartBalance", total_equity)); daily_max = float(settings.get("dailyMaxLoss", 30.0))
-        if daily_diff <= -daily_max: return "daily_loss", f"Достигнут дневной лимит убытка (-${abs(daily_diff):.2f})"
-        profit_target = float(settings["profitTarget"]); max_loss = float(settings["maxLoss"])
-        if diff >= profit_target: return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
-        if diff <= -max_loss: return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
+        
+        # Проверка дневного лимита, если стоит галочка
+        if settings.get("enableDailyMaxLoss", True):
+            daily_diff = total_equity - float(settings.get("dailyStartBalance", total_equity))
+            daily_max = float(settings.get("dailyMaxLoss", 30.0))
+            if daily_diff <= -daily_max: 
+                return "daily_loss", f"Достигнут дневной лимит убытка (-${abs(daily_diff):.2f})"
+        
+        # Проверка цели по прибыли
+        if settings.get("enableProfitTarget", True):
+            profit_target = float(settings["profitTarget"])
+            if diff >= profit_target: 
+                return "profit", f"Достигнут лимит прибыли (+${diff:.2f})"
+                
+        # Проверка макс. убытка
+        if settings.get("enableMaxLoss", True):
+            max_loss = float(settings["maxLoss"])
+            if diff <= -max_loss: 
+                return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
     return None, None
 
 
@@ -593,8 +666,13 @@ def bot_tick():
     if bot_state.get("paused"):
         if time.time() - last_eq_ts > EQUITY_PUSH_SECONDS: push_equity_point()
         return
-    with bot_state_lock: daily_max = int(bot_state["settings"].get("dailyMaxTrades", DEFAULT_DAILY_MAX_TRADES)); daily_count = int(bot_state.get("dailyTradesCount", 0))
-    if daily_count >= daily_max:
+    
+    with bot_state_lock: 
+        daily_max = int(bot_state["settings"].get("dailyMaxTrades", DEFAULT_DAILY_MAX_TRADES))
+        daily_count = int(bot_state.get("dailyTradesCount", 0))
+        enable_max_trades = bot_state["settings"].get("enableDailyMaxTrades", True)
+    
+    if enable_max_trades and daily_count >= daily_max:
         bot_log(f"Дневной лимит сделок ({daily_count}/{daily_max})", "gold")
         with bot_state_lock: bot_state["lastAction"] = f"Лимит сделок: {daily_count}/{daily_max}"; last_eq_ts = bot_state["equityCurve"][-1]["ts"] if bot_state["equityCurve"] else 0
         if time.time() - last_eq_ts > EQUITY_PUSH_SECONDS: push_equity_point()
@@ -622,14 +700,18 @@ def bot_tick():
         with bot_state_lock:
             cooldown_time = bot_state["cooldown"].get(item["symbol"], 0)
             if time.time() < cooldown_time: continue
-            fee = float(bot_state["settings"]["tradeSize"]) * FEE_RATE
-            if bot_state["balance"] < (float(bot_state["settings"]["tradeSize"]) + fee): break
+            if bot_state["settings"].get("fixedTradeSize", True):
+                size = float(bot_state["settings"]["tradeSize"])
+            else:
+                size = (bot_state["balance"] * RISK_PER_TRADE_PCT) / 100
+            fee = size * FEE_RATE
+            if bot_state["balance"] < (size + fee): break
         if item["signal"] in ("buy_candidate", "sell_candidate"):
             ai_comment = ask_ai_comment(item["symbol"], item["price"], item["signal"], item["rsi14"] or 50); bot_log(f"ИИ по {item['symbol']}: {ai_comment}", "blue")
             if item["signal"] == "buy_candidate":
-                if bot_open_position(item["symbol"],item["price"],"Long","Scalp"): opened += 1
+                if bot_open_position(item["symbol"],item["price"],"Long","SmartScalp"): opened += 1
             elif item["signal"] == "sell_candidate":
-                if bot_open_position(item["symbol"],item["price"],"Short","Scalp"): opened += 1
+                if bot_open_position(item["symbol"],item["price"],"Short","SmartScalp"): opened += 1
     with bot_state_lock:
         if not bot_state["positions"]: bot_state["lastAction"] = "Сканирует — сигналов нет."
         else: bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
@@ -765,6 +847,11 @@ def bot_start_api():
             if "dailyMaxTrades" in data["settings"]:
                 try: bot_state["settings"]["dailyMaxTrades"] = max(1,int(data["settings"]["dailyMaxTrades"]))
                 except Exception: pass
+            # Сохраняем галочки
+            for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss", "fixedTradeSize", "enableDailyMaxTrades"):
+                if flag in data["settings"]:
+                    bot_state["settings"][flag] = bool(data["settings"][flag])
+                    
         free = float(bot_state["balance"]); pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
         bot_state["settings"]["startBalance"] = free + pos_value; bot_state["settings"]["dailyStartBalance"] = free + pos_value
         bot_state["running"] = True; bot_state["paused"] = False; bot_state["emergency"] = False; bot_state["reason"] = "Бот запущен"; bot_state["startedAt"] = now_iso()
@@ -808,6 +895,11 @@ def bot_settings_api():
         if "dailyMaxTrades" in data:
             try: bot_state["settings"]["dailyMaxTrades"] = max(1,int(data["dailyMaxTrades"]))
             except Exception: pass
+        # Сохраняем галочки
+        for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss", "fixedTradeSize", "enableDailyMaxTrades"):
+            if flag in data:
+                bot_state["settings"][flag] = bool(data[flag])
+                
     bot_log("Настройки сохранены.","blue"); return jsonify({"success":True,"settings":bot_state["settings"]})
 
 @app.route("/api/bot/strategy", methods=["POST"])

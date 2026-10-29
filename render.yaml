@@ -2,19 +2,28 @@ services:
   - type: web
     name: cryptopulse
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 app:app
+    buildCommand: |
+      apt-get update && apt-get install -y build-essential wget
+      wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+      tar -xzf ta-lib-0.4.0-src.tar.gz
+      cd ta-lib && ./configure --prefix=/usr && make && make install && cd ..
+      pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 bot:app
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.7
+        value: "3.12.7"
       - key: ENABLE_BACKGROUND_WORKER
-        value: "false"
+        value: "true"
       - key: TELEGRAM_AUTO_CONFIGURE
         value: "false"
+      - key: BOT_ADMIN_SECRET
+        sync: false
       - key: TELEGRAM_TOKEN
         sync: false
       - key: TELEGRAM_WEBHOOK_SECRET
         sync: false
       - key: PUBLIC_APP_URL
+        sync: false
+      - key: DATABASE_URL
         sync: false

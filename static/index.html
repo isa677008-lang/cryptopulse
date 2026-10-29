@@ -97,6 +97,10 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 .pos-table td:last-child,.pos-table th:last-child{text-align:right}.pos-table .pair{font-weight:600}
 .tag{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700}
 .tag.long{background:var(--green-soft);color:var(--green)}.tag.short{background:var(--red-soft);color:var(--red)}
+.tag.up{background:var(--green-soft);color:var(--green)}
+.tag.down{background:var(--red-soft);color:var(--red)}
+.tag.flat{background:var(--panel2);color:var(--muted)}
+.tag.unknown{background:#1d3157;color:#bcd4ff}
 .pnl-pos{color:var(--green);font-weight:700}.pnl-neg{color:var(--red);font-weight:700}
 .page{display:none}.page.active{display:block}
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
@@ -110,8 +114,27 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 .scan-rsi{width:70px;text-align:right;font-family:monospace}
 .coin-badge{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;flex:0 0 32px;box-shadow:0 2px 8px #0006;text-transform:uppercase}
 .coin-cell{display:flex;align-items:center;gap:10px}.coin-name{font-weight:700}
-@media(max-width:1100px){.grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr}}
-@media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.diag-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.diag-card{background:#0a1322;border:1px solid var(--line);border-radius:10px;padding:14px}
+.diag-card .k{font-size:11px;color:var(--muted);margin-bottom:6px}
+.diag-card .v{font-size:22px;font-weight:700}
+.diag-card .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.trend-table{width:100%;border-collapse:collapse;font-size:13px}
+.trend-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px 10px;font-size:12px}
+.trend-table td{padding:8px;border-top:1px solid #16223a}
+/* ===== HINTS ===== */
+.hints-section{margin-bottom:24px}
+.hints-title{font-size:15px;font-weight:700;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.hints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.hint-card{background:#0a1322;border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.hint-card svg{width:100%;height:80px;display:block}
+.hint-card .name{font-weight:700;font-size:13px}
+.hint-card .desc{font-size:11px;color:var(--muted);line-height:1.3}
+.hint-card.bullish{border-left:3px solid var(--green)}
+.hint-card.bearish{border-left:3px solid var(--red)}
+.hint-card.neutral{border-left:3px solid var(--gold)}
+@media(max-width:1100px){.grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr}.diag-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}.diag-grid{grid-template-columns:1fr}.hints-grid{grid-template-columns:1fr 1fr}}
 #globalError{display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#ff5d73;color:white;padding:12px 20px;z-index:9999;border-radius:8px;font-weight:bold;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.5);text-align:center;max-width:90vw}
 </style>
 </head>
@@ -122,15 +145,17 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
     <div class="brand"><div class="brand-logo">₿</div><div class="brand-name">Crypto<span>Pulse</span></div></div>
     <button class="nav-item active" data-page="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg><span>Главная</span></button>
     <button class="nav-item" data-page="bot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.3" fill="currentColor"/><circle cx="15" cy="13" r="1.3" fill="currentColor"/><path d="M12 7V4"/><path d="M8 19v2M16 19v2"/></svg><span>Бот</span></button>
+    <button class="nav-item" data-page="diag"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Диагностика</span></button>
+    <button class="nav-item" data-page="hints"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg><span>Подсказки</span></button>
     <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
     <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
     <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История</span></button>
-    <div class="sidebar-footer"><div><span class="dot" id="sbDot"></span><span id="sbStatus">—</span></div><div style="color:var(--muted2);margin-top:4px">v4.0 sim</div></div>
+    <div class="sidebar-footer"><div><span class="dot" id="sbDot"></span><span id="sbStatus">—</span></div><div style="color:var(--muted2);margin-top:4px">v4.2 patterns</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
       <div class="topbar-left"><span class="dot" id="apiDot"></span><span id="apiStatus">Проверка API…</span></div>
-      <div class="topbar-right"><div class="mode-pill">Симуляция · spot-only</div></div>
+      <div class="topbar-right"><div class="mode-pill">Симуляция · spot-only · 1h + паттерны</div></div>
     </div>
     <div class="content">
       <section id="page-home" class="page active">
@@ -179,13 +204,13 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
                   <label>Размер сделки
                     <label class="checkbox-wrap" title="Если галочка стоит — фиксированный размер. Если снята — от риска"><input type="checkbox" id="chk_fixedTradeSize" checked></label>
                   </label>
-                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="50" min="1" step="any"></div>
+                  <div class="input-wrap"><span class="prefix">$</span><input type="number" id="tradeSize" value="25" min="1" step="any"></div>
                 </div>
                 <div class="field">
                   <label>Макс. сделок в день
                     <label class="checkbox-wrap" title="Если галочка стоит — лимит сделок учитывается"><input type="checkbox" id="chk_dailyMaxTrades" checked></label>
                   </label>
-                  <div class="input-wrap"><input type="number" id="dailyMaxTrades" value="50" min="1" step="1" style="padding-left:12px"></div>
+                  <div class="input-wrap"><input type="number" id="dailyMaxTrades" value="15" min="1" step="1" style="padding-left:12px"></div>
                 </div>
                 <div class="field">
                   <label>Сдерживание позиций
@@ -196,6 +221,18 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
                 <div class="field">
                   <label>Риск на сделку, %</label>
                   <div class="input-wrap"><input type="number" id="riskPerTradePct" value="1" min="0.1" step="0.1" style="padding-left:12px"></div>
+                </div>
+                <div class="field">
+                  <label>Фильтр 1h (EMA50)
+                    <label class="checkbox-wrap" title="Если стоит — Long только когда цена выше EMA50 на 1h"><input type="checkbox" id="chk_htfFilter" checked></label>
+                  </label>
+                  <div class="input-wrap"><input type="text" value="включён" disabled style="padding-left:12px;color:var(--muted)"></div>
+                </div>
+                <div class="field">
+                  <label>Паттерны (1h)
+                    <label class="checkbox-wrap" title="Если стоит — Long только при бычьем паттерне на 1h"><input type="checkbox" id="chk_patterns" checked></label>
+                  </label>
+                  <div class="input-wrap"><input type="text" value="TA-Lib" disabled style="padding-left:12px;color:var(--muted)"></div>
                 </div>
               </div>
             </div>
@@ -253,6 +290,134 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
         </div>
       </section>
 
+      <section id="page-diag" class="page">
+        <div class="diag-grid">
+          <div class="diag-card"><div class="k">Отфильтровано 1h</div><div class="v" id="diagFilteredHtf">—</div><div class="sub">Long против 1h-тренда</div></div>
+          <div class="diag-card"><div class="k">Отфильтровано паттернами</div><div class="v" id="diagFilteredPat">—</div><div class="sub">нет бычьего паттерна на 1h</div></div>
+          <div class="diag-card"><div class="k">Winrate (20 посл.)</div><div class="v" id="diagWr20">—</div><div class="sub" id="diagWr20Sub">—</div></div>
+          <div class="diag-card"><div class="k">PF (20 посл.)</div><div class="v" id="diagPf20">—</div><div class="sub" id="diagPf20Sub">—</div></div>
+          <div class="diag-card"><div class="k">Winrate (50 посл.)</div><div class="v" id="diagWr50">—</div><div class="sub" id="diagWr50Sub">—</div></div>
+          <div class="diag-card"><div class="k">PF (50 посл.)</div><div class="v" id="diagPf50">—</div><div class="sub" id="diagPf50Sub">—</div></div>
+          <div class="diag-card"><div class="k">Текущая просадка</div><div class="v" id="diagDD">—</div><div class="sub">от пика equity</div></div>
+          <div class="diag-card"><div class="k">Паттерны</div><div class="v" id="diagPatterns">—</div><div class="sub" id="diagPatternsSub">—</div></div>
+          <div class="diag-card"><div class="k">1h-тренды</div><div class="v" id="diagTrendCounts">—</div><div class="sub">up / down / flat</div></div>
+        </div>
+        <div class="card">
+          <h2>Тренд 1h (EMA50) + паттерны <small id="diagUpdated">—</small></h2>
+          <div style="overflow:auto;max-height:60vh">
+            <table class="trend-table">
+              <thead><tr><th>Монета</th><th>1h</th><th>Цена</th><th>EMA50</th><th>Отклонение</th><th>Паттерны</th></tr></thead>
+              <tbody id="diagTrendBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Загрузка…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-hints" class="page">
+        <div class="card" style="margin-bottom:16px">
+          <h2>Свечные паттерны — шпаргалка</h2>
+          <div style="font-size:12px;color:var(--muted);line-height:1.5">
+            Это справочник. Бот использует эти паттерны <b>на 1h-свечах</b> как обязательное условие для входа.
+            Если бот нашёл бычий паттерн и остальные условия сошлись — открывает Long. Если медвежий — (в будущем) Short.
+            Наведи на карточку — увидишь подробное описание.
+          </div>
+        </div>
+
+        <div class="hints-section">
+          <div class="hints-title" style="color:var(--green)">↑ Бычьи паттерны (сигнал к росту)</div>
+          <div class="hints-grid">
+            <div class="hint-card bullish" title="Молот: маленькое тело сверху, длинный нижний хвост. Покупатели отбили падение.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="30" width="16" height="20"/></g></svg>
+              <div class="name">Молот</div><div class="desc">Длинный нижний хвост, маленькое тело сверху. Отбой от низа.</div>
+            </div>
+            <div class="hint-card bullish" title="Перевёрнутый молот: длинный верхний хвост. Покупатели пробуют рост.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="30" width="16" height="20"/></g></svg>
+              <div class="name">Перевёрнутый молот</div><div class="desc">Длинный верхний хвост, маленькое тело снизу.</div>
+            </div>
+            <div class="hint-card bullish" title="Бычье поглощение: текущая зелёная свеча полностью накрывает предыдущую красную.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="30" y="35" width="14" height="15"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="52" y="25" width="18" height="35"/></g></svg>
+              <div class="name">Бычье поглощение</div><div class="desc">Зелёная свеча накрывает предыдущую красную.</div>
+            </div>
+            <div class="hint-card bullish" title="Утренняя звезда: красная, маленькая, зелёная — разворот вверх.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="18" y="20" width="12" height="30"/></g><g stroke="#8394b3" stroke-width="2" fill="#8394b3"><rect x="44" y="45" width="12" height="10"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="70" y="25" width="12" height="30"/></g></svg>
+              <div class="name">Утренняя звезда</div><div class="desc">Красная → доджи → зелёная. Сильный разворот вверх.</div>
+            </div>
+            <div class="hint-card bullish" title="Три белых солдата: три растущие свечи подряд.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="15" y="45" width="14" height="20"/><rect x="42" y="30" width="14" height="20"/><rect x="69" y="15" width="14" height="20"/></g></svg>
+              <div class="name">Три белых солдата</div><div class="desc">Три растущие свечи подряд. Сильный тренд вверх.</div>
+            </div>
+            <div class="hint-card bullish" title="Харами: маленькая свеча внутри предыдущей большой.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="30" y="20" width="18" height="45"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="58" y="35" width="10" height="15"/></g></svg>
+              <div class="name">Харами (бычье)</div><div class="desc">Маленькая свеча внутри предыдущей. Затухание падения.</div>
+            </div>
+            <div class="hint-card bullish" title="Просвет в облаках: зелёная свеча перекрывает больше половины предыдущей красной.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="25" y="15" width="16" height="45"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="50" y="30" width="16" height="40"/></g></svg>
+              <div class="name">Просвет в облаках</div><div class="desc">Зелёная перекрывает &gt;50% предыдущей красной.</div>
+            </div>
+            <div class="hint-card bullish" title="Доджи-стрекоза: тело наверху, длинный нижний хвост.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><line x1="50" y1="20" x2="50" y2="70"/><rect x="44" y="20" width="12" height="8"/></g></svg>
+              <div class="name">Доджи-стрекоза</div><div class="desc">Тело наверху, длинный нижний хвост.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hints-section">
+          <div class="hints-title" style="color:var(--red)">↓ Медвежьи паттерны (сигнал к падению)</div>
+          <div class="hints-grid">
+            <div class="hint-card bearish" title="Падающая звезда: длинный верхний хвост, тело внизу.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="25" width="16" height="20"/></g></svg>
+              <div class="name">Падающая звезда</div><div class="desc">Длинный верхний хвост, тело внизу. Отбой сверху.</div>
+            </div>
+            <div class="hint-card bearish" title="Медвежье поглощение: красная свеча накрывает предыдущую зелёную.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="30" y="30" width="14" height="15"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="52" y="20" width="18" height="35"/></g></svg>
+              <div class="name">Медвежье поглощение</div><div class="desc">Красная накрывает предыдущую зелёную.</div>
+            </div>
+            <div class="hint-card bearish" title="Вечерняя звезда: зелёная, маленькая, красная — разворот вниз.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="18" y="30" width="12" height="30"/></g><g stroke="#8394b3" stroke-width="2" fill="#8394b3"><rect x="44" y="30" width="12" height="10"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="70" y="20" width="12" height="30"/></g></svg>
+              <div class="name">Вечерняя звезда</div><div class="desc">Зелёная → доджи → красная. Сильный разворот вниз.</div>
+            </div>
+            <div class="hint-card bearish" title="Три чёрные вороны: три падающие свечи подряд.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="15" y="15" width="14" height="20"/><rect x="42" y="30" width="14" height="20"/><rect x="69" y="45" width="14" height="20"/></g></svg>
+              <div class="name">Три чёрные вороны</div><div class="desc">Три падающие свечи подряд. Сильный тренд вниз.</div>
+            </div>
+            <div class="hint-card bearish" title="Завеса из тёмных облаков: красная перекрывает больше половины предыдущей зелёной.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="25" y="20" width="16" height="45"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="50" y="25" width="16" height="40"/></g></svg>
+              <div class="name">Завеса из тёмных облаков</div><div class="desc">Красная перекрывает &gt;50% предыдущей зелёной.</div>
+            </div>
+            <div class="hint-card bearish" title="Повешенный: маленькое тело сверху, длинный нижний хвост — после роста.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="20" width="16" height="18"/></g></svg>
+              <div class="name">Повешенный</div><div class="desc">Похож на молот, но появляется после роста — сигнал вниз.</div>
+            </div>
+            <div class="hint-card bearish" title="Харами (медвежье): маленькая свеча внутри предыдущей большой после роста.">
+              <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="30" y="15" width="18" height="45"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="58" y="30" width="10" height="15"/></g></svg>
+              <div class="name">Харами (медвежье)</div><div class="desc">Маленькая свеча внутри предыдущей. Затухание роста.</div>
+            </div>
+            <div class="hint-card bearish" title="Доджи-надгробие: тело внизу, длинный верхний хвост.">
+              <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><line x1="50" y1="10" x2="50" y2="60"/><rect x="44" y="52" width="12" height="8"/></g></svg>
+              <div class="name">Доджи-надгробие</div><div class="desc">Тело внизу, длинный верхний хвост.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hints-section">
+          <div class="hints-title" style="color:var(--gold)">→ Нейтральные (неопределённость)</div>
+          <div class="hints-grid">
+            <div class="hint-card neutral" title="Доджи: открытие ≈ закрытие. Борьба равных.">
+              <svg viewBox="0 0 100 80"><g stroke="#f7c96a" stroke-width="2" fill="#f7c96a"><line x1="50" y1="15" x2="50" y2="65"/><line x1="42" y1="40" x2="58" y2="40"/></g></svg>
+              <div class="name">Доджи</div><div class="desc">Открытие ≈ закрытие. Рынок в нерешительности.</div>
+            </div>
+            <div class="hint-card neutral" title="Волчок: маленькое тело, короткие хвосты.">
+              <svg viewBox="0 0 100 80"><g stroke="#f7c96a" stroke-width="2" fill="#f7c96a"><line x1="50" y1="20" x2="50" y2="60"/><rect x="44" y="35" width="12" height="12"/></g></svg>
+              <div class="name">Волчок</div><div class="desc">Маленькое тело, короткие хвосты. Затишье.</div>
+            </div>
+            <div class="hint-card neutral" title="Длинноногий доджи: очень длинные хвосты в обе стороны.">
+              <svg viewBox="0 0 100 80"><g stroke="#f7c96a" stroke-width="2" fill="#f7c96a"><line x1="50" y1="10" x2="50" y2="70"/><line x1="42" y1="40" x2="58" y2="40"/></g></svg>
+              <div class="name">Длинноногий доджи</div><div class="desc">Очень длинные хвосты в обе стороны. Сильная борьба.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="page-markets" class="page">
         <div class="card">
           <h2>Рынки <small id="mktCount">—</small></h2>
@@ -281,7 +446,7 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 
 <script>
 const $ = id => document.getElementById(id);
-const S = { coins: [], rub: null, bot: null, signals: [], config: null };
+const S = { coins: [], rub: null, bot: null, signals: [], config: null, diag: null, patterns: null };
 
 let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
 
@@ -334,6 +499,7 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
     document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
     const t = $("page-"+btn.dataset.page); if(t) t.classList.add("active");
     if(btn.dataset.page==="bot") refreshBot();
+    if(btn.dataset.page==="diag") loadDiagnostics();
     if(btn.dataset.page==="markets") loadMarkets();
     if(btn.dataset.page==="signals") loadSignals();
     if(btn.dataset.page==="history") renderHistory();
@@ -415,7 +581,7 @@ function renderBot(data){
       if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
       if(document.activeElement !== $("dailyMaxLoss")) $("dailyMaxLoss").value = data.settings.dailyMaxLoss ?? 30;
       if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
-      if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades ?? 50;
+      if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades ?? 15;
       if(document.activeElement !== $("riskPerTradePct")) $("riskPerTradePct").value = data.settings.riskPerTradePct ?? 1;
       if(document.activeElement !== $("maxOpenPositions")) $("maxOpenPositions").value = data.settings.maxOpenPositions ?? 20;
     }
@@ -425,6 +591,8 @@ function renderBot(data){
     $("chk_fixedTradeSize").checked = data.settings.fixedTradeSize !== false;
     $("chk_dailyMaxTrades").checked = data.settings.enableDailyMaxTrades !== false;
     $("chk_maxPositions").checked = data.settings.enableMaxPositions !== false;
+    $("chk_htfFilter").checked = data.settings.enableHTFFilter !== false;
+    $("chk_patterns").checked = data.settings.enablePatterns !== false;
   }
 
   const eq = Number(data.balance) || 0;
@@ -535,6 +703,94 @@ function renderHistory(){
   }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
 }
 
+async function loadDiagnostics(){
+  try{
+    const [d, p] = await Promise.all([
+      api("/api/bot/diagnostics"),
+      api("/api/bot/patterns"),
+    ]);
+    S.diag = d;
+    S.patterns = p;
+    renderDiagnostics(d, p);
+  }catch(e){
+    showError("Диагностика: " + e.message);
+  }
+}
+
+function renderDiagnostics(d, p){
+  $("diagFilteredHtf").textContent = d.filteredByHTF ?? "—";
+  $("diagFilteredPat").textContent = d.filteredByPatterns ?? "—";
+  const r20 = d.recent20 || {};
+  const r50 = d.recent50 || {};
+  $("diagWr20").textContent = (r20.n ? (r20.winrate || 0).toFixed(1) + "%" : "—");
+  $("diagWr20").className = "v " + (r20.winrate >= 50 ? "green" : "red");
+  $("diagWr20Sub").textContent = `${r20.n || 0} сделок`;
+  $("diagPf20").textContent = (r20.profitFactor != null ? r20.profitFactor.toFixed(2) : "—");
+  $("diagPf20").className = "v " + (r20.profitFactor >= 1 ? "green" : "red");
+  $("diagPf20Sub").textContent = `средний P&L ${money(r20.avgPnl || 0)}`;
+  $("diagWr50").textContent = (r50.n ? (r50.winrate || 0).toFixed(1) + "%" : "—");
+  $("diagWr50").className = "v " + (r50.winrate >= 50 ? "green" : "red");
+  $("diagWr50Sub").textContent = `${r50.n || 0} сделок`;
+  $("diagPf50").textContent = (r50.profitFactor != null ? r50.profitFactor.toFixed(2) : "—");
+  $("diagPf50").className = "v " + (r50.profitFactor >= 1 ? "green" : "red");
+  $("diagPf50Sub").textContent = `средний P&L ${money(r50.avgPnl || 0)}`;
+  $("diagDD").textContent = money(d.currentDrawdown || 0);
+  $("diagDD").className = "v " + ((d.currentDrawdown || 0) > 0 ? "red" : "green");
+
+  const pats = p.patterns || [];
+  const withBull = pats.filter(x => x.has_bullish).length;
+  const withBear = pats.filter(x => x.has_bearish).length;
+  $("diagPatterns").textContent = `${withBull}↑ / ${withBear}↓`;
+  $("diagPatterns").className = "v";
+  $("diagPatternsSub").textContent = p.talib ? "TA-Lib" : "fallback";
+
+  const htf = d.htf || {};
+  const c = htf.counts || {};
+  $("diagTrendCounts").textContent = `${c.up||0} / ${c.down||0} / ${c.flat||0}`;
+  $("diagTrendCounts").className = "v";
+  $("diagUpdated").textContent = htf.ageSeconds != null ? `обновлено ${Math.round(htf.ageSeconds)} с назад` : "—";
+
+  const trendMap = {};
+  (htf.trends || []).forEach(t => trendMap[t.symbol] = t);
+  const patMap = {};
+  pats.forEach(x => patMap[x.symbol] = x);
+
+  const allSyms = new Set([...Object.keys(trendMap), ...Object.keys(patMap)]);
+  const rows = [];
+  allSyms.forEach(sym => {
+    const t = trendMap[sym];
+    const pp = patMap[sym];
+    let patHtml = "—";
+    if (pp) {
+      const bulls = (pp.found || []).filter(f => f.direction === "bullish").map(f => f.name);
+      const bears = (pp.found || []).filter(f => f.direction === "bearish").map(f => f.name);
+      const parts = [];
+      if (bulls.length) parts.push(`<span style="color:var(--green)">↑ ${esc(bulls.join(", "))}</span>`);
+      if (bears.length) parts.push(`<span style="color:var(--red)">↓ ${esc(bears.join(", "))}</span>`);
+      patHtml = parts.length ? parts.join("<br>") : "—";
+    }
+    rows.push({
+      sym,
+      dir: t ? t.direction : "unknown",
+      price: t ? t.price : null,
+      ema50: t ? t.ema50 : null,
+      pct: t ? t.pct_from_ema50 : null,
+      pat: patHtml,
+    });
+  });
+  rows.sort((a, b) => a.sym.localeCompare(b.sym));
+  $("diagTrendBody").innerHTML = rows.length ? rows.map(r=>`
+    <tr>
+      <td><div class="coin-cell">${coinBadge(r.sym)}<span class="coin-name">${esc(r.sym)}</span></div></td>
+      <td><span class="tag ${r.dir==="up"?"up":r.dir==="down"?"down":r.dir==="flat"?"flat":"unknown"}">${r.dir==="up"?"↑ up":r.dir==="down"?"↓ down":r.dir==="flat"?"→ flat":"?"}</span></td>
+      <td>${r.price != null ? money(r.price, 6) : "—"}</td>
+      <td>${r.ema50 != null ? money(r.ema50, 6) : "—"}</td>
+      <td class="${r.pct != null ? (r.pct>=0?"pnl-pos":"pnl-neg") : ""}">${r.pct != null ? ((r.pct>=0?"+":"") + r.pct.toFixed(2) + "%") : "—"}</td>
+      <td style="font-size:12px">${r.pat}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Нет данных. Запусти бота.</td></tr>`;
+}
+
 async function loadSignals(){
   try{
     const data = await api("/api/trading/signals");
@@ -571,8 +827,8 @@ function collectSettings() {
     profitTarget: Number($("profitTarget").value)||20,
     maxLoss: Number($("maxLoss").value)||50,
     dailyMaxLoss: Number($("dailyMaxLoss").value)||30,
-    tradeSize: Number($("tradeSize").value)||50,
-    dailyMaxTrades: Number($("dailyMaxTrades").value)||50,
+    tradeSize: Number($("tradeSize").value)||25,
+    dailyMaxTrades: Number($("dailyMaxTrades").value)||15,
     riskPerTradePct: Number($("riskPerTradePct").value)||1,
     maxOpenPositions: Number($("maxOpenPositions").value)||20,
     enableProfitTarget: $("chk_profitTarget").checked,
@@ -581,6 +837,8 @@ function collectSettings() {
     fixedTradeSize: $("chk_fixedTradeSize").checked,
     enableDailyMaxTrades: $("chk_dailyMaxTrades").checked,
     enableMaxPositions: $("chk_maxPositions").checked,
+    enableHTFFilter: $("chk_htfFilter").checked,
+    enablePatterns: $("chk_patterns").checked,
   };
 }
 
@@ -600,7 +858,7 @@ function saveSettings(){
   el.addEventListener("blur", ()=>{ saveSettings(); });
 });
 
-["chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades","chk_maxPositions"].forEach(id=>{
+["chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades","chk_maxPositions","chk_htfFilter","chk_patterns"].forEach(id=>{
   $(id).addEventListener("change", ()=>{ saveSettings(); });
 });
 
@@ -798,6 +1056,9 @@ function drawEquityChart(equity){
 setInterval(()=>{ if(document.visibilityState==="visible") refreshBot(); }, 5000);
 setInterval(()=>{ if(document.visibilityState==="visible") loadMarkets(); }, 30000);
 setInterval(()=>{ if(document.visibilityState==="visible" && chartState.candles.length) loadCandles(chartState.symbol, chartState.interval); }, 60000);
+setInterval(()=>{
+  if(document.visibilityState==="visible" && $("page-diag").classList.contains("active")) loadDiagnostics();
+}, 15000);
 </script>
 </body>
 </html>

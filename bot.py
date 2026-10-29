@@ -75,10 +75,14 @@ MAX_TOTAL_EXPOSURE_PCT = 80.0
 
 # Фильтр старшего таймфрейма
 HTF_EMA_PERIOD = 50
-HTF_INTERVAL = "60"
+HTF_INTERVAL_DEFAULT = "60"
 HTF_TOLERANCE_PCT = 0.1
+HTF_INTERVAL_MAP = {
+    "1": "1m", "3": "3m", "5": "5m", "15": "15m", "30": "30m",
+    "60": "1h", "120": "2h", "240": "4h", "360": "6h", "720": "12h",
+    "D": "1d", "W": "1w"
+}
 
-# Паттерны
 PATTERN_LOOKBACK = 3
 
 SIGNAL_UNIVERSE_SIZE = 100
@@ -95,7 +99,7 @@ DEFAULT_STRATEGY = {
 }
 
 session = requests.Session()
-session.headers.update({"User-Agent": "CryptoPulse/4.2", "Accept": "application/json"})
+session.headers.update({"User-Agent": "CryptoPulse/4.3", "Accept": "application/json"})
 
 lock = threading.RLock()
 refresh_lock = threading.Lock()
@@ -112,10 +116,9 @@ bybit_status = {"available": False, "lastError": None, "lastCheck": None}
 db_status = {"configured": bool(DATABASE_URL), "available": False, "lastError": None}
 wallet_cache = {"updated": 0, "data": None}
 
-# Кэш трендов 1h
-htf_cache = {"updated": 0, "trends": {}}
-
-# Кэш паттернов по символу
+# Кэш трендов (динамический таймфрейм)
+htf_cache = {"updated": 0, "trends": {}, "current_interval": HTF_INTERVAL_DEFAULT}
+# Кэш паттернов (всегда 1h для стабильности)
 patterns_cache = {"updated": 0, "by_symbol": {}}
 
 bot_state = {
@@ -131,6 +134,7 @@ bot_state = {
         "maxTotalExposurePct": MAX_TOTAL_EXPOSURE_PCT,
         "enableMaxPositions": True,
         "enableHTFFilter": True,
+        "htfInterval": HTF_INTERVAL_DEFAULT,
         "enablePatterns": True,
     },
     "strategy": dict(DEFAULT_STRATEGY),
@@ -224,6 +228,7 @@ def bot_load():
             bot_state["settings"].setdefault("riskPerTradePct", RISK_PER_TRADE_PCT)
             bot_state["settings"].setdefault("maxOpenPositions", MAX_OPEN_POSITIONS)
             bot_state["settings"].setdefault("maxTotalExposurePct", MAX_TOTAL_EXPOSURE_PCT)
+            bot_state["settings"].setdefault("htfInterval", HTF_INTERVAL_DEFAULT)
             if bot_state.get("running"):
                 bot_state["running"] = False
                 bot_state["reason"] = "Восстановлен после перезапуска — требуется ручной старт"
@@ -433,7 +438,7 @@ def fetch_klines(symbol, interval, limit=200):
             BASE + "/v5/market/kline",
             params={"category": "spot", "symbol": symbol + "USDT",
                     "interval": interval, "limit": limit},
-            headers={"User-Agent": "CryptoPulse/4.2", "Accept": "application/json"},
+            headers={"User-Agent": "CryptoPulse/4.3", "Accept": "application/json"},
             timeout=10,
         )
         response.raise_for_status()
@@ -458,12 +463,19 @@ def fetch_klines(symbol, interval, limit=200):
         return {"ok": False, "error": str(exc), "points": []}
 
 
-def refresh_htf_trends(symbols, force=False):
-    """Обновляет тренды 1h по списку символов. Кэш на 5 минут."""
-    if not force and time.time() - htf_cache["updated"] < 300 and htf_cache["trends"]:
+def refresh_htf_trends(symbols, interval="60", force=False):
+    """Обновляет тренды старшего таймфрейма по списку символов. Кэш на 5 минут."""
+    if not force and htf_cache["updated"] > 0 and htf_cache.get("current_interval") == interval and time.time() - htf_cache["updated"] < 300:
         return
+    
+    if htf_cache.get("current_interval") != interval:
+        with htf_lock:
+            htf_cache["trends"] = {}
+            htf_cache["updated"] = 0
+            htf_cache["current_interval"] = interval
+
     def get_one(sym):
-        res = fetch_klines(sym, HTF_INTERVAL, 200)
+        res = fetch_klines(sym, interval, 200)
         if not res["ok"] or len(res["points"]) < HTF_EMA_PERIOD + 5:
             return sym, None
         closes = [p["price"] for p in res["points"]]
@@ -498,6 +510,7 @@ def refresh_htf_trends(symbols, force=False):
     with htf_lock:
         htf_cache["trends"].update(new_trends)
         htf_cache["updated"] = time.time()
+        htf_cache["current_interval"] = interval
 
 
 def get_htf_direction(symbol):
@@ -511,7 +524,7 @@ def refresh_patterns(symbols, force=False):
     if not force and time.time() - patterns_cache["updated"] < 300 and patterns_cache["by_symbol"]:
         return
     def get_one(sym):
-        res = fetch_klines(sym, HTF_INTERVAL, 100)
+        res = fetch_klines(sym, "60", 100)
         if not res["ok"] or len(res["points"]) < 10:
             return sym, None
         result = detect_patterns(res["points"], lookback=PATTERN_LOOKBACK)
@@ -1039,10 +1052,12 @@ def bot_tick():
 
     with bot_state_lock:
         htf_enabled = bot_state["settings"].get("enableHTFFilter", True)
+        htf_interval = bot_state["settings"].get("htfInterval", HTF_INTERVAL_DEFAULT)
         patterns_enabled = bot_state["settings"].get("enablePatterns", True)
+        
     if htf_enabled:
         try:
-            refresh_htf_trends(scan_symbols)
+            refresh_htf_trends(scan_symbols, interval=htf_interval)
         except Exception:
             log.exception("htf refresh failed")
     if patterns_enabled:
@@ -1110,7 +1125,7 @@ def bot_tick():
 
     with bot_state_lock:
         if filtered_htf or filtered_patterns:
-            bot_state["lastAction"] = f"Отфильтровано: 1h {filtered_htf}, паттерны {filtered_patterns}. Позиций: {len(bot_state['positions'])}."
+            bot_state["lastAction"] = f"Отфильтровано: HTF {filtered_htf}, паттерны {filtered_patterns}. Позиций: {len(bot_state['positions'])}."
         elif not bot_state["positions"]:
             bot_state["lastAction"] = "Сканирует — сигналов нет."
         else:
@@ -1278,7 +1293,7 @@ def config():
         "databaseAvailable": db_status["available"],
         "stalePriceSeconds": STALE_PRICE_SECONDS,
         "adminApiEnabled": bool(os.getenv("BOT_ADMIN_SECRET", "").strip()),
-        "htfFilter": {"enabled": True, "ema_period": HTF_EMA_PERIOD, "interval": HTF_INTERVAL},
+        "htfFilter": {"enabled": True, "ema_period": HTF_EMA_PERIOD},
         "patterns": {"enabled": True, "talib": TALIB_AVAILABLE, "lookback": PATTERN_LOOKBACK},
     })
 
@@ -1402,7 +1417,6 @@ def bot_state_api():
 
 @app.route("/api/bot/diagnostics")
 def bot_diagnostics_api():
-    """Диагностика: тренды 1h, паттерны, статистика, просадка."""
     stats = compute_stats()
     symbols = list(htf_cache["trends"].keys()) or get_signal_universe()
     trends = []
@@ -1427,6 +1441,7 @@ def bot_diagnostics_api():
         filtered_htf = bot_state.get("filteredByHTF", 0)
         filtered_patterns = bot_state.get("filteredByPatterns", 0)
         htf_enabled = bot_state["settings"].get("enableHTFFilter", True)
+        htf_interval = bot_state["settings"].get("htfInterval", HTF_INTERVAL_DEFAULT)
         patterns_enabled = bot_state["settings"].get("enablePatterns", True)
         open_positions = len(bot_state["positions"])
     peak = -1e18
@@ -1439,7 +1454,8 @@ def bot_diagnostics_api():
         "htf": {
             "enabled": htf_enabled,
             "ema_period": HTF_EMA_PERIOD,
-            "interval": HTF_INTERVAL,
+            "interval": htf_interval,
+            "interval_label": HTF_INTERVAL_MAP.get(htf_interval, htf_interval),
             "trends": trends,
             "counts": {"up": up, "down": down, "flat": flat},
             "ageSeconds": time.time() - htf_cache["updated"] if htf_cache["updated"] else None,
@@ -1463,7 +1479,6 @@ def bot_diagnostics_api():
 
 @app.route("/api/bot/patterns")
 def bot_patterns_api():
-    """Список найденных паттернов по всем монетам (для вкладки Подсказки/Диагностика)."""
     with patterns_lock:
         by_symbol = dict(patterns_cache["by_symbol"])
         updated = patterns_cache["updated"]
@@ -1519,6 +1534,10 @@ def bot_start_api():
                     bot_state["settings"]["maxTotalExposurePct"] = float(data["settings"]["maxTotalExposurePct"])
                 except Exception:
                     pass
+            if "htfInterval" in data["settings"]:
+                val = str(data["settings"]["htfInterval"])
+                if val in HTF_INTERVAL_MAP:
+                    bot_state["settings"]["htfInterval"] = val
             for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
                          "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
                          "enableHTFFilter", "enablePatterns"):
@@ -1631,6 +1650,10 @@ def bot_settings_api():
                 bot_state["settings"]["maxTotalExposurePct"] = float(data["maxTotalExposurePct"])
             except Exception:
                 pass
+        if "htfInterval" in data:
+            val = str(data["htfInterval"])
+            if val in HTF_INTERVAL_MAP:
+                bot_state["settings"]["htfInterval"] = val
         for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
                      "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
                      "enableHTFFilter", "enablePatterns"):

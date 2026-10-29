@@ -23,6 +23,7 @@ from accounting import (
     FEE_RATE, compute_equity, open_position_costs,
     close_position_costs, size_from_risk,
 )
+from patterns import detect_patterns, pattern_strength, TALIB_AVAILABLE
 
 app = Flask(__name__, static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
@@ -62,21 +63,29 @@ BOT_STATE_FILE = os.getenv("BOT_STATE_FILE", "./data/bot_state.json")
 BOT_TICK_SECONDS = 3
 BOT_START_BALANCE = 1000.0
 
-TP_PERCENT = 1.2
+TP_PERCENT = 2.5
 SL_PERCENT = 1.5
 BE_TRIGGER_PERCENT = 0.8
-TRAILING_TRIGGER_PERCENT = 1.0
-TRAILING_DISTANCE_PERCENT = 0.4
+TRAILING_TRIGGER_PERCENT = 1.5
+TRAILING_DISTANCE_PERCENT = 0.6
 RISK_PER_TRADE_PCT = 1.0
 MAX_POSITION_PCT = 20.0
 MAX_OPEN_POSITIONS = 20
 MAX_TOTAL_EXPOSURE_PCT = 80.0
 
+# Фильтр старшего таймфрейма
+HTF_EMA_PERIOD = 50
+HTF_INTERVAL = "60"
+HTF_TOLERANCE_PCT = 0.1
+
+# Паттерны
+PATTERN_LOOKBACK = 3
+
 SIGNAL_UNIVERSE_SIZE = 100
 SIGNAL_UNIVERSE_REFRESH_SECONDS = 180
 PANIC_BTC_DROP_PCT = -3.0
 EQUITY_PUSH_SECONDS = 15
-DEFAULT_DAILY_MAX_TRADES = 50
+DEFAULT_DAILY_MAX_TRADES = 15
 
 DEFAULT_STRATEGY = {
     "emaFast": 9, "emaSlow": 21, "rsiPeriod": 14,
@@ -86,12 +95,14 @@ DEFAULT_STRATEGY = {
 }
 
 session = requests.Session()
-session.headers.update({"User-Agent": "CryptoPulse/4.0", "Accept": "application/json"})
+session.headers.update({"User-Agent": "CryptoPulse/4.2", "Accept": "application/json"})
 
 lock = threading.RLock()
 refresh_lock = threading.Lock()
 db_lock = threading.Lock()
 bot_state_lock = threading.RLock()
+htf_lock = threading.Lock()
+patterns_lock = threading.Lock()
 
 cache = {"updated": 0, "prices": {}, "changes": {}, "turnover": {}, "source": "bybit",
          "error": None, "stale": True}
@@ -101,10 +112,16 @@ bybit_status = {"available": False, "lastError": None, "lastCheck": None}
 db_status = {"configured": bool(DATABASE_URL), "available": False, "lastError": None}
 wallet_cache = {"updated": 0, "data": None}
 
+# Кэш трендов 1h
+htf_cache = {"updated": 0, "trends": {}}
+
+# Кэш паттернов по символу
+patterns_cache = {"updated": 0, "by_symbol": {}}
+
 bot_state = {
     "running": False, "paused": False, "emergency": False, "reason": "Не запущен",
     "settings": {
-        "profitTarget": 20.0, "maxLoss": 50.0, "tradeSize": 50.0, "dailyMaxLoss": 30.0,
+        "profitTarget": 20.0, "maxLoss": 50.0, "tradeSize": 25.0, "dailyMaxLoss": 30.0,
         "dailyMaxTrades": DEFAULT_DAILY_MAX_TRADES,
         "startBalance": BOT_START_BALANCE, "dailyStartBalance": BOT_START_BALANCE,
         "enableProfitTarget": True, "enableMaxLoss": True, "enableDailyMaxLoss": True,
@@ -113,6 +130,8 @@ bot_state = {
         "maxOpenPositions": MAX_OPEN_POSITIONS,
         "maxTotalExposurePct": MAX_TOTAL_EXPOSURE_PCT,
         "enableMaxPositions": True,
+        "enableHTFFilter": True,
+        "enablePatterns": True,
     },
     "strategy": dict(DEFAULT_STRATEGY),
     "balance": BOT_START_BALANCE,
@@ -125,6 +144,8 @@ bot_state = {
     "dailyTradesCount": 0,
     "cooldown": {},
     "realizedPnl": 0.0,
+    "filteredByHTF": 0,
+    "filteredByPatterns": 0,
 }
 
 strategy_history = {}
@@ -168,6 +189,7 @@ def bot_save():
                 "balance", "positions", "closedTrades", "logs", "startedAt",
                 "stoppedAt", "lastAction", "lastSignalScan", "scanResults", "lastDate",
                 "dailyTradesReset", "dailyTradesCount", "cooldown", "realizedPnl",
+                "filteredByHTF", "filteredByPatterns",
             )}
             data["equityCurve"] = bot_state["equityCurve"][-2000:]
             data["closedTrades"] = bot_state["closedTrades"][-1000:]
@@ -195,7 +217,8 @@ def bot_load():
                 merged.update(bot_state["strategy"])
             bot_state["strategy"] = merged
             for key in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                        "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions"):
+                        "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
+                        "enableHTFFilter", "enablePatterns"):
                 bot_state["settings"].setdefault(key, True)
             bot_state["settings"].setdefault("dailyMaxTrades", DEFAULT_DAILY_MAX_TRADES)
             bot_state["settings"].setdefault("riskPerTradePct", RISK_PER_TRADE_PCT)
@@ -410,7 +433,7 @@ def fetch_klines(symbol, interval, limit=200):
             BASE + "/v5/market/kline",
             params={"category": "spot", "symbol": symbol + "USDT",
                     "interval": interval, "limit": limit},
-            headers={"User-Agent": "CryptoPulse/4.0", "Accept": "application/json"},
+            headers={"User-Agent": "CryptoPulse/4.2", "Accept": "application/json"},
             timeout=10,
         )
         response.raise_for_status()
@@ -433,6 +456,93 @@ def fetch_klines(symbol, interval, limit=200):
         return {"ok": True, "error": None, "points": points}
     except Exception as exc:
         return {"ok": False, "error": str(exc), "points": []}
+
+
+def refresh_htf_trends(symbols, force=False):
+    """Обновляет тренды 1h по списку символов. Кэш на 5 минут."""
+    if not force and time.time() - htf_cache["updated"] < 300 and htf_cache["trends"]:
+        return
+    def get_one(sym):
+        res = fetch_klines(sym, HTF_INTERVAL, 200)
+        if not res["ok"] or len(res["points"]) < HTF_EMA_PERIOD + 5:
+            return sym, None
+        closes = [p["price"] for p in res["points"]]
+        e50 = ema(closes, HTF_EMA_PERIOD)
+        if e50 is None:
+            return sym, None
+        price = closes[-1]
+        tol = HTF_TOLERANCE_PCT / 100
+        if price > e50 * (1 + tol):
+            direction = "up"
+        elif price < e50 * (1 - tol):
+            direction = "down"
+        else:
+            direction = "flat"
+        return sym, {
+            "direction": direction,
+            "ema50": e50,
+            "price": price,
+            "pct_from_ema50": (price / e50 - 1) * 100,
+            "ts": time.time(),
+        }
+    new_trends = {}
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {pool.submit(get_one, s): s for s in symbols}
+        for fut in as_completed(futures):
+            try:
+                sym, data = fut.result()
+                if data:
+                    new_trends[sym] = data
+            except Exception:
+                pass
+    with htf_lock:
+        htf_cache["trends"].update(new_trends)
+        htf_cache["updated"] = time.time()
+
+
+def get_htf_direction(symbol):
+    with htf_lock:
+        entry = htf_cache["trends"].get(symbol)
+    return entry["direction"] if entry else "unknown"
+
+
+def refresh_patterns(symbols, force=False):
+    """Загружает 1h-свечи и считает паттерны для символов. Кэш 5 минут."""
+    if not force and time.time() - patterns_cache["updated"] < 300 and patterns_cache["by_symbol"]:
+        return
+    def get_one(sym):
+        res = fetch_klines(sym, HTF_INTERVAL, 100)
+        if not res["ok"] or len(res["points"]) < 10:
+            return sym, None
+        result = detect_patterns(res["points"], lookback=PATTERN_LOOKBACK)
+        return sym, {
+            "found": result["found"],
+            "has_bullish": result["has_bullish"],
+            "has_bearish": result["has_bearish"],
+            "has_neutral": result["has_neutral"],
+            "enabled": result["enabled"],
+            "method": result["method"],
+            "strength": pattern_strength(result),
+            "ts": time.time(),
+        }
+    new_patterns = {}
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {pool.submit(get_one, s): s for s in symbols}
+        for fut in as_completed(futures):
+            try:
+                sym, data = fut.result()
+                if data:
+                    new_patterns[sym] = data
+            except Exception:
+                pass
+    with patterns_lock:
+        patterns_cache["by_symbol"].update(new_patterns)
+        patterns_cache["updated"] = time.time()
+
+
+def get_patterns_for(symbol):
+    with patterns_lock:
+        return patterns_cache["by_symbol"].get(symbol)
 
 
 def refresh_strategy_history_background(symbols):
@@ -926,6 +1036,21 @@ def bot_tick():
     if not history_loading_flag.is_set() and time.time() - strategy_history_updated > SIGNAL_UNIVERSE_REFRESH_SECONDS:
         threading.Thread(target=refresh_strategy_history_background,
                          args=(scan_symbols,), daemon=True).start()
+
+    with bot_state_lock:
+        htf_enabled = bot_state["settings"].get("enableHTFFilter", True)
+        patterns_enabled = bot_state["settings"].get("enablePatterns", True)
+    if htf_enabled:
+        try:
+            refresh_htf_trends(scan_symbols)
+        except Exception:
+            log.exception("htf refresh failed")
+    if patterns_enabled:
+        try:
+            refresh_patterns(scan_symbols)
+        except Exception:
+            log.exception("patterns refresh failed")
+
     scan = []
     for symbol in scan_symbols:
         price = prices.get(symbol)
@@ -948,6 +1073,8 @@ def bot_tick():
 
     with bot_state_lock:
         current = {p["symbol"] for p in bot_state["positions"]}
+    filtered_htf = 0
+    filtered_patterns = 0
     for item in scan:
         if item["symbol"] in current:
             continue
@@ -956,12 +1083,35 @@ def bot_tick():
             if time.time() < cooldown_time:
                 continue
         if item["signal"] == "buy_candidate":
+            if htf_enabled:
+                direction = get_htf_direction(item["symbol"])
+                if direction != "up":
+                    filtered_htf += 1
+                    with bot_state_lock:
+                        bot_state["filteredByHTF"] = bot_state.get("filteredByHTF", 0) + 1
+                    continue
+            if patterns_enabled:
+                p = get_patterns_for(item["symbol"])
+                if not p or not p.get("has_bullish"):
+                    filtered_patterns += 1
+                    with bot_state_lock:
+                        bot_state["filteredByPatterns"] = bot_state.get("filteredByPatterns", 0) + 1
+                    continue
             bot_open_position(item["symbol"], item["price"], "Long", "SmartScalp")
         elif item["signal"] == "sell_candidate" and ALLOW_SHORTS:
+            if patterns_enabled:
+                p = get_patterns_for(item["symbol"])
+                if not p or not p.get("has_bearish"):
+                    filtered_patterns += 1
+                    with bot_state_lock:
+                        bot_state["filteredByPatterns"] = bot_state.get("filteredByPatterns", 0) + 1
+                    continue
             bot_open_position(item["symbol"], item["price"], "Short", "SmartScalp")
 
     with bot_state_lock:
-        if not bot_state["positions"]:
+        if filtered_htf or filtered_patterns:
+            bot_state["lastAction"] = f"Отфильтровано: 1h {filtered_htf}, паттерны {filtered_patterns}. Позиций: {len(bot_state['positions'])}."
+        elif not bot_state["positions"]:
             bot_state["lastAction"] = "Сканирует — сигналов нет."
         else:
             bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
@@ -1067,6 +1217,24 @@ def compute_stats():
                                "pnlPct": (pnl / p["sizeUsd"] * 100 if p["sizeUsd"] else 0)})
     total_equity = eq["equity"]
     total_pnl = total_equity - start
+
+    def recent_stats(n):
+        subset = trades[:n]
+        if not subset:
+            return {"n": 0, "winrate": 0, "profitFactor": None, "avgPnl": 0, "sumPnl": 0}
+        w = [t for t in subset if t["pnl"] > 0]
+        l = [t for t in subset if t["pnl"] < 0]
+        sw = sum(t["pnl"] for t in w)
+        sl = abs(sum(t["pnl"] for t in l))
+        pf = (sw / sl) if sl > 0 else (float("inf") if sw > 0 else 0)
+        return {
+            "n": len(subset),
+            "winrate": len(w) / len(subset) * 100,
+            "profitFactor": pf if math.isfinite(pf) else None,
+            "avgPnl": sum(t["pnl"] for t in subset) / len(subset),
+            "sumPnl": sum(t["pnl"] for t in subset),
+        }
+
     return {
         "trades": total, "wins": len(wins), "losses": len(losses),
         "winrate": winrate, "sumProfit": sum_profit, "sumLoss": sum_loss,
@@ -1079,6 +1247,8 @@ def compute_stats():
         "realizedPnl": bot_state.get("realizedPnl", 0.0),
         "openPositions": len(positions_live), "positionsLive": positions_live,
         "equityCurve": equity, "missingPrices": eq["missing_prices"],
+        "recent20": recent_stats(20),
+        "recent50": recent_stats(50),
     }
 
 
@@ -1108,6 +1278,8 @@ def config():
         "databaseAvailable": db_status["available"],
         "stalePriceSeconds": STALE_PRICE_SECONDS,
         "adminApiEnabled": bool(os.getenv("BOT_ADMIN_SECRET", "").strip()),
+        "htfFilter": {"enabled": True, "ema_period": HTF_EMA_PERIOD, "interval": HTF_INTERVAL},
+        "patterns": {"enabled": True, "talib": TALIB_AVAILABLE, "lookback": PATTERN_LOOKBACK},
     })
 
 
@@ -1212,6 +1384,8 @@ def bot_state_api():
             "bybitAvailable": bybit_status["available"],
             "bybitLastCheck": bybit_status["lastCheck"],
             "missingPrices": stats["missingPrices"],
+            "filteredByHTF": bot_state.get("filteredByHTF", 0),
+            "filteredByPatterns": bot_state.get("filteredByPatterns", 0),
             "stats": {
                 "trades": stats["trades"], "wins": stats["wins"], "losses": stats["losses"],
                 "winrate": stats["winrate"],
@@ -1220,8 +1394,99 @@ def bot_state_api():
                 "best": stats["best"], "worst": stats["worst"],
                 "maxDrawdown": stats["maxDrawdown"], "bySymbol": stats["bySymbol"],
                 "equityCurve": stats["equityCurve"][-500:],
+                "recent20": stats["recent20"],
+                "recent50": stats["recent50"],
             },
         })
+
+
+@app.route("/api/bot/diagnostics")
+def bot_diagnostics_api():
+    """Диагностика: тренды 1h, паттерны, статистика, просадка."""
+    stats = compute_stats()
+    symbols = list(htf_cache["trends"].keys()) or get_signal_universe()
+    trends = []
+    with htf_lock:
+        for sym in symbols:
+            entry = htf_cache["trends"].get(sym)
+            if not entry:
+                continue
+            trends.append({
+                "symbol": sym,
+                "direction": entry["direction"],
+                "price": entry["price"],
+                "ema50": entry["ema50"],
+                "pct_from_ema50": entry["pct_from_ema50"],
+                "ageSeconds": time.time() - entry["ts"],
+            })
+    trends.sort(key=lambda x: x["symbol"])
+    up = sum(1 for t in trends if t["direction"] == "up")
+    down = sum(1 for t in trends if t["direction"] == "down")
+    flat = sum(1 for t in trends if t["direction"] == "flat")
+    with bot_state_lock:
+        filtered_htf = bot_state.get("filteredByHTF", 0)
+        filtered_patterns = bot_state.get("filteredByPatterns", 0)
+        htf_enabled = bot_state["settings"].get("enableHTFFilter", True)
+        patterns_enabled = bot_state["settings"].get("enablePatterns", True)
+        open_positions = len(bot_state["positions"])
+    peak = -1e18
+    current_dd = 0.0
+    for p in stats["equityCurve"]:
+        peak = max(peak, p["balance"])
+        current_dd = max(current_dd, peak - p["balance"])
+    return jsonify({
+        "success": True,
+        "htf": {
+            "enabled": htf_enabled,
+            "ema_period": HTF_EMA_PERIOD,
+            "interval": HTF_INTERVAL,
+            "trends": trends,
+            "counts": {"up": up, "down": down, "flat": flat},
+            "ageSeconds": time.time() - htf_cache["updated"] if htf_cache["updated"] else None,
+        },
+        "patterns": {
+            "enabled": patterns_enabled,
+            "talib": TALIB_AVAILABLE,
+            "lookback": PATTERN_LOOKBACK,
+            "ageSeconds": time.time() - patterns_cache["updated"] if patterns_cache["updated"] else None,
+        },
+        "filteredByHTF": filtered_htf,
+        "filteredByPatterns": filtered_patterns,
+        "openPositions": open_positions,
+        "currentDrawdown": current_dd,
+        "recent20": stats["recent20"],
+        "recent50": stats["recent50"],
+        "totalPnl": stats["totalPnl"],
+        "totalPnlPct": (stats["totalPnl"] / stats["startBalance"] * 100) if stats["startBalance"] else 0,
+    })
+
+
+@app.route("/api/bot/patterns")
+def bot_patterns_api():
+    """Список найденных паттернов по всем монетам (для вкладки Подсказки/Диагностика)."""
+    with patterns_lock:
+        by_symbol = dict(patterns_cache["by_symbol"])
+        updated = patterns_cache["updated"]
+    out = []
+    for sym, p in by_symbol.items():
+        out.append({
+            "symbol": sym,
+            "found": p.get("found", []),
+            "has_bullish": p.get("has_bullish", False),
+            "has_bearish": p.get("has_bearish", False),
+            "has_neutral": p.get("has_neutral", False),
+            "method": p.get("method", "unknown"),
+            "strength": p.get("strength", 0),
+            "ageSeconds": time.time() - p["ts"] if p.get("ts") else None,
+        })
+    out.sort(key=lambda x: (-x["strength"], x["symbol"]))
+    return jsonify({
+        "success": True,
+        "talib": TALIB_AVAILABLE,
+        "lookback": PATTERN_LOOKBACK,
+        "ageSeconds": time.time() - updated if updated else None,
+        "patterns": out,
+    })
 
 
 @app.route("/api/bot/start", methods=["POST"])
@@ -1255,7 +1520,8 @@ def bot_start_api():
                 except Exception:
                     pass
             for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                         "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions"):
+                         "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
+                         "enableHTFFilter", "enablePatterns"):
                 if flag in data["settings"]:
                     bot_state["settings"][flag] = bool(data["settings"][flag])
         free = float(bot_state["balance"])
@@ -1366,7 +1632,8 @@ def bot_settings_api():
             except Exception:
                 pass
         for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                     "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions"):
+                     "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
+                     "enableHTFFilter", "enablePatterns"):
             if flag in data:
                 bot_state["settings"][flag] = bool(data[flag])
     bot_log("Настройки сохранены.", "blue")
@@ -1400,7 +1667,7 @@ def bot_reset_api():
             "startedAt": None, "stoppedAt": None, "lastAction": "Сброшено",
             "scanResults": [], "scanStatus": "Сброшено", "dailyTradesCount": 0,
             "dailyTradesReset": datetime.now().strftime("%Y-%m-%d"),
-            "cooldown": {}, "realizedPnl": 0.0,
+            "cooldown": {}, "realizedPnl": 0.0, "filteredByHTF": 0, "filteredByPatterns": 0,
         })
     bot_log("Бот сброшен.", "gold")
     return jsonify({"success": True})

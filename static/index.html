@@ -133,6 +133,10 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 .hint-card.bullish{border-left:3px solid var(--green)}
 .hint-card.bearish{border-left:3px solid var(--red)}
 .hint-card.neutral{border-left:3px solid var(--gold)}
+/* ===== HTF BUTTONS ===== */
+.htf-btn{flex:1;padding:8px 0;font-size:12px;border-radius:6px;background:transparent;color:var(--muted);font-weight:600;transition:.15s}
+.htf-btn:hover{background:#1c2a44;color:var(--text)}
+.htf-btn.active{background:#1d3157;color:#bcd4ff}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr}.diag-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}.diag-grid{grid-template-columns:1fr}.hints-grid{grid-template-columns:1fr 1fr}}
 #globalError{display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#ff5d73;color:white;padding:12px 20px;z-index:9999;border-radius:8px;font-weight:bold;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.5);text-align:center;max-width:90vw}
@@ -150,12 +154,12 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
     <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
     <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
     <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История</span></button>
-    <div class="sidebar-footer"><div><span class="dot" id="sbDot"></span><span id="sbStatus">—</span></div><div style="color:var(--muted2);margin-top:4px">v4.2 patterns</div></div>
+    <div class="sidebar-footer"><div><span class="dot" id="sbDot"></span><span id="sbStatus">—</span></div><div style="color:var(--muted2);margin-top:4px">v4.3 din</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
       <div class="topbar-left"><span class="dot" id="apiDot"></span><span id="apiStatus">Проверка API…</span></div>
-      <div class="topbar-right"><div class="mode-pill">Симуляция · spot-only · 1h + паттерны</div></div>
+      <div class="topbar-right"><div class="mode-pill">Симуляция · spot-only</div></div>
     </div>
     <div class="content">
       <section id="page-home" class="page active">
@@ -222,11 +226,16 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
                   <label>Риск на сделку, %</label>
                   <div class="input-wrap"><input type="number" id="riskPerTradePct" value="1" min="0.1" step="0.1" style="padding-left:12px"></div>
                 </div>
-                <div class="field">
-                  <label>Фильтр 1h (EMA50)
-                    <label class="checkbox-wrap" title="Если стоит — Long только когда цена выше EMA50 на 1h"><input type="checkbox" id="chk_htfFilter" checked></label>
+                <div class="field" style="grid-column: span 2;">
+                  <label style="margin-bottom: 8px;">Фильтр тренда (EMA50)
+                    <label class="checkbox-wrap" title="Если стоит — бот проверяет тренд на выбранном таймфрейме"><input type="checkbox" id="chk_htfFilter" checked></label>
                   </label>
-                  <div class="input-wrap"><input type="text" value="включён" disabled style="padding-left:12px;color:var(--muted)"></div>
+                  <div class="chart-tf" id="htfButtons" style="background:#0a1322; border:1px solid var(--line); border-radius:8px; padding:4px; display:flex; gap:4px;">
+                    <button type="button" data-htf="15" class="htf-btn">15m</button>
+                    <button type="button" data-htf="60" class="htf-btn active">1h</button>
+                    <button type="button" data-htf="240" class="htf-btn">4h</button>
+                    <button type="button" data-htf="D" class="htf-btn">1d</button>
+                  </div>
                 </div>
                 <div class="field">
                   <label>Паттерны (1h)
@@ -292,7 +301,7 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 
       <section id="page-diag" class="page">
         <div class="diag-grid">
-          <div class="diag-card"><div class="k">Отфильтровано 1h</div><div class="v" id="diagFilteredHtf">—</div><div class="sub">Long против 1h-тренда</div></div>
+          <div class="diag-card"><div class="k">Отфильтровано HTF</div><div class="v" id="diagFilteredHtf">—</div><div class="sub" id="diagFilteredHtfSub">тренд против нас</div></div>
           <div class="diag-card"><div class="k">Отфильтровано паттернами</div><div class="v" id="diagFilteredPat">—</div><div class="sub">нет бычьего паттерна на 1h</div></div>
           <div class="diag-card"><div class="k">Winrate (20 посл.)</div><div class="v" id="diagWr20">—</div><div class="sub" id="diagWr20Sub">—</div></div>
           <div class="diag-card"><div class="k">PF (20 посл.)</div><div class="v" id="diagPf20">—</div><div class="sub" id="diagPf20Sub">—</div></div>
@@ -300,13 +309,13 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
           <div class="diag-card"><div class="k">PF (50 посл.)</div><div class="v" id="diagPf50">—</div><div class="sub" id="diagPf50Sub">—</div></div>
           <div class="diag-card"><div class="k">Текущая просадка</div><div class="v" id="diagDD">—</div><div class="sub">от пика equity</div></div>
           <div class="diag-card"><div class="k">Паттерны</div><div class="v" id="diagPatterns">—</div><div class="sub" id="diagPatternsSub">—</div></div>
-          <div class="diag-card"><div class="k">1h-тренды</div><div class="v" id="diagTrendCounts">—</div><div class="sub">up / down / flat</div></div>
+          <div class="diag-card"><div class="k">HTF-тренды</div><div class="v" id="diagTrendCounts">—</div><div class="sub" id="diagTrendSub">up / down / flat</div></div>
         </div>
         <div class="card">
-          <h2>Тренд 1h (EMA50) + паттерны <small id="diagUpdated">—</small></h2>
+          <h2>Тренд <span id="diagHtfLabel">1h</span> (EMA50) + паттерны <small id="diagUpdated">—</small></h2>
           <div style="overflow:auto;max-height:60vh">
             <table class="trend-table">
-              <thead><tr><th>Монета</th><th>1h</th><th>Цена</th><th>EMA50</th><th>Отклонение</th><th>Паттерны</th></tr></thead>
+              <thead><tr><th>Монета</th><th>Тренд</th><th>Цена</th><th>EMA50</th><th>Отклонение</th><th>Паттерны</th></tr></thead>
               <tbody id="diagTrendBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Загрузка…</td></tr></tbody>
             </table>
           </div>
@@ -593,6 +602,16 @@ function renderBot(data){
     $("chk_maxPositions").checked = data.settings.enableMaxPositions !== false;
     $("chk_htfFilter").checked = data.settings.enableHTFFilter !== false;
     $("chk_patterns").checked = data.settings.enablePatterns !== false;
+    
+    // Обновляем кнопки HTF
+    const htfInt = data.settings.htfInterval || "60";
+    document.querySelectorAll(".htf-btn").forEach(b => {
+      if (b.dataset.htf === htfInt) {
+        b.classList.add("active");
+      } else {
+        b.classList.remove("active");
+      }
+    });
   }
 
   const eq = Number(data.balance) || 0;
@@ -719,6 +738,8 @@ async function loadDiagnostics(){
 
 function renderDiagnostics(d, p){
   $("diagFilteredHtf").textContent = d.filteredByHTF ?? "—";
+  $("diagFilteredHtfSub").textContent = `тренд ${d.htf?.interval_label || '1h'} против нас`;
+  
   $("diagFilteredPat").textContent = d.filteredByPatterns ?? "—";
   const r20 = d.recent20 || {};
   const r50 = d.recent50 || {};
@@ -749,6 +770,7 @@ function renderDiagnostics(d, p){
   $("diagTrendCounts").textContent = `${c.up||0} / ${c.down||0} / ${c.flat||0}`;
   $("diagTrendCounts").className = "v";
   $("diagUpdated").textContent = htf.ageSeconds != null ? `обновлено ${Math.round(htf.ageSeconds)} с назад` : "—";
+  $("diagHtfLabel").textContent = htf.interval_label || "1h";
 
   const trendMap = {};
   (htf.trends || []).forEach(t => trendMap[t.symbol] = t);
@@ -822,6 +844,8 @@ function renderSignals(){
 }
 $("sigSearch").oninput = renderSignals;
 
+let selectedHtf = "60";
+
 function collectSettings() {
   return {
     profitTarget: Number($("profitTarget").value)||20,
@@ -831,6 +855,7 @@ function collectSettings() {
     dailyMaxTrades: Number($("dailyMaxTrades").value)||15,
     riskPerTradePct: Number($("riskPerTradePct").value)||1,
     maxOpenPositions: Number($("maxOpenPositions").value)||20,
+    htfInterval: selectedHtf,
     enableProfitTarget: $("chk_profitTarget").checked,
     enableMaxLoss: $("chk_maxLoss").checked,
     enableDailyMaxLoss: $("chk_dailyMaxLoss").checked,
@@ -860,6 +885,15 @@ function saveSettings(){
 
 ["chk_profitTarget","chk_maxLoss","chk_dailyMaxLoss","chk_fixedTradeSize","chk_dailyMaxTrades","chk_maxPositions","chk_htfFilter","chk_patterns"].forEach(id=>{
   $(id).addEventListener("change", ()=>{ saveSettings(); });
+});
+
+document.querySelectorAll(".htf-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    document.querySelectorAll(".htf-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedHtf = btn.dataset.htf;
+    await saveSettings();
+  });
 });
 
 async function withBusy(btn, fn){

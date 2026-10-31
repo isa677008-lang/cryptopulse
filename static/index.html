@@ -167,13 +167,10 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
           <div class="col">
             <div class="card">
               <h2>Управление ботом</h2>
-              
-              <!-- ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА -->
               <div style="display:flex; gap:8px; margin-bottom:16px; background:#0a1322; padding:4px; border-radius:9px; border:1px solid var(--line);">
                 <button id="btnModeSpot" class="btn-mode active" style="flex:1; padding:8px; border-radius:6px; font-weight:600; font-size:13px;">Спот</button>
                 <button id="btnModeFutures" class="btn-mode" style="flex:1; padding:8px; border-radius:6px; font-weight:600; font-size:13px;">Фьючерсы (3x)</button>
               </div>
-
               <div class="controls">
                 <div class="actions">
                   <button class="btn-action btn-start" id="btnStart">Запустить</button>
@@ -342,35 +339,35 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
         <div class="hints-section">
           <div class="hints-title" style="color:var(--green)">↑ Бычьи паттерны (сигнал к росту)</div>
           <div class="hints-grid">
-            <div class="hint-card bullish" title="Молот: маленькое тело сверху, длинный нижний хвост. Покупатели отбили падение.">
+            <div class="hint-card bullish" title="Молот: маленькое тело сверху, длинный нижний хвост.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="30" width="16" height="20"/></g></svg>
-              <div class="name">Молот</div><div class="desc">Длинный нижний хвост, маленькое тело сверху. Отбой от низа.</div>
+              <div class="name">Молот</div><div class="desc">Длинный нижний хвост, маленькое тело сверху.</div>
             </div>
-            <div class="hint-card bullish" title="Перевёрнутый молот: длинный верхний хвост. Покупатели пробуют рост.">
+            <div class="hint-card bullish" title="Перевёрнутый молот: длинный верхний хвост.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="30" width="16" height="20"/></g></svg>
               <div class="name">Перевёрнутый молот</div><div class="desc">Длинный верхний хвост, маленькое тело снизу.</div>
             </div>
-            <div class="hint-card bullish" title="Бычье поглощение: текущая зелёная свеча полностью накрывает предыдущую красную.">
+            <div class="hint-card bullish" title="Бычье поглощение: зелёная накрывает красную.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="30" y="35" width="14" height="15"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="52" y="25" width="18" height="35"/></g></svg>
               <div class="name">Бычье поглощение</div><div class="desc">Зелёная свеча накрывает предыдущую красную.</div>
             </div>
-            <div class="hint-card bullish" title="Утренняя звезда: красная, маленькая, зелёная — разворот вверх.">
+            <div class="hint-card bullish" title="Утренняя звезда: разворот вверх.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="18" y="20" width="12" height="30"/></g><g stroke="#8394b3" stroke-width="2" fill="#8394b3"><rect x="44" y="45" width="12" height="10"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="70" y="25" width="12" height="30"/></g></svg>
-              <div class="name">Утренняя звезда</div><div class="desc">Красная → доджи → зелёная. Сильный разворот вверх.</div>
+              <div class="name">Утренняя звезда</div><div class="desc">Красная → доджи → зелёная.</div>
             </div>
-            <div class="hint-card bullish" title="Три белых солдата: три растущие свечи подряд.">
+            <div class="hint-card bullish" title="Три белых солдата: три растущие свечи.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="15" y="45" width="14" height="20"/><rect x="42" y="30" width="14" height="20"/><rect x="69" y="15" width="14" height="20"/></g></svg>
-              <div class="name">Три белых солдата</div><div class="desc">Три растущие свечи подряд. Сильный тренд вверх.</div>
+              <div class="name">Три белых солдата</div><div class="desc">Три растущие свечи подряд.</div>
             </div>
-            <div class="hint-card bullish" title="Харами: маленькая свеча внутри предыдущей большой.">
+            <div class="hint-card bullish" title="Харами: маленькая свеча внутри предыдущей.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="30" y="20" width="18" height="45"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="58" y="35" width="10" height="15"/></g></svg>
-              <div class="name">Харами (бычье)</div><div class="desc">Маленькая свеча внутри предыдущей. Затухание падения.</div>
+              <div class="name">Харами (бычье)</div><div class="desc">Маленькая свеча внутри предыдущей.</div>
             </div>
-            <div class="hint-card bullish" title="Просвет в облаках: зелёная свеча перекрывает больше половины предыдущей красной.">
+            <div class="hint-card bullish" title="Просвет в облаках.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="25" y="15" width="16" height="45"/></g><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="50" y="30" width="16" height="40"/></g></svg>
-              <div class="name">Просвет в облаках</div><div class="desc">Зелёная перекрывает &gt;50% предыдущей красной.</div>
+              <div class="name">Просвет в облаках</div><div class="desc">Зелёная перекрывает &gt;50% красной.</div>
             </div>
-            <div class="hint-card bullish" title="Доджи-стрекоза: тело наверху, длинный нижний хвост.">
+            <div class="hint-card bullish" title="Доджи-стрекоза.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><line x1="50" y1="20" x2="50" y2="70"/><rect x="44" y="20" width="12" height="8"/></g></svg>
               <div class="name">Доджи-стрекоза</div><div class="desc">Тело наверху, длинный нижний хвост.</div>
             </div>
@@ -380,42 +377,41 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
         <div class="hints-section">
           <div class="hints-title" style="color:var(--red)">↓ Медвежьи паттерны (сигнал к падению)</div>
           <div class="hints-grid">
-            <div class="hint-card bearish" title="Падающая звезда: длинный верхний хвост, тело внизу.">
+            <div class="hint-card bearish" title="Падающая звезда: длинный верхний хвост.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="25" width="16" height="20"/></g></svg>
-              <div class="name">Падающая звезда</div><div class="desc">Длинный верхний хвост, тело внизу. Отбой сверху.</div>
+              <div class="name">Падающая звезда</div><div class="desc">Длинный верхний хвост, тело внизу.</div>
             </div>
-            <div class="hint-card bearish" title="Медвежье поглощение: красная свеча накрывает предыдущую зелёную.">
+            <div class="hint-card bearish" title="Медвежье поглощение.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="30" y="30" width="14" height="15"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="52" y="20" width="18" height="35"/></g></svg>
               <div class="name">Медвежье поглощение</div><div class="desc">Красная накрывает предыдущую зелёную.</div>
             </div>
-            <div class="hint-card bearish" title="Вечерняя звезда: зелёная, маленькая, красная — разворот вниз.">
+            <div class="hint-card bearish" title="Вечерняя звезда: разворот вниз.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="18" y="30" width="12" height="30"/></g><g stroke="#8394b3" stroke-width="2" fill="#8394b3"><rect x="44" y="30" width="12" height="10"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="70" y="20" width="12" height="30"/></g></svg>
-              <div class="name">Вечерняя звезда</div><div class="desc">Зелёная → доджи → красная. Сильный разворот вниз.</div>
+              <div class="name">Вечерняя звезда</div><div class="desc">Зелёная → доджи → красная.</div>
             </div>
-            <div class="hint-card bearish" title="Три чёрные вороны: три падающие свечи подряд.">
+            <div class="hint-card bearish" title="Три чёрные вороны.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="15" y="15" width="14" height="20"/><rect x="42" y="30" width="14" height="20"/><rect x="69" y="45" width="14" height="20"/></g></svg>
-              <div class="name">Три чёрные вороны</div><div class="desc">Три падающие свечи подряд. Сильный тренд вниз.</div>
+              <div class="name">Три чёрные вороны</div><div class="desc">Три падающие свечи подряд.</div>
             </div>
-            <div class="hint-card bearish" title="Завеса из тёмных облаков: красная перекрывает больше половины предыдущей зелёной.">
+            <div class="hint-card bearish" title="Завеса из тёмных облаков.">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="25" y="20" width="16" height="45"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="50" y="25" width="16" height="40"/></g></svg>
-              <div class="name">Завеса из тёмных облаков</div><div class="desc">Красная перекрывает &gt;50% предыдущей зелёной.</div>
+              <div class="name">Завеса из тёмных облаков</div><div class="desc">Красная перекрывает &gt;50% зелёной.</div>
             </div>
-            <div class="hint-card bearish" title="Повешенный: маленькое тело сверху, длинный нижний хвост — после роста.">
+            <div class="hint-card bearish" title="Повешенный.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><line x1="50" y1="10" x2="50" y2="70"/><rect x="42" y="20" width="16" height="18"/></g></svg>
-              <div class="name">Повешенный</div><div class="desc">Похож на молот, но появляется после роста — сигнал вниз.</div>
+              <div class="name">Повешенный</div><div class="desc">Похож на молот, но появляется после роста.</div>
             </div>
-            <div class="hint-card bearish" title="Харами (медвежье): маленькая свеча внутри предыдущей большой после роста.">
+            <div class="hint-card bearish" title="Харами (медвежье).">
               <svg viewBox="0 0 100 80"><g stroke="#1fcf8a" stroke-width="2" fill="#1fcf8a"><rect x="30" y="15" width="18" height="45"/></g><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><rect x="58" y="30" width="10" height="15"/></g></svg>
-              <div class="name">Харами (медвежье)</div><div class="desc">Маленькая свеча внутри предыдущей. Затухание роста.</div>
+              <div class="name">Харами (медвежье)</div><div class="desc">Маленькая свеча внутри предыдущей.</div>
             </div>
-            <div class="hint-card bearish" title="Доджи-надгробие: тело внизу, длинный верхний хвост.">
+            <div class="hint-card bearish" title="Доджи-надгробие.">
               <svg viewBox="0 0 100 80"><g stroke="#ff5d73" stroke-width="2" fill="#ff5d73"><line x1="50" y1="10" x2="50" y2="60"/><rect x="44" y="52" width="12" height="8"/></g></svg>
               <div class="name">Доджи-надгробие</div><div class="desc">Тело внизу, длинный верхний хвост.</div>
             </div>
           </div>
         </div>
       </section>
-
       <section id="page-markets" class="page">
         <div class="card">
           <h2>Рынки <small id="mktCount">—</small></h2>
@@ -441,6 +437,7 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
     </div>
   </div>
 </div>
+
 <script>
 const $ = id => document.getElementById(id);
 const S = { coins: [], rub: null, bot: null, signals: [], config: null, diag: null, patterns: null };
@@ -559,7 +556,6 @@ async function refreshBot(){
     showError("Ошибка API: " + e.message);
   }
 }
-
 function renderBot(data){
   if (data.mode && data.mode !== currentMode) {
     currentMode = data.mode;
@@ -837,7 +833,6 @@ function renderDiagnostics(d, p){
     </tr>
   `).join("") : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Нет данных. Запусти бота.</td></tr>`;
 }
-
 async function loadSignals(){
   try{
     const data = await api("/api/trading/signals");
@@ -959,7 +954,6 @@ async function downloadCsv(){
   try{
     const secret = getSecret();
     const r = await fetch("/api/bot/export.csv", {headers: secret ? {"X-Bot-Secret": secret} : {}});
-    if(!
     if(!r.ok) throw Error("HTTP " + r.status);
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);

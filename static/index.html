@@ -133,10 +133,10 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
 .hint-card.bullish{border-left:3px solid var(--green)}
 .hint-card.bearish{border-left:3px solid var(--red)}
 .hint-card.neutral{border-left:3px solid var(--gold)}
-/* ===== HTF BUTTONS ===== */
-.htf-btn{flex:1;padding:8px 0;font-size:12px;border-radius:6px;background:transparent;color:var(--muted);font-weight:600;transition:.15s}
-.htf-btn:hover{background:#1c2a44;color:var(--text)}
-.htf-btn.active{background:#1d3157;color:#bcd4ff}
+/* ===== MODES ===== */
+.btn-mode { background: transparent; color: var(--muted); transition: .15s; border: 0; cursor: pointer; }
+.btn-mode:hover { color: var(--text); background: #1c2a44; }
+.btn-mode.active { background: var(--blue-soft); color: #bcd4ff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.1); }
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr}.diag-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:780px){body{overflow:auto}.app{grid-template-columns:1fr;height:auto}.sidebar{flex-direction:row;overflow-x:auto;padding:8px}.brand{padding:6px 8px}.brand-name{display:none}.nav-item span{display:none}.nav-item{padding:9px}.sidebar-footer{display:none}.actions{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.status-box{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}.settings{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}.diag-grid{grid-template-columns:1fr}.hints-grid{grid-template-columns:1fr 1fr}}
 #globalError{display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#ff5d73;color:white;padding:12px 20px;z-index:9999;border-radius:8px;font-weight:bold;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.5);text-align:center;max-width:90vw}
@@ -154,12 +154,12 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
     <button class="nav-item" data-page="markets"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 7-8"/><path d="M14 7h5v5"/></svg><span>Рынки</span></button>
     <button class="nav-item" data-page="signals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Сигналы</span></button>
     <button class="nav-item" data-page="history"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>История</span></button>
-    <div class="sidebar-footer"><div><span class="dot" id="sbDot"></span><span id="sbStatus">—</span></div><div style="color:var(--muted2);margin-top:4px">v4.3 din</div></div>
+    <div class="sidebar-footer"><div><span class="dot" id="sbDot"></span><span id="sbStatus">—</span></div><div style="color:var(--muted2);margin-top:4px">v5.0 dual</div></div>
   </aside>
   <div class="main">
     <div class="topbar">
       <div class="topbar-left"><span class="dot" id="apiDot"></span><span id="apiStatus">Проверка API…</span></div>
-      <div class="topbar-right"><div class="mode-pill">Симуляция · spot-only</div></div>
+      <div class="topbar-right"><div class="mode-pill" id="topModePill">Симуляция · Спот</div></div>
     </div>
     <div class="content">
       <section id="page-home" class="page active">
@@ -167,6 +167,13 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
           <div class="col">
             <div class="card">
               <h2>Управление ботом</h2>
+              
+              <!-- ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА -->
+              <div style="display:flex; gap:8px; margin-bottom:16px; background:#0a1322; padding:4px; border-radius:9px; border:1px solid var(--line);">
+                <button id="btnModeSpot" class="btn-mode active" style="flex:1; padding:8px; border-radius:6px; font-weight:600; font-size:13px;">Спот</button>
+                <button id="btnModeFutures" class="btn-mode" style="flex:1; padding:8px; border-radius:6px; font-weight:600; font-size:13px;">Фьючерсы (3x)</button>
+              </div>
+
               <div class="controls">
                 <div class="actions">
                   <button class="btn-action btn-start" id="btnStart">Запустить</button>
@@ -260,6 +267,7 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
           <div class="col">
             <div class="card">
               <div class="balance-head"><h2>Баланс (симуляция)</h2><button class="refresh-btn" id="balanceRefresh">Обновить</button></div>
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">Режим: <span id="currentModeLabel" style="color:var(--blue); font-weight:700;">СПОТ</span></div>
               <div class="balance-list">
                 <div class="balance-item"><div class="meta"><div class="k">Equity</div><div class="v" id="balTotal">—</div></div></div>
                 <div class="balance-item"><div class="meta"><div class="k">Свободно</div><div class="v" id="balFree">—</div></div></div>
@@ -278,7 +286,6 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
           </div>
         </div>
       </section>
-
       <section id="page-bot" class="page">
         <div class="stats-grid">
           <div class="stat-card"><div class="k">Всего сделок</div><div class="v" id="stTrades">0</div></div>
@@ -302,7 +309,7 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
       <section id="page-diag" class="page">
         <div class="diag-grid">
           <div class="diag-card"><div class="k">Отфильтровано HTF</div><div class="v" id="diagFilteredHtf">—</div><div class="sub" id="diagFilteredHtfSub">тренд против нас</div></div>
-          <div class="diag-card"><div class="k">Отфильтровано паттернами</div><div class="v" id="diagFilteredPat">—</div><div class="sub">нет бычьего паттерна на 1h</div></div>
+          <div class="diag-card"><div class="k">Отфильтровано паттернами</div><div class="v" id="diagFilteredPat">—</div><div class="sub">нет бычьего/медвежьего паттерна</div></div>
           <div class="diag-card"><div class="k">Winrate (20 посл.)</div><div class="v" id="diagWr20">—</div><div class="sub" id="diagWr20Sub">—</div></div>
           <div class="diag-card"><div class="k">PF (20 посл.)</div><div class="v" id="diagPf20">—</div><div class="sub" id="diagPf20Sub">—</div></div>
           <div class="diag-card"><div class="k">Winrate (50 посл.)</div><div class="v" id="diagWr50">—</div><div class="sub" id="diagWr50Sub">—</div></div>
@@ -327,7 +334,7 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
           <h2>Свечные паттерны — шпаргалка</h2>
           <div style="font-size:12px;color:var(--muted);line-height:1.5">
             Это справочник. Бот использует эти паттерны <b>на 1h-свечах</b> как обязательное условие для входа.
-            Если бот нашёл бычий паттерн и остальные условия сошлись — открывает Long. Если медвежий — (в будущем) Short.
+            Если бот нашёл бычий паттерн — он ищет вход в Long. Если медвежий (на фьючерсах) — в Short.
             Наведи на карточку — увидишь подробное описание.
           </div>
         </div>
@@ -407,24 +414,6 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
             </div>
           </div>
         </div>
-
-        <div class="hints-section">
-          <div class="hints-title" style="color:var(--gold)">→ Нейтральные (неопределённость)</div>
-          <div class="hints-grid">
-            <div class="hint-card neutral" title="Доджи: открытие ≈ закрытие. Борьба равных.">
-              <svg viewBox="0 0 100 80"><g stroke="#f7c96a" stroke-width="2" fill="#f7c96a"><line x1="50" y1="15" x2="50" y2="65"/><line x1="42" y1="40" x2="58" y2="40"/></g></svg>
-              <div class="name">Доджи</div><div class="desc">Открытие ≈ закрытие. Рынок в нерешительности.</div>
-            </div>
-            <div class="hint-card neutral" title="Волчок: маленькое тело, короткие хвосты.">
-              <svg viewBox="0 0 100 80"><g stroke="#f7c96a" stroke-width="2" fill="#f7c96a"><line x1="50" y1="20" x2="50" y2="60"/><rect x="44" y="35" width="12" height="12"/></g></svg>
-              <div class="name">Волчок</div><div class="desc">Маленькое тело, короткие хвосты. Затишье.</div>
-            </div>
-            <div class="hint-card neutral" title="Длинноногий доджи: очень длинные хвосты в обе стороны.">
-              <svg viewBox="0 0 100 80"><g stroke="#f7c96a" stroke-width="2" fill="#f7c96a"><line x1="50" y1="10" x2="50" y2="70"/><line x1="42" y1="40" x2="58" y2="40"/></g></svg>
-              <div class="name">Длинноногий доджи</div><div class="desc">Очень длинные хвосты в обе стороны. Сильная борьба.</div>
-            </div>
-          </div>
-        </div>
       </section>
 
       <section id="page-markets" class="page">
@@ -446,18 +435,19 @@ select,select option{background-color:#0e1627 !important;color:#eaf1ff !importan
       <section id="page-history" class="page">
         <div class="card">
           <h2>История сделок <small id="historyCount">—</small></h2>
-          <div style="overflow:auto;max-height:70vh"><table class="pos-table" style="width:100%"><thead><tr><th>Время</th><th>Пара</th><th>Тип</th><th>P&L</th><th>Причина</th></tr></thead><tbody id="historyRows"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Нет сделок</td></tr></tbody></table></div>
+          <div style="overflow:auto;max-height:70vh"><table class="pos-table" style="width:100%"><thead><tr><th>Время</th><th>Режим</th><th>Пара</th><th>Тип</th><th>P&L</th><th>Причина</th></tr></thead><tbody id="historyRows"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Нет сделок</td></tr></tbody></table></div>
         </div>
       </section>
     </div>
   </div>
 </div>
-
 <script>
 const $ = id => document.getElementById(id);
 const S = { coins: [], rub: null, bot: null, signals: [], config: null, diag: null, patterns: null };
 
 let chartState = { symbol: "BTCUSDT", interval: "5m", candles: [], loading: false, error: null };
+let currentMode = "spot";
+let selectedHtf = "60";
 
 window.onerror = function(msg, url, line) {
   showError("Ошибка JS: " + msg + " (строка " + line + ")");
@@ -515,18 +505,48 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
   };
 });
 
-let EDITING = false;
-const EDIT_IDS = ["profitTarget","maxLoss","dailyMaxLoss","tradeSize","dailyMaxTrades","riskPerTradePct","maxOpenPositions"];
-
-function bindEditGuards(){
-  EDIT_IDS.forEach(id=>{
-    const el = $(id);
-    if(!el) return;
-    el.addEventListener("focus", ()=>{ EDITING = true; });
-    el.addEventListener("blur", ()=>{ EDITING = false; });
-  });
+async function setMode(mode) {
+  if (mode === currentMode) return;
+  try {
+    await api("/api/bot/mode", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ mode })
+    });
+    currentMode = mode;
+    updateModeUI();
+    refreshBot();
+  } catch (e) {
+    showError("Ошибка переключения режима: " + e.message);
+  }
 }
-bindEditGuards();
+
+function updateModeUI() {
+  const isSpot = currentMode === "spot";
+  const btnSpot = $("btnModeSpot");
+  const btnFut = $("btnModeFutures");
+  const label = $("currentModeLabel");
+  const topPill = $("topModePill");
+  
+  if (btnSpot) {
+    btnSpot.className = "btn-mode" + (isSpot ? " active" : "");
+    btnFut.className = "btn-mode" + (!isSpot ? " active" : "");
+  }
+  if (label) {
+    label.textContent = isSpot ? "СПОТ" : "ФЬЮЧЕРСЫ (3x)";
+    label.style.color = isSpot ? "var(--green)" : "var(--gold)";
+  }
+  if (topPill) {
+    topPill.textContent = isSpot ? "Симуляция · Спот" : "Симуляция · Фьючерсы (3x)";
+    topPill.style.borderColor = isSpot ? "#2b4a80" : "#6a5530";
+    topPill.style.color = isSpot ? "#bcd4ff" : "#f7c96a";
+  }
+}
+
+setTimeout(() => {
+  if ($("btnModeSpot")) $("btnModeSpot").onclick = () => setMode("spot");
+  if ($("btnModeFutures")) $("btnModeFutures").onclick = () => setMode("futures");
+}, 500);
 
 async function refreshBot(){
   try{
@@ -541,6 +561,11 @@ async function refreshBot(){
 }
 
 function renderBot(data){
+  if (data.mode && data.mode !== currentMode) {
+    currentMode = data.mode;
+    updateModeUI();
+  }
+
   let state="stopped", text="Остановлен";
   if(data.emergency){ state="emergency"; text="Аварийная остановка"; }
   else if(data.running && data.paused){ state="paused"; text="Пауза"; }
@@ -585,15 +610,14 @@ function renderBot(data){
   $("sbStatus").textContent = ok ? "Bybit OK" : "Bybit offline";
 
   if(data.settings){
-    if(!EDITING){
-      if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
-      if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
-      if(document.activeElement !== $("dailyMaxLoss")) $("dailyMaxLoss").value = data.settings.dailyMaxLoss ?? 30;
-      if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
-      if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades ?? 15;
-      if(document.activeElement !== $("riskPerTradePct")) $("riskPerTradePct").value = data.settings.riskPerTradePct ?? 1;
-      if(document.activeElement !== $("maxOpenPositions")) $("maxOpenPositions").value = data.settings.maxOpenPositions ?? 20;
-    }
+    if(document.activeElement !== $("profitTarget")) $("profitTarget").value = data.settings.profitTarget;
+    if(document.activeElement !== $("maxLoss")) $("maxLoss").value = data.settings.maxLoss;
+    if(document.activeElement !== $("dailyMaxLoss")) $("dailyMaxLoss").value = data.settings.dailyMaxLoss ?? 30;
+    if(document.activeElement !== $("tradeSize")) $("tradeSize").value = data.settings.tradeSize;
+    if(document.activeElement !== $("dailyMaxTrades")) $("dailyMaxTrades").value = data.settings.dailyMaxTrades ?? 15;
+    if(document.activeElement !== $("riskPerTradePct")) $("riskPerTradePct").value = data.settings.riskPerTradePct ?? 1;
+    if(document.activeElement !== $("maxOpenPositions")) $("maxOpenPositions").value = data.settings.maxOpenPositions ?? 20;
+    
     $("chk_profitTarget").checked = data.settings.enableProfitTarget !== false;
     $("chk_maxLoss").checked = data.settings.enableMaxLoss !== false;
     $("chk_dailyMaxLoss").checked = data.settings.enableDailyMaxLoss !== false;
@@ -603,8 +627,8 @@ function renderBot(data){
     $("chk_htfFilter").checked = data.settings.enableHTFFilter !== false;
     $("chk_patterns").checked = data.settings.enablePatterns !== false;
     
-    // Обновляем кнопки HTF
     const htfInt = data.settings.htfInterval || "60";
+    selectedHtf = htfInt;
     document.querySelectorAll(".htf-btn").forEach(b => {
       if (b.dataset.htf === htfInt) {
         b.classList.add("active");
@@ -640,7 +664,7 @@ function renderBot(data){
   const positions = data.positions || [];
   $("positionsBody").innerHTML = positions.length ? positions.map(p=>`
     <tr>
-      <td class="pair">${esc(p.symbol)}/USDT</td>
+      <td class="pair">${esc(p.symbol)}/USDT <span style="font-size:10px;color:var(--muted)">[${esc(p.mode||'spot')}]</span></td>
       <td><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></td>
       <td>${money(p.sizeUsd,0)}</td>
       <td class="${cls(p.pnl)}">${p.pnl>=0?"+":""}${money(Math.abs(p.pnl),2)} <small>(${pct(p.pnlPct)})</small></td>
@@ -672,7 +696,7 @@ function renderBot(data){
 
     $("botPositions").innerHTML = positions.length ? positions.map(p=>`
       <div style="border-bottom:1px solid #16223a;padding:10px 0">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><b>${esc(p.symbol)}/USDT</b><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><b>${esc(p.symbol)}/USDT <span style="font-size:10px;color:var(--muted)">[${esc(p.mode||'spot')}]</span></b><span class="tag ${p.side==="Long"?"long":"short"}">${esc(p.side)}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px"><span>Вход: ${money(p.entryPrice,4)}</span><span>Тек: ${money(p.currentPrice,4)}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--green)">TP: ${money(p.tp,4)}</span><span style="color:var(--red)">SL: ${money(p.sl,4)}</span></div>
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -718,8 +742,9 @@ function renderHistory(){
   $("historyRows").innerHTML = trades.length ? trades.map(t=>{
     const dt = t.closedAt ? new Date(t.closedAt) : null;
     const time = dt ? `${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}` : "—";
-    return `<tr><td style="color:var(--muted);font-size:12px">${time}</td><td class="pair">${esc(t.symbol)}/USDT</td><td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td><td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}${money(Math.abs(t.pnl),2)}</td><td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td></tr>`;
-  }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
+    const mode = t.mode || "spot";
+    return `<tr><td style="color:var(--muted);font-size:12px">${time}</td><td style="font-size:11px;color:${mode==='futures'?'var(--gold)':'var(--blue)'}">${mode.toUpperCase()}</td><td class="pair">${esc(t.symbol)}/USDT</td><td><span class="tag ${t.side==="Long"?"long":"short"}">${esc(t.side)}</span></td><td class="${cls(t.pnl)}">${t.pnl>=0?"+":""}${money(Math.abs(t.pnl),2)}</td><td style="color:var(--muted);font-size:12px">${esc(t.reason||"—")}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Пока нет закрытых сделок</td></tr>`;
 }
 
 async function loadDiagnostics(){
@@ -844,8 +869,6 @@ function renderSignals(){
 }
 $("sigSearch").oninput = renderSignals;
 
-let selectedHtf = "60";
-
 function collectSettings() {
   return {
     profitTarget: Number($("profitTarget").value)||20,
@@ -936,6 +959,7 @@ async function downloadCsv(){
   try{
     const secret = getSecret();
     const r = await fetch("/api/bot/export.csv", {headers: secret ? {"X-Bot-Secret": secret} : {}});
+    if(!
     if(!r.ok) throw Error("HTTP " + r.status);
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);

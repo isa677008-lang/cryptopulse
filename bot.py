@@ -42,7 +42,7 @@ TG_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 TG_OWNER_CHAT_ID = os.getenv("TELEGRAM_OWNER_CHAT_ID", "").strip()
 TG_AUTO = os.getenv("TELEGRAM_AUTO_CONFIGURE", "false").lower() in ("1", "true", "yes", "on")
 BG_WORKER = os.getenv("ENABLE_BACKGROUND_WORKER", "true").lower() in ("1", "true", "yes", "on")
-ALLOW_SHORTS = os.getenv("ALLOW_SHORTS", "false").lower() in ("1", "true", "yes", "on")
+ALLOW_SHORTS = os.getenv("ALLOW_SHORTS", "true").lower() in ("1", "true", "yes", "on")
 ENABLE_AI = os.getenv("ENABLE_AI_COMMENT", "false").lower() in ("1", "true", "yes", "on")
 STALE_PRICE_SECONDS = int(os.getenv("STALE_PRICE_SECONDS", "60"))
 
@@ -62,9 +62,12 @@ REFRESH_SECONDS = 60
 BOT_STATE_FILE = os.getenv("BOT_STATE_FILE", "./data/bot_state.json")
 BOT_TICK_SECONDS = 3
 BOT_START_BALANCE = 1000.0
+FUTURES_START_BALANCE = 200.0
 
 TP_PERCENT = 2.5
 SL_PERCENT = 1.5
+FUTURES_LEVERAGE = 3.0
+FUTURES_LIQ_PERCENT = 15.0
 BE_TRIGGER_PERCENT = 0.8
 TRAILING_TRIGGER_PERCENT = 1.5
 TRAILING_DISTANCE_PERCENT = 0.6
@@ -73,7 +76,6 @@ MAX_POSITION_PCT = 20.0
 MAX_OPEN_POSITIONS = 20
 MAX_TOTAL_EXPOSURE_PCT = 80.0
 
-# Фильтр старшего таймфрейма
 HTF_EMA_PERIOD = 50
 HTF_INTERVAL_DEFAULT = "60"
 HTF_TOLERANCE_PCT = 0.1
@@ -99,7 +101,7 @@ DEFAULT_STRATEGY = {
 }
 
 session = requests.Session()
-session.headers.update({"User-Agent": "CryptoPulse/4.3", "Accept": "application/json"})
+session.headers.update({"User-Agent": "CryptoPulse/5.0", "Accept": "application/json"})
 
 lock = threading.RLock()
 refresh_lock = threading.Lock()
@@ -116,17 +118,17 @@ bybit_status = {"available": False, "lastError": None, "lastCheck": None}
 db_status = {"configured": bool(DATABASE_URL), "available": False, "lastError": None}
 wallet_cache = {"updated": 0, "data": None}
 
-# Кэш трендов (динамический таймфрейм)
 htf_cache = {"updated": 0, "trends": {}, "current_interval": HTF_INTERVAL_DEFAULT}
-# Кэш паттернов (всегда 1h для стабильности)
 patterns_cache = {"updated": 0, "by_symbol": {}}
 
 bot_state = {
     "running": False, "paused": False, "emergency": False, "reason": "Не запущен",
+    "mode": "spot",
     "settings": {
         "profitTarget": 20.0, "maxLoss": 50.0, "tradeSize": 25.0, "dailyMaxLoss": 30.0,
         "dailyMaxTrades": DEFAULT_DAILY_MAX_TRADES,
         "startBalance": BOT_START_BALANCE, "dailyStartBalance": BOT_START_BALANCE,
+        "futuresStartBalance": FUTURES_START_BALANCE, "futuresBalance": FUTURES_START_BALANCE,
         "enableProfitTarget": True, "enableMaxLoss": True, "enableDailyMaxLoss": True,
         "fixedTradeSize": True, "enableDailyMaxTrades": True,
         "riskPerTradePct": RISK_PER_TRADE_PCT,
@@ -166,30 +168,25 @@ if Groq and GROQ_API_KEY and ENABLE_AI:
         groq_client = Groq(api_key=GROQ_API_KEY)
     except Exception as e:
         log.error("Groq init failed: %s", e)
-
-
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
-
 
 def get_json(url, params=None, headers=None):
     r = session.get(url, params=params, headers=headers, timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
 
-
 def _ensure_state_dir():
     d = os.path.dirname(os.path.abspath(BOT_STATE_FILE))
     if d and not os.path.exists(d):
         os.makedirs(d, exist_ok=True)
-
 
 def bot_save():
     try:
         _ensure_state_dir()
         with bot_state_lock:
             data = {k: bot_state[k] for k in (
-                "running", "paused", "emergency", "reason", "settings", "strategy",
+                "running", "paused", "emergency", "reason", "mode", "settings", "strategy",
                 "balance", "positions", "closedTrades", "logs", "startedAt",
                 "stoppedAt", "lastAction", "lastSignalScan", "scanResults", "lastDate",
                 "dailyTradesReset", "dailyTradesCount", "cooldown", "realizedPnl",
@@ -204,7 +201,6 @@ def bot_save():
         os.replace(tmp, BOT_STATE_FILE)
     except Exception as exc:
         log.warning("save fail: %s", exc)
-
 
 def bot_load():
     try:
@@ -229,13 +225,15 @@ def bot_load():
             bot_state["settings"].setdefault("maxOpenPositions", MAX_OPEN_POSITIONS)
             bot_state["settings"].setdefault("maxTotalExposurePct", MAX_TOTAL_EXPOSURE_PCT)
             bot_state["settings"].setdefault("htfInterval", HTF_INTERVAL_DEFAULT)
+            bot_state["settings"].setdefault("futuresBalance", FUTURES_START_BALANCE)
+            bot_state["settings"].setdefault("futuresStartBalance", FUTURES_START_BALANCE)
+            bot_state.setdefault("mode", "spot")
             if bot_state.get("running"):
                 bot_state["running"] = False
                 bot_state["reason"] = "Восстановлен после перезапуска — требуется ручной старт"
                 bot_state["lastAction"] = bot_state["reason"]
     except Exception as exc:
         log.warning("load fail: %s", exc)
-
 
 def bot_log(text, color="blue"):
     entry = {"time": datetime.now().strftime("%H:%M:%S"), "text": text,
@@ -244,7 +242,6 @@ def bot_log(text, color="blue"):
         bot_state["logs"].insert(0, entry)
         bot_state["logs"] = bot_state["logs"][:500]
     bot_save()
-
 
 def fetch_prices():
     data = get_json(BASE + "/v5/market/tickers", {"category": "spot"})
@@ -276,7 +273,6 @@ def fetch_prices():
     bybit_status.update(available=True, lastError=None, lastCheck=now_iso())
     return prices, changes, turnover
 
-
 def refresh(force=False):
     if cache["prices"] and time.time() - cache["updated"] < CACHE_SECONDS and not force:
         return dict(cache["prices"]), dict(cache["changes"]), cache["error"]
@@ -297,14 +293,11 @@ def refresh(force=False):
                 return dict(cache["prices"]), dict(cache["changes"]), str(exc)
             raise
 
-
 def prices_age() -> float:
     return time.time() - cache["updated"] if cache["updated"] else float("inf")
 
-
 def prices_fresh() -> bool:
     return (not cache["stale"]) and prices_age() < STALE_PRICE_SECONDS
-
 
 def remember(prices, source="bybit"):
     timestamp = time.time()
@@ -343,13 +336,11 @@ def remember(prices, source="bybit"):
     except Exception as exc:
         db_status.update(available=False, lastError=str(exc))
 
-
 def get_points(symbol):
     with lock:
         pts = list(history.get(("bybit", symbol), []))
     cutoff = time.time() - HISTORY_HOURS * 3600
     return [p for p in pts if p["timestamp"] >= cutoff]
-
 
 def ema(values, period):
     values = [float(v) for v in values if v and float(v) > 0]
@@ -361,7 +352,6 @@ def ema(values, period):
         result = (value - result) * multiplier + result
     return result
 
-
 def rsi(values, period=14):
     values = [float(v) for v in values if v and float(v) > 0]
     if len(values) < period + 1:
@@ -372,7 +362,6 @@ def rsi(values, period=14):
     if losses == 0:
         return 100.0 if gains else 50.0
     return 100 - 100 / (1 + gains / losses)
-
 
 def adx(highs, lows, closes, period=14):
     if len(closes) < period * 2:
@@ -413,7 +402,6 @@ def adx(highs, lows, closes, period=14):
         return None
     return sum(dx_list[-period:]) / period
 
-
 def get_signal_universe(top_n=SIGNAL_UNIVERSE_SIZE):
     with lock:
         turnover = dict(cache.get("turnover", {}))
@@ -430,15 +418,13 @@ def get_signal_universe(top_n=SIGNAL_UNIVERSE_SIZE):
             if len(result) >= top_n:
                 break
     return result[:max(top_n, len(anchors))]
-
-
 def fetch_klines(symbol, interval, limit=200):
     try:
         response = requests.get(
             BASE + "/v5/market/kline",
             params={"category": "spot", "symbol": symbol + "USDT",
                     "interval": interval, "limit": limit},
-            headers={"User-Agent": "CryptoPulse/4.3", "Accept": "application/json"},
+            headers={"User-Agent": "CryptoPulse/5.0", "Accept": "application/json"},
             timeout=10,
         )
         response.raise_for_status()
@@ -462,12 +448,9 @@ def fetch_klines(symbol, interval, limit=200):
     except Exception as exc:
         return {"ok": False, "error": str(exc), "points": []}
 
-
 def refresh_htf_trends(symbols, interval="60", force=False):
-    """Обновляет тренды старшего таймфрейма по списку символов. Кэш на 5 минут."""
     if not force and htf_cache["updated"] > 0 and htf_cache.get("current_interval") == interval and time.time() - htf_cache["updated"] < 300:
         return
-    
     if htf_cache.get("current_interval") != interval:
         with htf_lock:
             htf_cache["trends"] = {}
@@ -512,15 +495,12 @@ def refresh_htf_trends(symbols, interval="60", force=False):
         htf_cache["updated"] = time.time()
         htf_cache["current_interval"] = interval
 
-
 def get_htf_direction(symbol):
     with htf_lock:
         entry = htf_cache["trends"].get(symbol)
     return entry["direction"] if entry else "unknown"
 
-
 def refresh_patterns(symbols, force=False):
-    """Загружает 1h-свечи и считает паттерны для символов. Кэш 5 минут."""
     if not force and time.time() - patterns_cache["updated"] < 300 and patterns_cache["by_symbol"]:
         return
     def get_one(sym):
@@ -552,11 +532,9 @@ def refresh_patterns(symbols, force=False):
         patterns_cache["by_symbol"].update(new_patterns)
         patterns_cache["updated"] = time.time()
 
-
 def get_patterns_for(symbol):
     with patterns_lock:
         return patterns_cache["by_symbol"].get(symbol)
-
 
 def refresh_strategy_history_background(symbols):
     global strategy_history_updated
@@ -595,7 +573,6 @@ def refresh_strategy_history_background(symbols):
             bot_state["scanStatus"] = f"Ошибка: {e}"
     finally:
         history_loading_flag.clear()
-
 
 def analyze(symbol, price, strategy=None):
     st = strategy or bot_state["strategy"]
@@ -660,8 +637,6 @@ def analyze(symbol, price, strategy=None):
     return {"symbol": symbol, "price": price, "ema9": ema_fast, "ema21": ema_slow,
             "rsi14": rsi_value, "signal": signal, "explanation": explanation,
             "sampleCount": len(values)}
-
-
 def usd_rub():
     if usd_rub_cache["rate"] and time.time() - usd_rub_cache["updated"] < 900:
         return usd_rub_cache["rate"]
@@ -671,7 +646,6 @@ def usd_rub():
         raise RuntimeError("bad rate")
     usd_rub_cache.update(updated=time.time(), rate=rate)
     return rate
-
 
 def market_payload(force=False):
     prices, changes, warning = refresh(force)
@@ -702,14 +676,12 @@ def market_payload(force=False):
         "stale": cache["stale"], "ageSeconds": prices_age(),
     }
 
-
 def db_connect():
     if not DATABASE_URL:
         raise RuntimeError("no db")
     if psycopg is None:
         raise RuntimeError("no psycopg")
     return psycopg.connect(DATABASE_URL, connect_timeout=8, row_factory=dict_row)
-
 
 def init_db():
     if not DATABASE_URL:
@@ -728,7 +700,6 @@ def init_db():
     except Exception as exc:
         db_status.update(available=False, lastError=str(exc))
 
-
 def signed_get(path, params):
     if not API_KEY or not API_SECRET:
         raise RuntimeError("no key")
@@ -743,7 +714,6 @@ def signed_get(path, params):
     if data.get("retCode") != 0:
         raise RuntimeError(f"err {data.get('retCode')}: {data.get('retMsg')}")
     return data.get("result") or {}
-
 
 def wallet_balance(force=False):
     if wallet_cache["data"] and time.time() - wallet_cache["updated"] < 60 and not force:
@@ -770,23 +740,34 @@ def wallet_balance(force=False):
     wallet_cache.update(updated=time.time(), data=data)
     return data
 
-
 def bot_open_position(symbol, price, side, reason=""):
-    if side == "Short" and not ALLOW_SHORTS:
-        bot_log(f"Отказ: шорт {symbol} запрещён (ALLOW_SHORTS=false).", "gold")
-        return None
     with bot_state_lock:
+        mode = bot_state.get("mode", "spot")
         settings = bot_state["settings"]
+        
+        if mode == "futures":
+            if side == "Short" and not ALLOW_SHORTS:
+                bot_log(f"Отказ: шорт {symbol} запрещён.", "gold")
+                return None
+            balance_key = "futuresBalance"
+        else:
+            if side == "Short":
+                bot_log(f"Отказ: шорт {symbol} запрещён (spot-only).", "gold")
+                return None
+            balance_key = "balance"
+
         if settings.get("enableMaxPositions", True):
             max_pos = int(settings.get("maxOpenPositions", MAX_OPEN_POSITIONS))
             if len(bot_state["positions"]) >= max_pos:
                 return None
-        total_exposure = sum(p["sizeUsd"] for p in bot_state["positions"])
-        balance = float(bot_state["balance"])
+        
+        total_exposure = sum(p["sizeUsd"] for p in bot_state["positions"] if p.get("mode") == mode)
+        balance = float(settings[balance_key])
+        
         if total_exposure >= balance * (settings.get("maxTotalExposurePct", MAX_TOTAL_EXPOSURE_PCT) / 100):
             return None
         for p in bot_state["positions"]:
-            if p["symbol"] == symbol:
+            if p["symbol"] == symbol and p.get("mode") == mode:
                 return None
 
         if settings.get("fixedTradeSize", True):
@@ -804,42 +785,61 @@ def bot_open_position(symbol, price, side, reason=""):
         qty = size / price
         tp_pct = TP_PERCENT / 100
         sl_pct = SL_PERCENT / 100
+        
+        liq_price = None
         if side == "Long":
             tp = price * (1 + tp_pct)
             sl = price * (1 - sl_pct)
+            if mode == "futures":
+                liq_price = price * (1 - (1 / FUTURES_LEVERAGE) + 0.01)
         else:
             tp = price * (1 - tp_pct)
             sl = price * (1 + sl_pct)
+            if mode == "futures":
+                liq_price = price * (1 + (1 / FUTURES_LEVERAGE) - 0.01)
+
         position = {
             "id": int(time.time() * 1000) + len(bot_state["positions"]),
             "symbol": symbol, "side": side, "sizeUsd": size, "entryPrice": price,
             "qty": qty, "openedAt": now_iso(), "openedTs": time.time(),
             "tp": tp, "sl": sl, "reason": reason,
             "entryFee": costs["entry_fee"],
+            "mode": mode,
+            "liq_price": liq_price
         }
+        
         bot_state["positions"].append(position)
-        bot_state["balance"] -= costs["cash_out"]
+        settings[balance_key] -= costs["cash_out"]
         bot_state["dailyTradesCount"] = bot_state.get("dailyTradesCount", 0) + 1
-        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f} (${size:.0f})"
-    bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f}", "blue")
-    tg_notify(f"🟢 Открыт {side} {symbol}/USDT @ ${price:.4f}\nTP ${tp:.4f} | SL ${sl:.4f}")
+        bot_state["lastAction"] = f"Открыта {side} {symbol}/USDT @ ${price:,.4f} (${size:.0f}) [{mode.upper()}]"
+    
+    bot_log(f"Открыта {side} {symbol}/USDT. Вход ${price:,.4f}, TP ${tp:,.4f}, SL ${sl:,.4f} [{mode.upper()}]", "blue")
     push_equity_point()
     bot_save()
     return position
-
 
 def bot_close_position(position, price, reason="manual"):
     with bot_state_lock:
         if position not in bot_state["positions"]:
             return None
         bot_state["positions"].remove(position)
+        
+        mode = position.get("mode", "spot")
+        balance_key = "futuresBalance" if mode == "futures" else "balance"
+        
         gross_pnl = (price - position["entryPrice"]) * position["qty"] if position["side"] == "Long" \
             else (position["entryPrice"] - price) * position["qty"]
+            
+        if mode == "futures":
+            gross_pnl *= FUTURES_LEVERAGE
+            
         costs = close_position_costs(position["sizeUsd"], gross_pnl)
         net_pnl = costs["net_pnl"]
         pnl_pct = (net_pnl / position["sizeUsd"]) * 100 if position["sizeUsd"] else 0
-        bot_state["balance"] += costs["cash_in"]
+        
+        bot_state["settings"][balance_key] += costs["cash_in"]
         bot_state["realizedPnl"] = bot_state.get("realizedPnl", 0.0) + net_pnl
+        
         trade = {
             "symbol": position["symbol"], "side": position["side"],
             "sizeUsd": position["sizeUsd"], "entryPrice": position["entryPrice"],
@@ -848,40 +848,43 @@ def bot_close_position(position, price, reason="manual"):
             "exitFee": costs["exit_fee"],
             "reason": reason, "openedAt": position["openedAt"],
             "closedAt": now_iso(), "closedTs": time.time(),
+            "mode": mode
         }
         bot_state["closedTrades"].insert(0, trade)
         bot_state["closedTrades"] = bot_state["closedTrades"][:1000]
-        bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}]"
-        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing", "TP"):
+        bot_state["lastAction"] = f"Закрыта {position['side']} {position['symbol']}/USDT: {net_pnl:+.2f}$ [{reason}] [{mode.upper()}]"
+        if reason in ("SL", "Timeout", "Manual", "manual", "Breakeven", "Trailing", "TP", "LIQ"):
             bot_state["cooldown"][position["symbol"]] = time.time() + 300
+            
     push_equity_point()
-    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}]",
+    bot_log(f"Закрыта {position['side']} {position['symbol']}/USDT @ ${price:,.4f}. P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%) [{reason}] [{mode.upper()}]",
             "green" if net_pnl >= 0 else "red")
-    tg_notify(f"{'🟢' if net_pnl>=0 else '🔴'} Закрыт {position['side']} {position['symbol']}/USDT @ ${price:.4f}\nP&L: {net_pnl:+.2f}$ ({pnl_pct:+.2f}%) [{reason}]")
     bot_save()
     return trade
-
 
 def push_equity_point():
     with bot_state_lock:
         free = float(bot_state["balance"])
+        futures_free = float(bot_state["settings"].get("futuresBalance", 0))
         positions = [dict(p) for p in bot_state["positions"]]
     try:
         prices, _, _ = refresh()
     except Exception:
         prices = {}
-    eq = compute_equity(free, positions, prices)
+    eq_spot = compute_equity(free, [p for p in positions if p.get("mode") == "spot"], prices)
+    eq_fut = compute_equity(futures_free, [p for p in positions if p.get("mode") == "futures"], prices)
+    
     with bot_state_lock:
-        bot_state["equityCurve"].append({"ts": time.time(), "balance": eq["equity"]})
+        total_eq = eq_spot["equity"] + eq_fut["equity"]
+        bot_state["equityCurve"].append({"ts": time.time(), "balance": total_eq})
         bot_state["equityCurve"] = bot_state["equityCurve"][-2000:]
-
 
 def bot_check_limits():
     with bot_state_lock:
         settings = bot_state["settings"]
         start = float(settings["startBalance"])
         free = float(bot_state["balance"])
-        positions = [dict(p) for p in bot_state["positions"]]
+        positions = [dict(p) for p in bot_state["positions"] if p.get("mode") == "spot"]
     try:
         prices, _, _ = refresh()
     except Exception:
@@ -908,7 +911,6 @@ def bot_check_limits():
                 return "loss", f"Достигнут лимит убытка (-${abs(diff):.2f})"
     return None, None
 
-
 def bot_close_all(reason="manual"):
     try:
         prices, _, _ = refresh()
@@ -922,8 +924,6 @@ def bot_close_all(reason="manual"):
             bot_log(f"Не закрываю {position['symbol']}: нет цены.", "red")
             continue
         bot_close_position(position, price, reason)
-
-
 def bot_tick():
     with bot_state_lock:
         if not bot_state["running"]:
@@ -960,7 +960,6 @@ def bot_tick():
                     bot_state["paused"] = True
                     bot_state["lastAction"] = f"Panic: BTC {btc_1h:.1f}%"
                     bot_state["scanStatus"] = "Panic — пауза"
-                tg_notify(f"🚨 PANIC: BTC {btc_1h:+.2f}%. Все закрыто, пауза.")
                 bot_save()
                 return
 
@@ -972,6 +971,14 @@ def bot_tick():
             continue
         entry = position["entryPrice"]
         side = position["side"]
+        mode = position.get("mode", "spot")
+        
+        if mode == "futures" and position.get("liq_price"):
+            if (side == "Long" and price <= position["liq_price"]) or \
+               (side == "Short" and price >= position["liq_price"]):
+                bot_close_position(position, price, "LIQ")
+                continue
+
         if side == "Long":
             profit_pct = (price - entry) / entry * 100
             if price >= position["tp"]:
@@ -1088,6 +1095,7 @@ def bot_tick():
 
     with bot_state_lock:
         current = {p["symbol"] for p in bot_state["positions"]}
+        mode = bot_state.get("mode", "spot")
     filtered_htf = 0
     filtered_patterns = 0
     for item in scan:
@@ -1097,6 +1105,7 @@ def bot_tick():
             cooldown_time = bot_state["cooldown"].get(item["symbol"], 0)
             if time.time() < cooldown_time:
                 continue
+        
         if item["signal"] == "buy_candidate":
             if htf_enabled:
                 direction = get_htf_direction(item["symbol"])
@@ -1113,7 +1122,15 @@ def bot_tick():
                         bot_state["filteredByPatterns"] = bot_state.get("filteredByPatterns", 0) + 1
                     continue
             bot_open_position(item["symbol"], item["price"], "Long", "SmartScalp")
-        elif item["signal"] == "sell_candidate" and ALLOW_SHORTS:
+            
+        elif item["signal"] == "sell_candidate" and ALLOW_SHORTS and mode == "futures":
+            if htf_enabled:
+                direction = get_htf_direction(item["symbol"])
+                if direction != "down":
+                    filtered_htf += 1
+                    with bot_state_lock:
+                        bot_state["filteredByHTF"] = bot_state.get("filteredByHTF", 0) + 1
+                    continue
             if patterns_enabled:
                 p = get_patterns_for(item["symbol"])
                 if not p or not p.get("has_bearish"):
@@ -1131,9 +1148,7 @@ def bot_tick():
         else:
             bot_state["lastAction"] = f"Держит {len(bot_state['positions'])} позиций. Ждёт TP/SL."
 
-
 _worker_lock_fd = None
-
 
 def acquire_worker_lock():
     global _worker_lock_fd
@@ -1150,7 +1165,6 @@ def acquire_worker_lock():
         log.warning("worker lock busy — background workers disabled in this process")
         return False
 
-
 def bot_worker():
     while True:
         try:
@@ -1158,7 +1172,6 @@ def bot_worker():
         except Exception:
             log.exception("tick fail")
         time.sleep(BOT_TICK_SECONDS)
-
 
 def universe_worker():
     time.sleep(10)
@@ -1174,7 +1187,6 @@ def universe_worker():
             log.exception("universe fail")
         time.sleep(SIGNAL_UNIVERSE_REFRESH_SECONDS)
 
-
 def worker():
     while True:
         try:
@@ -1182,20 +1194,23 @@ def worker():
         except Exception:
             log.exception("bg fail")
         time.sleep(REFRESH_SECONDS)
-
-
 def compute_stats():
     with bot_state_lock:
         trades = list(bot_state["closedTrades"])
         positions = list(bot_state["positions"])
         balance_free = float(bot_state["balance"])
+        futures_free = float(bot_state["settings"].get("futuresBalance", 0))
         start = float(bot_state["settings"]["startBalance"])
+        futures_start = float(bot_state["settings"].get("futuresStartBalance", FUTURES_START_BALANCE))
         equity = list(bot_state["equityCurve"])
     try:
         prices, _, _ = refresh()
     except Exception:
         prices = {}
-    eq = compute_equity(balance_free, positions, prices)
+        
+    eq_spot = compute_equity(balance_free, [p for p in positions if p.get("mode") == "spot"], prices)
+    eq_fut = compute_equity(futures_free, [p for p in positions if p.get("mode") == "futures"], prices)
+    
     wins = [t for t in trades if t["pnl"] > 0]
     losses = [t for t in trades if t["pnl"] < 0]
     total = len(trades)
@@ -1207,6 +1222,7 @@ def compute_stats():
     avg_loss = -sum_loss / len(losses) if losses else 0
     best = max((t["pnl"] for t in trades), default=0)
     worst = min((t["pnl"] for t in trades), default=0)
+    
     max_drawdown = 0.0
     peak = -1e18
     for point in equity:
@@ -1214,6 +1230,7 @@ def compute_stats():
         drawdown = peak - point["balance"]
         if drawdown > max_drawdown:
             max_drawdown = drawdown
+            
     by_symbol = {}
     for trade in trades:
         symbol = trade["symbol"]
@@ -1224,13 +1241,17 @@ def compute_stats():
             by_symbol[symbol]["wins"] += 1
         elif trade["pnl"] < 0:
             by_symbol[symbol]["losses"] += 1
+            
     positions_live = []
     for p in positions:
         cur = prices.get(p["symbol"], p["entryPrice"])
         pnl = (cur - p["entryPrice"]) * p["qty"] if p["side"] == "Long" else (p["entryPrice"] - cur) * p["qty"]
+        if p.get("mode") == "futures":
+            pnl *= FUTURES_LEVERAGE
         positions_live.append({**p, "currentPrice": cur, "pnl": pnl,
                                "pnlPct": (pnl / p["sizeUsd"] * 100 if p["sizeUsd"] else 0)})
-    total_equity = eq["equity"]
+                               
+    total_equity = eq_spot["equity"] + eq_fut["equity"]
     total_pnl = total_equity - start
 
     def recent_stats(n):
@@ -1256,16 +1277,16 @@ def compute_stats():
         "profitFactor": profit_factor, "avgWin": avg_win, "avgLoss": avg_loss,
         "best": best, "worst": worst, "maxDrawdown": max_drawdown,
         "bySymbol": sorted(by_symbol.values(), key=lambda item: item["pnl"], reverse=True),
-        "equity": total_equity, "freeCash": eq["free_cash"],
-        "positionsValue": eq["positions_value"], "unrealizedPnl": eq["unrealized_pnl"],
+        "equity": total_equity, "freeCash": eq_spot["free_cash"] + eq_fut["free_cash"],
+        "positionsValue": eq_spot["positions_value"] + eq_fut["positions_value"],
+        "unrealizedPnl": eq_spot["unrealized_pnl"] + eq_fut["unrealized_pnl"],
         "startBalance": start, "totalPnl": total_pnl,
         "realizedPnl": bot_state.get("realizedPnl", 0.0),
         "openPositions": len(positions_live), "positionsLive": positions_live,
-        "equityCurve": equity, "missingPrices": eq["missing_prices"],
+        "equityCurve": equity, "missingPrices": eq_spot["missing_prices"] + eq_fut["missing_prices"],
         "recent20": recent_stats(20),
         "recent50": recent_stats(50),
     }
-
 
 @app.after_request
 def headers(response):
@@ -1273,16 +1294,13 @@ def headers(response):
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     return response
 
-
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
 
-
 @app.route("/health")
 def health():
     return jsonify({"status": "ok", "service": "CryptoPulse", "timestamp": now_iso()})
-
 
 @app.route("/api/config")
 def config():
@@ -1297,7 +1315,6 @@ def config():
         "patterns": {"enabled": True, "talib": TALIB_AVAILABLE, "lookback": PATTERN_LOOKBACK},
     })
 
-
 @app.route("/api/prices")
 @app.route("/api/market-prices")
 def prices_api():
@@ -1306,14 +1323,12 @@ def prices_api():
     except Exception:
         return jsonify({"success": False, "error": "Рынок недоступен", "coins": []}), 503
 
-
 @app.route("/api/usd-rub")
 def rub_api():
     try:
         return jsonify({"success": True, "rate": usd_rub(), "base": "USD", "currency": "RUB"})
     except Exception:
         return jsonify({"success": False, "error": "Курс недоступен"}), 503
-
 
 @app.route("/api/account/balance")
 @app.route("/api/bybit/balance")
@@ -1323,7 +1338,6 @@ def balance_api():
     except Exception as exc:
         log.warning("bal: %s", exc)
         return jsonify({"success": False, "available": False, "error": "Баланс недоступен"}), 503
-
 
 @app.route("/api/trading/signals")
 def signals_api():
@@ -1342,7 +1356,6 @@ def signals_api():
         return jsonify({"success": True, "signals": out})
     except Exception:
         return jsonify({"success": False, "signals": []}), 503
-
 
 @app.route("/api/klines")
 def klines_api():
@@ -1374,7 +1387,6 @@ def klines_api():
     except Exception as exc:
         return jsonify({"success": False, "error": "Свечи недоступны", "details": str(exc)}), 503
 
-
 @app.route("/api/bot/state")
 def bot_state_api():
     stats = compute_stats()
@@ -1383,6 +1395,7 @@ def bot_state_api():
             "success": True,
             "running": bot_state["running"], "paused": bot_state.get("paused", False),
             "emergency": bot_state["emergency"], "reason": bot_state["reason"],
+            "mode": bot_state.get("mode", "spot"),
             "settings": bot_state["settings"], "strategy": bot_state["strategy"],
             "dailyTradesCount": bot_state.get("dailyTradesCount", 0),
             "balance": stats["equity"], "freeCash": stats["freeCash"],
@@ -1414,6 +1427,223 @@ def bot_state_api():
             },
         })
 
+@app.route("/api/bot/mode", methods=["POST"])
+@require_admin
+def bot_mode_api():
+    data = request.get_json(silent=True) or {}
+    mode = data.get("mode", "spot")
+    if mode not in ("spot", "futures"):
+        return jsonify({"success": False, "error": "bad mode"}), 400
+    with bot_state_lock:
+        bot_state["mode"] = mode
+    bot_log(f"Режим переключен на {mode.upper()}", "gold")
+    bot_save()
+    return jsonify({"success": True, "mode": mode})
+
+@app.route("/api/bot/start", methods=["POST"])
+@require_admin
+def bot_start_api():
+    if not prices_fresh():
+        return jsonify({"success": False, "error": "Цены устарели — старт запрещён"}), 409
+    data = request.get_json(silent=True) or {}
+    with bot_state_lock:
+        if "settings" in data and isinstance(data["settings"], dict):
+            for key in ("profitTarget", "maxLoss", "tradeSize", "dailyMaxLoss",
+                        "riskPerTradePct", "maxPositionPct"):
+                if key in data["settings"]:
+                    try:
+                        bot_state["settings"][key] = float(data["settings"][key])
+                    except Exception:
+                        pass
+            if "dailyMaxTrades" in data["settings"]:
+                try:
+                    bot_state["settings"]["dailyMaxTrades"] = max(1, int(data["settings"]["dailyMaxTrades"]))
+                except Exception:
+                    pass
+            if "maxOpenPositions" in data["settings"]:
+                try:
+                    bot_state["settings"]["maxOpenPositions"] = max(1, int(data["settings"]["maxOpenPositions"]))
+                except Exception:
+                    pass
+            if "maxTotalExposurePct" in data["settings"]:
+                try:
+                    bot_state["settings"]["maxTotalExposurePct"] = float(data["settings"]["maxTotalExposurePct"])
+                except Exception:
+                    pass
+            if "htfInterval" in data["settings"]:
+                val = str(data["settings"]["htfInterval"])
+                if val in HTF_INTERVAL_MAP:
+                    bot_state["settings"]["htfInterval"] = val
+            for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
+                         "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
+                         "enableHTFFilter", "enablePatterns"):
+                if flag in data["settings"]:
+                    bot_state["settings"][flag] = bool(data["settings"][flag])
+        free = float(bot_state["balance"])
+        pos_value = sum(p["sizeUsd"] for p in bot_state["positions"] if p.get("mode") == "spot")
+        bot_state["settings"]["startBalance"] = free + pos_value
+        bot_state["settings"]["dailyStartBalance"] = free + pos_value
+        bot_state["running"] = True
+        bot_state["paused"] = False
+        bot_state["emergency"] = False
+        bot_state["reason"] = "Бот запущен"
+        bot_state["startedAt"] = now_iso()
+        bot_state["stoppedAt"] = None
+        bot_state["lastAction"] = "Запущен."
+        bot_state["scanStatus"] = "Подготовка сканера…"
+    push_equity_point()
+    bot_log("Бот запущен.", "green")
+    return jsonify({"success": True})
+
+@app.route("/api/bot/stop", methods=["POST"])
+@require_admin
+def bot_stop_api():
+    with bot_state_lock:
+        bot_state["running"] = False
+        bot_state["paused"] = False
+        bot_state["reason"] = "Остановлен вручную"
+        bot_state["stoppedAt"] = now_iso()
+        bot_state["lastAction"] = "Остановлен вручную"
+        bot_state["scanStatus"] = "Сканер остановлен"
+    bot_log("Бот остановлен.", "red")
+    return jsonify({"success": True})
+
+@app.route("/api/bot/pause", methods=["POST"])
+@require_admin
+def bot_pause_api():
+    data = request.get_json(silent=True) or {}
+    paused = bool(data.get("paused", True))
+    with bot_state_lock:
+        bot_state["paused"] = paused
+        bot_state["reason"] = "Пауза" if paused else "Работает"
+        bot_state["lastAction"] = "Пауза — новые не открываю" if paused else "Возобновлён"
+    bot_log("Пауза включена." if paused else "Пауза снята.", "gold")
+    return jsonify({"success": True, "paused": paused})
+
+@app.route("/api/bot/emergency", methods=["POST"])
+@require_admin
+def bot_emergency_api():
+    bot_close_all("emergency")
+    with bot_state_lock:
+        bot_state["running"] = False
+        bot_state["paused"] = False
+        bot_state["emergency"] = True
+        bot_state["reason"] = "Аварийная остановка"
+        bot_state["stoppedAt"] = now_iso()
+        bot_state["lastAction"] = "Аварийная остановка"
+        bot_state["scanStatus"] = "Аварийная остановка"
+    bot_log("АВАРИЙНАЯ ОСТАНОВКА.", "red")
+    return jsonify({"success": True})
+
+@app.route("/api/bot/close_position", methods=["POST"])
+@require_admin
+def bot_close_position_api():
+    data = request.get_json(silent=True) or {}
+    pos_id = data.get("id")
+    with bot_state_lock:
+        position = next((p for p in bot_state["positions"] if p["id"] == pos_id), None)
+    if not position:
+        return jsonify({"success": False, "error": "Позиция не найдена"}), 404
+    try:
+        prices, _, _ = refresh()
+    except Exception:
+        prices = {}
+    price = prices.get(position["symbol"])
+    if price is None:
+        return jsonify({"success": False, "error": "Нет актуальной цены — закрытие отменено"}), 409
+    bot_close_position(position, price, "Manual")
+    return jsonify({"success": True})
+
+@app.route("/api/bot/settings", methods=["POST"])
+@require_admin
+def bot_settings_api():
+    data = request.get_json(silent=True) or {}
+    with bot_state_lock:
+        for key in ("profitTarget", "maxLoss", "tradeSize", "dailyMaxLoss",
+                    "riskPerTradePct", "maxPositionPct"):
+            if key in data:
+                try:
+                    bot_state["settings"][key] = float(data[key])
+                except Exception:
+                    pass
+        if "dailyMaxTrades" in data:
+            try:
+                bot_state["settings"]["dailyMaxTrades"] = max(1, int(data["dailyMaxTrades"]))
+            except Exception:
+                pass
+        if "maxOpenPositions" in data:
+            try:
+                bot_state["settings"]["maxOpenPositions"] = max(1, int(data["maxOpenPositions"]))
+            except Exception:
+                pass
+        if "maxTotalExposurePct" in data:
+            try:
+                bot_state["settings"]["maxTotalExposurePct"] = float(data["maxTotalExposurePct"])
+            except Exception:
+                pass
+        if "htfInterval" in data:
+            val = str(data["htfInterval"])
+            if val in HTF_INTERVAL_MAP:
+                bot_state["settings"]["htfInterval"] = val
+        for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
+                     "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
+                     "enableHTFFilter", "enablePatterns"):
+            if flag in data:
+                bot_state["settings"][flag] = bool(data[flag])
+    bot_log("Настройки сохранены.", "blue")
+    return jsonify({"success": True, "settings": bot_state["settings"]})
+
+@app.route("/api/bot/strategy", methods=["POST"])
+@require_admin
+def bot_strategy_api():
+    data = request.get_json(silent=True) or {}
+    with bot_state_lock:
+        for key in ("emaFast", "emaSlow", "rsiPeriod", "rsiBuyMin", "rsiBuyMax",
+                    "rsiSellMin", "rsiSellMax"):
+            if key in data:
+                try:
+                    bot_state["strategy"][key] = int(data[key])
+                except Exception:
+                    pass
+    bot_log("Стратегия обновлена.", "blue")
+    return jsonify({"success": True, "strategy": bot_state["strategy"]})
+
+@app.route("/api/bot/reset", methods=["POST"])
+@require_admin
+def bot_reset_api():
+    with bot_state_lock:
+        bot_state.update({
+            "running": False, "paused": False, "emergency": False, "reason": "Сброшено",
+            "balance": float(bot_state["settings"].get("startBalance", 1000.0)),
+            "positions": [], "closedTrades": [], "logs": [], "equityCurve": [],
+            "startedAt": None, "stoppedAt": None, "lastAction": "Сброшено",
+            "scanResults": [], "scanStatus": "Сброшено", "dailyTradesCount": 0,
+            "dailyTradesReset": datetime.now().strftime("%Y-%m-%d"),
+            "cooldown": {}, "realizedPnl": 0.0, "filteredByHTF": 0, "filteredByPatterns": 0,
+        })
+        bot_state["settings"]["futuresBalance"] = float(bot_state["settings"].get("futuresStartBalance", FUTURES_START_BALANCE))
+    bot_log("Бот сброшен.", "gold")
+    return jsonify({"success": True})
+
+@app.route("/api/bot/export.csv")
+@require_admin
+def bot_export_csv():
+    with bot_state_lock:
+        trades = list(bot_state["closedTrades"])
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["Time", "Mode", "Symbol", "Side", "SizeUSD", "EntryPrice", "ExitPrice",
+                     "PnL", "PnL%", "EntryFee", "ExitFee", "Reason"])
+    for trade in trades:
+        writer.writerow([
+            trade.get("closedAt", ""), trade.get("mode", "spot"), trade.get("symbol", ""), trade.get("side", ""),
+            f"{trade.get('sizeUsd', 0):.2f}", f"{trade.get('entryPrice', 0):.8f}",
+            f"{trade.get('exitPrice', 0):.8f}", f"{trade.get('pnl', 0):.4f}",
+            f"{trade.get('pnlPct', 0):.4f}", f"{trade.get('entryFee', 0):.6f}",
+            f"{trade.get('exitFee', 0):.6f}", trade.get("reason", ""),
+        ])
+    return Response(out.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment;filename=cryptopulse_trades.csv"})
 
 @app.route("/api/bot/diagnostics")
 def bot_diagnostics_api():
@@ -1476,7 +1706,6 @@ def bot_diagnostics_api():
         "totalPnlPct": (stats["totalPnl"] / stats["startBalance"] * 100) if stats["startBalance"] else 0,
     })
 
-
 @app.route("/api/bot/patterns")
 def bot_patterns_api():
     with patterns_lock:
@@ -1502,221 +1731,6 @@ def bot_patterns_api():
         "ageSeconds": time.time() - updated if updated else None,
         "patterns": out,
     })
-
-
-@app.route("/api/bot/start", methods=["POST"])
-@require_admin
-def bot_start_api():
-    if not prices_fresh():
-        return jsonify({"success": False, "error": "Цены устарели — старт запрещён"}), 409
-    data = request.get_json(silent=True) or {}
-    with bot_state_lock:
-        if "settings" in data and isinstance(data["settings"], dict):
-            for key in ("profitTarget", "maxLoss", "tradeSize", "dailyMaxLoss",
-                        "riskPerTradePct", "maxPositionPct"):
-                if key in data["settings"]:
-                    try:
-                        bot_state["settings"][key] = float(data["settings"][key])
-                    except Exception:
-                        pass
-            if "dailyMaxTrades" in data["settings"]:
-                try:
-                    bot_state["settings"]["dailyMaxTrades"] = max(1, int(data["settings"]["dailyMaxTrades"]))
-                except Exception:
-                    pass
-            if "maxOpenPositions" in data["settings"]:
-                try:
-                    bot_state["settings"]["maxOpenPositions"] = max(1, int(data["settings"]["maxOpenPositions"]))
-                except Exception:
-                    pass
-            if "maxTotalExposurePct" in data["settings"]:
-                try:
-                    bot_state["settings"]["maxTotalExposurePct"] = float(data["settings"]["maxTotalExposurePct"])
-                except Exception:
-                    pass
-            if "htfInterval" in data["settings"]:
-                val = str(data["settings"]["htfInterval"])
-                if val in HTF_INTERVAL_MAP:
-                    bot_state["settings"]["htfInterval"] = val
-            for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                         "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
-                         "enableHTFFilter", "enablePatterns"):
-                if flag in data["settings"]:
-                    bot_state["settings"][flag] = bool(data["settings"][flag])
-        free = float(bot_state["balance"])
-        pos_value = sum(p["sizeUsd"] for p in bot_state["positions"])
-        bot_state["settings"]["startBalance"] = free + pos_value
-        bot_state["settings"]["dailyStartBalance"] = free + pos_value
-        bot_state["running"] = True
-        bot_state["paused"] = False
-        bot_state["emergency"] = False
-        bot_state["reason"] = "Бот запущен"
-        bot_state["startedAt"] = now_iso()
-        bot_state["stoppedAt"] = None
-        bot_state["lastAction"] = "Запущен."
-        bot_state["scanStatus"] = "Подготовка сканера…"
-    push_equity_point()
-    bot_log("Бот запущен.", "green")
-    return jsonify({"success": True})
-
-
-@app.route("/api/bot/stop", methods=["POST"])
-@require_admin
-def bot_stop_api():
-    with bot_state_lock:
-        bot_state["running"] = False
-        bot_state["paused"] = False
-        bot_state["reason"] = "Остановлен вручную"
-        bot_state["stoppedAt"] = now_iso()
-        bot_state["lastAction"] = "Остановлен вручную"
-        bot_state["scanStatus"] = "Сканер остановлен"
-    bot_log("Бот остановлен.", "red")
-    return jsonify({"success": True})
-
-
-@app.route("/api/bot/pause", methods=["POST"])
-@require_admin
-def bot_pause_api():
-    data = request.get_json(silent=True) or {}
-    paused = bool(data.get("paused", True))
-    with bot_state_lock:
-        bot_state["paused"] = paused
-        bot_state["reason"] = "Пауза" if paused else "Работает"
-        bot_state["lastAction"] = "Пауза — новые не открываю" if paused else "Возобновлён"
-    bot_log("Пауза включена." if paused else "Пауза снята.", "gold")
-    return jsonify({"success": True, "paused": paused})
-
-
-@app.route("/api/bot/emergency", methods=["POST"])
-@require_admin
-def bot_emergency_api():
-    bot_close_all("emergency")
-    with bot_state_lock:
-        bot_state["running"] = False
-        bot_state["paused"] = False
-        bot_state["emergency"] = True
-        bot_state["reason"] = "Аварийная остановка"
-        bot_state["stoppedAt"] = now_iso()
-        bot_state["lastAction"] = "Аварийная остановка"
-        bot_state["scanStatus"] = "Аварийная остановка"
-    bot_log("АВАРИЙНАЯ ОСТАНОВКА.", "red")
-    return jsonify({"success": True})
-
-
-@app.route("/api/bot/close_position", methods=["POST"])
-@require_admin
-def bot_close_position_api():
-    data = request.get_json(silent=True) or {}
-    pos_id = data.get("id")
-    with bot_state_lock:
-        position = next((p for p in bot_state["positions"] if p["id"] == pos_id), None)
-    if not position:
-        return jsonify({"success": False, "error": "Позиция не найдена"}), 404
-    try:
-        prices, _, _ = refresh()
-    except Exception:
-        prices = {}
-    price = prices.get(position["symbol"])
-    if price is None:
-        return jsonify({"success": False, "error": "Нет актуальной цены — закрытие отменено"}), 409
-    bot_close_position(position, price, "Manual")
-    return jsonify({"success": True})
-
-
-@app.route("/api/bot/settings", methods=["POST"])
-@require_admin
-def bot_settings_api():
-    data = request.get_json(silent=True) or {}
-    with bot_state_lock:
-        for key in ("profitTarget", "maxLoss", "tradeSize", "dailyMaxLoss",
-                    "riskPerTradePct", "maxPositionPct"):
-            if key in data:
-                try:
-                    bot_state["settings"][key] = float(data[key])
-                except Exception:
-                    pass
-        if "dailyMaxTrades" in data:
-            try:
-                bot_state["settings"]["dailyMaxTrades"] = max(1, int(data["dailyMaxTrades"]))
-            except Exception:
-                pass
-        if "maxOpenPositions" in data:
-            try:
-                bot_state["settings"]["maxOpenPositions"] = max(1, int(data["maxOpenPositions"]))
-            except Exception:
-                pass
-        if "maxTotalExposurePct" in data:
-            try:
-                bot_state["settings"]["maxTotalExposurePct"] = float(data["maxTotalExposurePct"])
-            except Exception:
-                pass
-        if "htfInterval" in data:
-            val = str(data["htfInterval"])
-            if val in HTF_INTERVAL_MAP:
-                bot_state["settings"]["htfInterval"] = val
-        for flag in ("enableProfitTarget", "enableMaxLoss", "enableDailyMaxLoss",
-                     "fixedTradeSize", "enableDailyMaxTrades", "enableMaxPositions",
-                     "enableHTFFilter", "enablePatterns"):
-            if flag in data:
-                bot_state["settings"][flag] = bool(data[flag])
-    bot_log("Настройки сохранены.", "blue")
-    return jsonify({"success": True, "settings": bot_state["settings"]})
-
-
-@app.route("/api/bot/strategy", methods=["POST"])
-@require_admin
-def bot_strategy_api():
-    data = request.get_json(silent=True) or {}
-    with bot_state_lock:
-        for key in ("emaFast", "emaSlow", "rsiPeriod", "rsiBuyMin", "rsiBuyMax",
-                    "rsiSellMin", "rsiSellMax"):
-            if key in data:
-                try:
-                    bot_state["strategy"][key] = int(data[key])
-                except Exception:
-                    pass
-    bot_log("Стратегия обновлена.", "blue")
-    return jsonify({"success": True, "strategy": bot_state["strategy"]})
-
-
-@app.route("/api/bot/reset", methods=["POST"])
-@require_admin
-def bot_reset_api():
-    with bot_state_lock:
-        bot_state.update({
-            "running": False, "paused": False, "emergency": False, "reason": "Сброшено",
-            "balance": float(bot_state["settings"].get("startBalance", 1000.0)),
-            "positions": [], "closedTrades": [], "logs": [], "equityCurve": [],
-            "startedAt": None, "stoppedAt": None, "lastAction": "Сброшено",
-            "scanResults": [], "scanStatus": "Сброшено", "dailyTradesCount": 0,
-            "dailyTradesReset": datetime.now().strftime("%Y-%m-%d"),
-            "cooldown": {}, "realizedPnl": 0.0, "filteredByHTF": 0, "filteredByPatterns": 0,
-        })
-    bot_log("Бот сброшен.", "gold")
-    return jsonify({"success": True})
-
-
-@app.route("/api/bot/export.csv")
-@require_admin
-def bot_export_csv():
-    with bot_state_lock:
-        trades = list(bot_state["closedTrades"])
-    out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow(["Time", "Symbol", "Side", "SizeUSD", "EntryPrice", "ExitPrice",
-                     "PnL", "PnL%", "EntryFee", "ExitFee", "Reason"])
-    for trade in trades:
-        writer.writerow([
-            trade.get("closedAt", ""), trade.get("symbol", ""), trade.get("side", ""),
-            f"{trade.get('sizeUsd', 0):.2f}", f"{trade.get('entryPrice', 0):.8f}",
-            f"{trade.get('exitPrice', 0):.8f}", f"{trade.get('pnl', 0):.4f}",
-            f"{trade.get('pnlPct', 0):.4f}", f"{trade.get('entryFee', 0):.6f}",
-            f"{trade.get('exitFee', 0):.6f}", trade.get("reason", ""),
-        ])
-    return Response(out.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment;filename=cryptopulse_trades.csv"})
-
-
 def tg(method, payload):
     if not TG_TOKEN:
         raise RuntimeError("no token")
@@ -1724,13 +1738,11 @@ def tg(method, payload):
     r.raise_for_status()
     return r.json()
 
-
 def tg_send(chat, text, markup=None):
     payload = {"chat_id": chat, "text": text}
     if markup:
         payload["reply_markup"] = markup
     return tg("sendMessage", payload)
-
 
 def tg_notify(text):
     if not TG_TOKEN or not TG_OWNER_CHAT_ID:
@@ -1740,14 +1752,12 @@ def tg_notify(text):
     except Exception:
         pass
 
-
 def keyboard():
     return {"inline_keyboard": [
         [{"text": "🌐 CryptoPulse", "web_app": {"url": WEBAPP_URL}},
          {"text": "📊 Цены", "callback_data": "prices"}],
         [{"text": "💱 USD/RUB", "callback_data": "usdrub"}],
     ]}
-
 
 def telegram_prices():
     payload = market_payload()
@@ -1756,7 +1766,6 @@ def telegram_prices():
         change = "—" if coin["change24h"] is None else f'{coin["change24h"]:+.2f}%'
         lines.append(f'{coin["symbol"]}: ${coin["priceUsd"]:,.8f} | 24ч {change}')
     return "\n".join(lines)
-
 
 @app.route("/telegram-webhook", methods=["POST"])
 @app.route("/telegram/webhook", methods=["POST"])
@@ -1798,7 +1807,6 @@ def telegram_webhook():
             tg_send(chat, "Недоступно.", keyboard())
     return jsonify({"ok": True})
 
-
 def configure_telegram():
     if not TG_TOKEN:
         return
@@ -1813,7 +1821,6 @@ def configure_telegram():
     except Exception:
         log.exception("tg setup fail")
 
-
 def _graceful_shutdown(signum, frame):
     log.info("shutdown signal %s", signum)
     try:
@@ -1824,15 +1831,15 @@ def _graceful_shutdown(signum, frame):
     except Exception:
         pass
 
-
 init_db()
 bot_load()
 
 if not bot_state["equityCurve"]:
     with bot_state_lock:
         free = float(bot_state["balance"])
+        futures_free = float(bot_state["settings"].get("futuresBalance", 0))
         pos = sum(p["sizeUsd"] for p in bot_state["positions"])
-        bot_state["equityCurve"].append({"ts": time.time(), "balance": free + pos})
+        bot_state["equityCurve"].append({"ts": time.time(), "balance": free + futures_free + pos})
 
 if TG_AUTO:
     configure_telegram()
@@ -1844,7 +1851,6 @@ if BG_WORKER and acquire_worker_lock():
 
 signal.signal(signal.SIGTERM, _graceful_shutdown)
 signal.signal(signal.SIGINT, _graceful_shutdown)
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "10000")))

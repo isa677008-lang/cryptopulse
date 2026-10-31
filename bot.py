@@ -67,7 +67,6 @@ FUTURES_START_BALANCE = 200.0
 TP_PERCENT = 2.5
 SL_PERCENT = 1.5
 FUTURES_LEVERAGE = 3.0
-FUTURES_LIQ_PERCENT = 15.0
 BE_TRIGGER_PERCENT = 0.8
 TRAILING_TRIGGER_PERCENT = 1.5
 TRAILING_DISTANCE_PERCENT = 0.6
@@ -168,6 +167,7 @@ if Groq and GROQ_API_KEY and ENABLE_AI:
         groq_client = Groq(api_key=GROQ_API_KEY)
     except Exception as e:
         log.error("Groq init failed: %s", e)
+
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
@@ -401,7 +401,6 @@ def adx(highs, lows, closes, period=14):
     if not dx_list:
         return None
     return sum(dx_list[-period:]) / period
-
 def get_signal_universe(top_n=SIGNAL_UNIVERSE_SIZE):
     with lock:
         turnover = dict(cache.get("turnover", {}))
@@ -418,6 +417,7 @@ def get_signal_universe(top_n=SIGNAL_UNIVERSE_SIZE):
             if len(result) >= top_n:
                 break
     return result[:max(top_n, len(anchors))]
+
 def fetch_klines(symbol, interval, limit=200):
     try:
         response = requests.get(
@@ -618,7 +618,9 @@ def analyze(symbol, price, strategy=None):
         if price > ema_fast > ema_slow and st["rsiBuyMin"] <= rsi_value < st["rsiBuyMax"]:
             if has_volume:
                 signal = "buy_candidate"
-                explanation = f"Бычий сигнал (ADX {adx_value:.1f}) + Объем."
+                # Исправлено: проверка на None
+                adx_str = f"{adx_value:.1f}" if adx_value is not None else "—"
+                explanation = f"Бычий сигнал (ADX {adx_str}) + Объем."
             else:
                 explanation = "Мало объема."
         elif price < ema_fast < ema_slow and st["rsiSellMin"] < rsi_value <= st["rsiSellMax"]:
@@ -627,7 +629,9 @@ def analyze(symbol, price, strategy=None):
                 explanation = "Шорт отключён (spot-only)."
             elif has_volume:
                 signal = "sell_candidate"
-                explanation = f"Медвежий сигнал (ADX {adx_value:.1f}) + Объем."
+                # Исправлено: проверка на None
+                adx_str = f"{adx_value:.1f}" if adx_value is not None else "—"
+                explanation = f"Медвежий сигнал (ADX {adx_str}) + Объем."
             else:
                 explanation = "Мало объема."
         else:
@@ -637,6 +641,7 @@ def analyze(symbol, price, strategy=None):
     return {"symbol": symbol, "price": price, "ema9": ema_fast, "ema21": ema_slow,
             "rsi14": rsi_value, "signal": signal, "explanation": explanation,
             "sampleCount": len(values)}
+
 def usd_rub():
     if usd_rub_cache["rate"] and time.time() - usd_rub_cache["updated"] < 900:
         return usd_rub_cache["rate"]
@@ -1194,6 +1199,7 @@ def worker():
         except Exception:
             log.exception("bg fail")
         time.sleep(REFRESH_SECONDS)
+
 def compute_stats():
     with bot_state_lock:
         trades = list(bot_state["closedTrades"])
@@ -1201,7 +1207,6 @@ def compute_stats():
         balance_free = float(bot_state["balance"])
         futures_free = float(bot_state["settings"].get("futuresBalance", 0))
         start = float(bot_state["settings"]["startBalance"])
-        futures_start = float(bot_state["settings"].get("futuresStartBalance", FUTURES_START_BALANCE))
         equity = list(bot_state["equityCurve"])
     try:
         prices, _, _ = refresh()
@@ -1632,7 +1637,8 @@ def bot_export_csv():
         trades = list(bot_state["closedTrades"])
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["Time", "Mode", "Symbol", "Side", "SizeUSD", "EntryPrice", "ExitPrice",
+    writer.writerow(["Time", "Mode", "Symbol",
+                     "Side", "SizeUSD", "EntryPrice", "ExitPrice",
                      "PnL", "PnL%", "EntryFee", "ExitFee", "Reason"])
     for trade in trades:
         writer.writerow([
@@ -1731,6 +1737,7 @@ def bot_patterns_api():
         "ageSeconds": time.time() - updated if updated else None,
         "patterns": out,
     })
+
 def tg(method, payload):
     if not TG_TOKEN:
         raise RuntimeError("no token")
